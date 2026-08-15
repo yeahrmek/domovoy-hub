@@ -62,6 +62,33 @@ $1.24 / $1.17 per million messages, and require paid renewal when the contract e
 26,000 calls/month is ~36/hour — a poll every 5 seconds is 720/hour and blows the allowance in about
 a day and a half. **The trial quota, not the API, is the design constraint here.**
 
+**What the console actually shows (2026-08-15), and it does not match the above.** Cloud → Cloud
+Services → IoT Core → My Subscriptions lists two packs, both effective 2026-08-15 and both expiring
+**2026-09-15**:
+
+| Resource pack | Usage / quota | Quota refresh | Expires | Status |
+| --- | --- | --- | --- | --- |
+| Cloud Develop Base Resource Trial | **0 / 0.2 USD** | Monthly | 2026-09-15 | In service |
+| IoT Core | — | — | 2026-09-15, with an **Extend Trial Period** button | In service |
+
+So the allowance is **denominated in money, not in calls** — $0.20 a month of "basic resources",
+which the page's own banner says is what API calls consume. The 26,000-calls figure is from the
+pricing doc and is not what the console meters. Nothing here converts one into the other, and
+guessing from the Flagship overage rate ($3.15/million, which would make $0.20 ≈ 63,000 calls) is
+arithmetic on an unrelated tier's price list, not a fact.
+
+Two things this settles and one it does not:
+
+- **The trial does not simply reset forever.** The quota refreshes monthly, but the pack itself
+  expires 2026-09-15 — one month after signup. There is an **Extend Trial Period** button, so it is
+  extendable; by how much, how often, and whether it needs justification is unknown.
+- **Usage read `0 / 0.2 USD` after roughly 20 API calls had already been made that day.** Either the
+  meter lags, or these reads are not billed against this pack. Until that is resolved, no poll
+  interval derived from the quota is trustworthy in either direction.
+- The cheapest way to settle it is to look again after a day of real polling: a known number of
+  calls against a moving counter gives the actual price per call, which is the number the poll
+  interval should come from.
+
 **Push: yes — Tuya Message Service, over Pulsar.** Device registration, data reports and offline
 events are pushed to a subscriber. It is a modified Apache Pulsar with a custom auth algorithm and
 dynamic tokens; you consume it with Tuya's SDKs (Java, Go, Node.js, C#), configured with
@@ -98,8 +125,13 @@ languages. The friction is commercial, not technical: quotas, editions and renew
 
 ## Open questions before writing code
 
-- Does the trial expire outright, or just reset monthly? Still open — this decides whether Tuya is
-  viable at all. Check under Cloud → Cloud Services → IoT Core.
+- ~~Does the trial expire outright, or just reset monthly?~~ Both: the quota refreshes monthly, the
+  pack expires **2026-09-15**. See the console table above.
+- **What happens on 2026-09-15, and what "Extend Trial Period" grants.** This is now the question
+  that decides whether Tuya is viable past a month. Press it before the expiry, not after.
+- **What $0.20/month of basic resources actually buys.** The console meters money; the pricing doc
+  quotes calls; the meter read 0 after ~20 calls. Measure against a moving counter before choosing
+  a poll interval — every number below is provisional until then.
 - **Trial allows max 10 controllable devices; the account has 20.** Which 10 count, and what the
   eleventh does when commanded, is unknown. The panel only needs the 5 recuperators, so this may
   never bite — but nothing has been commanded yet.
@@ -241,11 +273,12 @@ temperature, humidity, three fan speeds and three modes for a device the API cal
 The batch properties route exists — a business error, not `1108` — but the project is not authorised
 for it. Until that is sorted, **real state costs one call per device: 5 calls per refresh, not 1.**
 
-Against the 26,000/month trial that is ~5,200 refreshes: a poll every **~8 minutes** around the
-clock, or ~5 minutes if the panel only polls 16 h a day. Token refreshes add ~360/month. A tap costs
-a command plus a re-read. For a ventilation setpoint that nobody watches change, 5 minutes is
-survivable — but it is the constraint that decides the tile, so it belongs in the design, not in a
-comment.
+Against the *documented* 26,000/month that is ~5,200 refreshes: a poll every **~8 minutes** around
+the clock, or ~5 minutes at 16 h a day. Token refreshes add ~360/month; a tap costs a command plus a
+re-read. Treat those minutes as provisional — the console meters $0.20/month rather than a call
+count, and the two have not been reconciled (see "What the console actually shows"). The shape of
+the answer holds either way: minutes, not seconds, and the ratio between 1 call and 5 per refresh is
+what the batch permission is worth.
 
 ### Errors seen
 
