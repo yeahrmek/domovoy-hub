@@ -283,6 +283,11 @@ due: the next change to this integration should be the shared poll, not a fourth
 > fixture and a loopback socket; nothing here proves the curtain moves, that `open` means "percent
 > open" rather than "percent closed", or how long it takes to report the new position back. The
 > `on_off` path was verified on the tablet on 2026-08-15 — this one has not been.
+>
+> **Update, same day:** a `range` action *has* now been accepted by Yandex for real — `temperature`
+> on the air conditioner, see "Run on the tablet … the AC tile". So the request shape is no longer
+> in doubt. The three curtain-specific questions above still are: nothing has been sent to the
+> curtain itself.
 
 ### The air conditioners, as recorded
 
@@ -321,14 +326,50 @@ reason `null` had to be modelled rather than defaulted:
 - **`°C` is printed only when the device named the unit.** All three do; a range that names none
   gets the bare number, which is the shape the TV's volume range already has in this same response.
 
-> ⚠️ **Not sent to a real air conditioner.** `range/temperature` and `on_off` actions for these
-> devices are tested against the fixture and a loopback socket only. Whether the unit accepts a
-> target while it is off, and how long it takes to report the new target back, is unknown.
-
 **Left out on purpose:** the modes and toggles are parsed and modelled but are neither shown on the
 tile nor drivable — there is no `setMode`/`setToggle` on the client. Adding them means answering
 what a `mode` action body looks like for this device and what the tile should show for a mode that
 has never reported.
+
+### Run on the tablet, 2026-08-15 19:55–19:58 — the AC tile
+
+Installed on the wall tablet (SM-T875) and driven from the panel's own UI, on the flat's Wi-Fi.
+Live `/v1.0/user/info` matched the fixture value for value, which is the first confirmation that
+the redaction is faithful.
+
+**Observed, as rendered:**
+
+| tile | status line |
+| --- | --- |
+| Residential air conditioner | `off · 18 d ago · 18 °C · 100 d ago` |
+| Кондиционер в спальне | `off · 7 d ago · 20 °C · 27 d ago` |
+| Кондиционер в зале | `off · 15 h ago · 16 °C · 15 h ago` |
+
+The 81-day gap between the two readings on the first unit is real and now visible on the wall: 18 d
+against 100 d. Each slider sat at the reported target, not at the bottom of its range.
+
+Then, on **Кондиционер в зале** only, through the tile: setpoint 16 → 24, on, off, setpoint back to
+16. It ended exactly as it started.
+
+So, as recorded fact:
+
+- **`POST /v1.0/devices/actions` works end to end for `devices.capabilities.range`.** This closes
+  the ⚠️ that stood over the curtain change: the body shape written from the docs is accepted by
+  Yandex for `instance: temperature`, with `"value": 24` as a whole number. The tile repainted to
+  `off · just now · 24 °C · just now`.
+- **A range action is accepted while the unit is off.** That was an open question above; it is
+  answered for this Hisense. The setpoint changed with nothing starting up.
+- **`on_off` works for the AC too**, and the tile repainted to `on · just now`.
+- **An action on one capability refreshes `last_updated` on the device's *other* capabilities.**
+  The setpoint change alone moved the on/off's age from `15 h ago` to `just now`, though no
+  `on_off` action had been sent. Mechanism unknown — Yandex may re-read the whole device — but it
+  means the 81-day gap on a tile collapses after any write to that device.
+
+**Not observed, and therefore not claimed.** The action response body was still not captured — the
+client parses `status` and `request_id` but logs neither, so `DONE`-on-accept versus
+`DONE`-on-applied is *still* open. Nobody was in the room, so whether the compressor physically
+started when the tile said `on` is unconfirmed; only the cloud's own report was seen. Nothing here
+measures 429 behaviour, the three-poll cost, or hours of running.
 
 ## Run on the tablet
 
@@ -363,7 +404,9 @@ tap.
   proved the action arrives at the bulb, but the response body was not captured and the ordering was
   not timed — one tap that eventually works cannot distinguish `DONE`-on-accept from
   `DONE`-on-applied. Answering it needs the action response logged next to the moment the bulb
-  visibly changes. Until then the tile keeps repainting from a fresh `/v1.0/user/info`.
+  visibly changes. Until then the tile keeps repainting from a fresh `/v1.0/user/info`. The AC run
+  did not settle it either: nobody was in the room to see the unit start, and the response body is
+  still not logged.
 - Actual 429 behaviour under a 5 s poll — and now under **three** calls per interval rather than
   one, see "The shared model, and why it grew". This is the reason the shared poll is owed.
 - Why every `mode` and `toggle` on `ac-01` reports `null` while `ac-03` reports all of them. Is it
@@ -376,9 +419,11 @@ tap.
 - Does `/v1.0/devices/{id}` really carry `state` (`online`/`offline`) when the list call does not?
   If it does, an unreachable device costs one extra call per tile to detect.
 - What is `state_changed_at` when `last_updated` is `0.0`, and which of the two should a tile show?
+  Partly narrowed by the AC run: a write to *any* capability appears to refresh `last_updated` on
+  all of that device's capabilities, so the two diverge only while a device is left alone.
 
-The last three are exactly as open as they were before the tablet run — one tap on one bulb touched
-none of them.
+The curtain question and the `/v1.0/devices/{id}` one are exactly as open as they were — neither
+the bulb tap nor the AC run touched them.
 
 ## Sources
 
