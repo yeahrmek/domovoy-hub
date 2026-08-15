@@ -7,7 +7,10 @@ it speak or play.
 Read from the public docs on 2026-08-15, and **`/v1.0/user/info` called for real on 2026-08-15**
 from a laptop on the flat's Wi-Fi — 41 devices came back. What that call actually returned is under
 "Recorded responses"; the redacted body is the fixture at
-`app/src/test/resources/yandex/user_info.json`. The action endpoints have still not been called.
+`app/src/test/resources/yandex/user_info.json`. **`POST /v1.0/devices/actions` has now been called
+for real too**, from the panel on the tablet on 2026-08-15 — see "Run on the tablet". No response
+body was captured from that call, so there is no fixture for it and the open questions about what
+the response *means* are still open.
 
 ## Verified in the docs
 
@@ -146,7 +149,8 @@ availability is not a question the way it is for Aqara/Tuya regions.
 
 ## What the bulb tile actually does with this
 
-Built against the fixture, not against the live API — no action call has been made yet.
+Built against the fixture; first run against the live API on the tablet on 2026-08-15, see
+"Run on the tablet" below.
 
 - **`devices.types.light` only.** Exact match, so `devices.types.light.strip` (the GLEDOPTO strip
   in the зал) is *not* a bulb tile. 18 of the flat's 29 devices qualify.
@@ -165,22 +169,53 @@ Built against the fixture, not against the live API — no action call has been 
   bulb group rather than to one tile. Every call carries a 10 s call timeout.
 - **A toggle is not trusted.** `POST /v1.0/devices/actions` succeeding only means Yandex accepted
   it, so the tile is repainted from a fresh `/v1.0/user/info`, never from the action result — see
-  the first open question below, still unanswered.
+  the first open question below, still unanswered. The tablet run shows the round trip works; it
+  does not show that the response could have been trusted.
 - **The OAuth token** is read from `local.properties` as `yandex.oauth.token` into `BuildConfig`.
   That is a stopgap: it puts the token in the APK. `EncryptedSharedPreferences`, which AGENTS.md
   asks for, is not wired up yet.
+
+## Run on the tablet
+
+2026-08-15, panel installed on the wall tablet, on the flat's Wi-Fi. First time any of this ran
+outside tests.
+
+**Observed:** the panel came up as a list of devices, each with an on/off switch. One bulb was
+toggled from its switch and the physical bulb followed.
+
+So, as recorded fact:
+
+- **`POST /v1.0/devices/actions` works end to end for `devices.capabilities.on_off`.** The action
+  body above is accepted as written, the OAuth token from `local.properties` carries `iot:control`
+  as well as `iot:view`, and the action reaches a real bulb through Yandex's cloud. Until now the
+  whole write path existed only against the fixture.
+- **`GET /v1.0/user/info` works from the tablet**, not just from a laptop — same Wi-Fi, same token,
+  and enough of the response parsed for tiles to render.
+
+**Not observed, and therefore not claimed here.** This was a "does it turn the light on" check, not
+a measurement. Nothing below was reported, so nothing below is written down as true: the response
+body of the action call, how long the repaint took or whether the tile briefly showed the old state,
+whether staleness/"never read" rendered correctly, what happens on a failed poll, whether the other
+three households were correctly filtered out, and how the panel behaves over hours rather than one
+tap.
 
 ## Open questions before writing code
 
 - ~~What does `/v1.0/user/info` actually return for this account?~~ Answered: see "Coverage,
   measured". Fixture at `app/src/test/resources/yandex/user_info.json`.
 - Does a `devices.capabilities.*` action come back `DONE` before the device has physically changed
-  state? If yes, the tile must not report success on `DONE` alone. Still unknown — no action call
-  has been made.
+  state? If yes, the tile must not report success on `DONE` alone. **Still unknown.** The tablet run
+  proved the action arrives at the bulb, but the response body was not captured and the ordering was
+  not timed — one tap that eventually works cannot distinguish `DONE`-on-accept from
+  `DONE`-on-applied. Answering it needs the action response logged next to the moment the bulb
+  visibly changes. Until then the tile keeps repainting from a fresh `/v1.0/user/info`.
 - Actual 429 behaviour under a 5 s poll.
 - Does `/v1.0/devices/{id}` really carry `state` (`online`/`offline`) when the list call does not?
   If it does, an unreachable device costs one extra call per tile to detect.
 - What is `state_changed_at` when `last_updated` is `0.0`, and which of the two should a tile show?
+
+The last three are exactly as open as they were before the tablet run — one tap on one bulb touched
+none of them.
 
 ## Sources
 
