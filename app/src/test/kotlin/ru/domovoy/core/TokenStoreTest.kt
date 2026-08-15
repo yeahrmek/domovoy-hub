@@ -58,6 +58,60 @@ class TokenStoreTest {
     }
 
     @Test
+    fun `the Tuya credentials written to the store read back, all three of them`() {
+        val prefs = FakeSharedPreferences()
+
+        TokenStore(prefs).seedTuyaCredentials(
+            clientId = "client-from-local-properties",
+            clientSecret = "secret-from-local-properties",
+            uid = "uid-from-local-properties",
+        )
+
+        // Written, not just remembered: the next launch builds a new store over the same file.
+        val store = TokenStore(prefs)
+        assertEquals("client-from-local-properties", store.tuyaClientId())
+        assertEquals("secret-from-local-properties", store.tuyaClientSecret())
+        assertEquals("uid-from-local-properties", store.tuyaUid())
+    }
+
+    @Test
+    fun `an empty store answers with blank Tuya credentials rather than throwing`() {
+        val store = TokenStore(FakeSharedPreferences())
+
+        assertEquals("", store.tuyaClientId())
+        assertEquals("", store.tuyaClientSecret())
+        assertEquals("", store.tuyaUid())
+    }
+
+    @Test
+    fun `a Tuya secret already stored survives a launch whose build carries an older one`() {
+        // Same rule as the Yandex token, and it matters more here: a rotated client secret written
+        // into the store would otherwise be undone by the stale one still baked into the APK, and
+        // every call after that reboot would come back 1004 sign invalid.
+        val prefs = FakeSharedPreferences()
+        TokenStore(prefs).seedTuyaCredentials("client-rotated", "secret-rotated", "uid-1")
+
+        TokenStore(prefs).seedTuyaCredentials("client-stale", "secret-stale", "uid-1")
+
+        assertEquals("client-rotated", TokenStore(prefs).tuyaClientId())
+        assertEquals("secret-rotated", TokenStore(prefs).tuyaClientSecret())
+    }
+
+    @Test
+    fun `a build carrying only some of the Tuya credentials seeds those and leaves the rest`() {
+        // Each key is seeded on its own, so a local.properties missing one value does not stop the
+        // other two from reaching the store.
+        val prefs = FakeSharedPreferences()
+
+        TokenStore(prefs).seedTuyaCredentials(clientId = "client-1", clientSecret = "", uid = "uid-1")
+
+        val store = TokenStore(prefs)
+        assertEquals("client-1", store.tuyaClientId())
+        assertEquals("", store.tuyaClientSecret())
+        assertEquals("uid-1", store.tuyaUid())
+    }
+
+    @Test
     fun `a token that is only whitespace counts as no token at all`() {
         // local.properties keeps whatever trails the value, and a token pasted with a stray
         // newline would otherwise be sent as a Bearer header and rejected as Forbidden.

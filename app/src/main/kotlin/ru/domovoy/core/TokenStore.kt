@@ -3,6 +3,9 @@ package ru.domovoy.core
 import android.content.SharedPreferences
 
 private const val YANDEX_OAUTH_TOKEN = "yandex.oauth.token"
+private const val TUYA_CLIENT_ID = "tuya.client.id"
+private const val TUYA_CLIENT_SECRET = "tuya.client.secret"
+private const val TUYA_UID = "tuya.uid"
 
 /**
  * Where the panel keeps vendor credentials at runtime. On the tablet the [prefs] handed in are
@@ -28,5 +31,45 @@ class TokenStore(private val prefs: SharedPreferences) {
         if (seed.isEmpty() || yandexToken().isNotEmpty()) return false
         prefs.edit().putString(YANDEX_OAUTH_TOKEN, seed).apply()
         return true
+    }
+
+    /**
+     * The Tuya cloud project's credentials, and the uid of the Smart Life account linked to it.
+     * `""` for anything not stored; the client refuses to send a request rather than signing one
+     * with a blank secret, which would come back `1004 sign invalid` and blame the signature.
+     *
+     * Three strings rather than the client's own credentials type: `core` does not depend on
+     * `integrations`, and this is the shape a `SharedPreferences` holds anyway.
+     */
+    fun tuyaClientId(): String = read(TUYA_CLIENT_ID)
+
+    fun tuyaClientSecret(): String = read(TUYA_CLIENT_SECRET)
+
+    fun tuyaUid(): String = read(TUYA_UID)
+
+    /**
+     * First-run seeding from `local.properties`, on the same terms as [seedYandexToken]: each value
+     * is written only when the store holds none, so a credential rotated into the store is not
+     * undone by the stale one still baked into the APK.
+     */
+    fun seedTuyaCredentials(
+        clientId: String,
+        clientSecret: String,
+        uid: String,
+    ) {
+        seed(TUYA_CLIENT_ID, clientId)
+        seed(TUYA_CLIENT_SECRET, clientSecret)
+        seed(TUYA_UID, uid)
+    }
+
+    private fun read(key: String): String = prefs.getString(key, null).orEmpty().trim()
+
+    private fun seed(
+        key: String,
+        value: String,
+    ) {
+        val seed = value.trim()
+        if (seed.isEmpty() || read(key).isNotEmpty()) return
+        prefs.edit().putString(key, seed).apply()
     }
 }

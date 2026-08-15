@@ -1,0 +1,709 @@
+{
+  "result": [
+    {
+      "active_time": 1753615070,
+      "biz_type": 18,
+      "category": "xfj",
+      "create_time": 1753615070,
+      "icon": "smart/icon/test.png",
+      "id": "xfj-01",
+      "ip": "203.0.113.1",
+      "lat": "0.0000",
+      "local_key": "0000000000000000",
+      "lon": "0.0000",
+      "model": "",
+      "name": "Бризер данина комната",
+      "online": true,
+      "owner_id": "00000000",
+      "product_id": "product-xfj",
+      "product_name": "Heat Recovery Ventilator",
+      "sub": false,
+      "time_zone": "+03:00",
+      "uid": "eu-test-uid",
+      "update_time": 1786785564,
+      "uuid": "uuid-xfj-01",
+      "status": [
+        {
+          "code": "switch",
+          "value": false
+        }
+      ]
+    },
+    {
+      "active_time": 1753611483,
+      "biz_type": 18,
+      "category": "mjj",
+      "create_time": 1753611483,
+      "icon": "smart/icon/test.png",
+      "id": "mjj-01",
+      "ip": "203.0.113.1",
+      "lat": "0.0000",
+      "local_key": "0000000000000000",
+      "lon": "0.0000",
+      "model": "SYZN168",
+      "name": "полотенцесушитель",
+      "online": true,
+      "owner_id": "00000000",
+      "product_id": "product-mjj",
+      "product_name": "智能毛巾架",
+      "sub": false,
+      "time_zone": "+03:00",
+      "uid": "eu-test-uid",
+      "update_time": 1786785350,
+      "uuid": "uuid-mjj-01",
+      "status": [
+        {
+          "code": "switch",
+          "value": false
+        },
+        {
+          "code": "temp_set",
+          "value": 60
+        },
+        {
+          "code": "temp_current",
+          "value": 64
+        },
+        {
+          "code": "countdown_set",
+          "value": "cancel"
+        },
+        {
+          "code": "countdown_left",
+          "value": 0
+        },
+        {
+          "code": "work_state",
+          "value": "heating"
+        }
+      ]
+    },
+    {
+      "active_time": 1753615580,
+      "biz_type": 18,
+      "category": "xfj",
+      "create_time": 1753615580,
+      "icon": "smart/icon/test.png",
+      "id": "xfj-02",
+      "ip": "203.0.113.1",
+      "lat": "0.0000",
+      "local_key": "0000000000000000",
+      "lon": "0.0000",
+      "model": "",
+      "name": "Бризер спальня",
+      "online": true,
+      "owner_id": "00000000",
+      "product_id": "product-xfj",
+      "product_name": "Heat Recovery Ventilator",
+      "sub": false,
+      "time_zone": "+03:00",
+      "uid": "eu-test-uid",
+      "update_time": 1786785342,
+      "uuid": "uuid-xfj-02",
+      "status": [
+        {
+          "code": "switch",
+          "value": false
+        }
+      ]
+    },
+    {
+      "active_time": 1753615406,
+      "biz_type": 18,
+      "category": "xfj",
+      "create_time": 1753615406,
+      "icon": "smart/icon/test.png",
+      "id": "xfj-03",
+      "ip": "203.0.113.1",
+      "lat": "0.0000",
+      "local_key": "0000000000000000",
+      "lon": "0.0000",
+      "model": "",
+      "name": "Бризер детская",
+      "online": true,
+      "owner_id": "00000000",
+      "product_id": "product-xfj",
+      "product_name": "Heat Recovery Ventilator",
+      "sub": false,
+      "time_zone": "+03:00",
+      "uid": "eu-test-uid",
+      "update_time": 1786785313,
+      "uuid": "uuid-xfj-03",
+      "status": [
+        {
+          "code": "switch",
+          "value": false
+        }
+      ]
+    },
+    {
+      "active_time": 1756876745,
+      "biz_type": 18,
+      "category": "dj",
+      "create_time": 1756876745,
+      "icon": "smart/icon/test.png",
+      "id": "dj-01",
+      "ip": "203.0.113.1",
+      "lat": "0.0000",
+      "local_key": "0000000000000000",
+      "lon": "0.0000",
+      "model": "",
+      "name": "lamp",
+      "online": false,
+      "owner_id": "00000000",
+      "product_id": "product-dj",
+      "product_name": "lamp",
+      "sub": true,
+      "time_zone": "+03:00",
+      "uid": "eu-test-uid",
+      "update_time": 1786785218,
+      "uuid": "uuid-dj-01",
+      "status": [
+        {
+          "code": "switch_led",
+          "value": true
+        },
+        {
+          "code": "bright_value_v2",
+          "value": 900
+        },
+        {
+          "code": "temp_value_v2",
+          "value": 0
+        }
+      ]
+    },
+    {
+      "active_time": 1756876748,
+      "biz_type": 18,
+      "category": "dj",
+      "create_time": 1756876748,
+      "icon": "smart/icon/test.png",
+      "id": "dj-02",
+      "ip": "203.0.113.1",
+      "lat": "0.0000",
+      "local_key": "0000000000000000",
+      "lon": "0.0000",
+      "model": "",
+      "name": "lamp 3",
+      "online": false,
+      "owner_id": "00000000",
+      "product_id": "product-dj",
+      "product_name": "lamp",
+      "sub": true,
+      "time_zone": "+03:00",
+      "uid": "eu-test-uid",
+      "update_time": 1786785215,
+      "uuid": "uuid-dj-02",
+      "status": [
+        {
+          "code": "switch_led",
+          "value": true
+        },
+        {
+          "code": "bright_value_v2",
+          "value": 900
+        },
+        {
+          "code": "temp_value_v2",
+          "value": 0
+        }
+      ]
+    },
+    {
+      "active_time": 1756876749,
+      "biz_type": 18,
+      "category": "dj",
+      "create_time": 1756876747,
+      "icon": "smart/icon/test.png",
+      "id": "dj-03",
+      "ip": "203.0.113.1",
+      "lat": "0.0000",
+      "local_key": "0000000000000000",
+      "lon": "0.0000",
+      "model": "",
+      "name": "lamp 2",
+      "online": false,
+      "owner_id": "00000000",
+      "product_id": "product-dj",
+      "product_name": "lamp",
+      "sub": true,
+      "time_zone": "+03:00",
+      "uid": "eu-test-uid",
+      "update_time": 1786785211,
+      "uuid": "uuid-dj-03",
+      "status": [
+        {
+          "code": "switch_led",
+          "value": true
+        },
+        {
+          "code": "bright_value_v2",
+          "value": 1000
+        },
+        {
+          "code": "temp_value_v2",
+          "value": 0
+        }
+      ]
+    },
+    {
+      "active_time": 1756876762,
+      "biz_type": 18,
+      "category": "dj",
+      "create_time": 1756876762,
+      "icon": "smart/icon/test.png",
+      "id": "dj-04",
+      "ip": "203.0.113.1",
+      "lat": "0.0000",
+      "local_key": "0000000000000000",
+      "lon": "0.0000",
+      "model": "",
+      "name": "lamp 4",
+      "online": false,
+      "owner_id": "00000000",
+      "product_id": "product-dj",
+      "product_name": "lamp",
+      "sub": true,
+      "time_zone": "+03:00",
+      "uid": "eu-test-uid",
+      "update_time": 1786785209,
+      "uuid": "uuid-dj-04",
+      "status": [
+        {
+          "code": "switch_led",
+          "value": true
+        },
+        {
+          "code": "bright_value_v2",
+          "value": 50
+        },
+        {
+          "code": "temp_value_v2",
+          "value": 472
+        }
+      ]
+    },
+    {
+      "active_time": 1756876863,
+      "biz_type": 18,
+      "category": "dj",
+      "create_time": 1756876863,
+      "icon": "smart/icon/test.png",
+      "id": "dj-05",
+      "ip": "203.0.113.1",
+      "lat": "0.0000",
+      "local_key": "0000000000000000",
+      "lon": "0.0000",
+      "model": "",
+      "name": "lamp 5",
+      "online": false,
+      "owner_id": "00000000",
+      "product_id": "product-dj",
+      "product_name": "lamp",
+      "sub": true,
+      "time_zone": "+03:00",
+      "uid": "eu-test-uid",
+      "update_time": 1786785206,
+      "uuid": "uuid-dj-05",
+      "status": [
+        {
+          "code": "switch_led",
+          "value": true
+        },
+        {
+          "code": "bright_value_v2",
+          "value": 1000
+        },
+        {
+          "code": "temp_value_v2",
+          "value": 0
+        }
+      ]
+    },
+    {
+      "active_time": 1756876864,
+      "biz_type": 18,
+      "category": "dj",
+      "create_time": 1756876864,
+      "icon": "smart/icon/test.png",
+      "id": "dj-06",
+      "ip": "203.0.113.1",
+      "lat": "0.0000",
+      "local_key": "0000000000000000",
+      "lon": "0.0000",
+      "model": "",
+      "name": "lamp 6",
+      "online": false,
+      "owner_id": "00000000",
+      "product_id": "product-dj",
+      "product_name": "lamp",
+      "sub": true,
+      "time_zone": "+03:00",
+      "uid": "eu-test-uid",
+      "update_time": 1786785203,
+      "uuid": "uuid-dj-06",
+      "status": [
+        {
+          "code": "switch_led",
+          "value": true
+        },
+        {
+          "code": "bright_value_v2",
+          "value": 1000
+        },
+        {
+          "code": "temp_value_v2",
+          "value": 0
+        }
+      ]
+    },
+    {
+      "active_time": 1756876884,
+      "biz_type": 18,
+      "category": "dj",
+      "create_time": 1756876884,
+      "icon": "smart/icon/test.png",
+      "id": "dj-07",
+      "ip": "203.0.113.1",
+      "lat": "0.0000",
+      "local_key": "0000000000000000",
+      "lon": "0.0000",
+      "model": "",
+      "name": "lamp 7",
+      "online": false,
+      "owner_id": "00000000",
+      "product_id": "product-dj",
+      "product_name": "lamp",
+      "sub": true,
+      "time_zone": "+03:00",
+      "uid": "eu-test-uid",
+      "update_time": 1786785200,
+      "uuid": "uuid-dj-07",
+      "status": [
+        {
+          "code": "switch_led",
+          "value": true
+        },
+        {
+          "code": "bright_value_v2",
+          "value": 1000
+        },
+        {
+          "code": "temp_value_v2",
+          "value": 0
+        }
+      ]
+    },
+    {
+      "active_time": 1756876533,
+      "biz_type": 18,
+      "category": "wg2",
+      "create_time": 1755452237,
+      "icon": "smart/icon/test.png",
+      "id": "wg2-01",
+      "ip": "203.0.113.1",
+      "lat": "0.0000",
+      "local_key": "0000000000000000",
+      "lon": "0.0000",
+      "model": "",
+      "name": "Gateway",
+      "online": true,
+      "owner_id": "00000000",
+      "product_id": "product-wg2",
+      "product_name": "Gateway",
+      "sub": false,
+      "time_zone": "+03:00",
+      "uid": "eu-test-uid",
+      "update_time": 1786785143,
+      "uuid": "uuid-wg2-01"
+    },
+    {
+      "active_time": 1754734752,
+      "biz_type": 18,
+      "category": "mjj",
+      "create_time": 1754734752,
+      "icon": "smart/icon/test.png",
+      "id": "mjj-02",
+      "ip": "203.0.113.1",
+      "lat": "0.0000",
+      "local_key": "0000000000000000",
+      "lon": "0.0000",
+      "model": "SYZN168",
+      "name": "Полотенцесушитель",
+      "online": true,
+      "owner_id": "00000000",
+      "product_id": "product-mjj",
+      "product_name": "智能毛巾架",
+      "sub": false,
+      "time_zone": "+03:00",
+      "uid": "eu-test-uid",
+      "update_time": 1786785142,
+      "uuid": "uuid-mjj-02",
+      "status": [
+        {
+          "code": "switch",
+          "value": false
+        },
+        {
+          "code": "temp_set",
+          "value": 60
+        },
+        {
+          "code": "temp_current",
+          "value": 56
+        },
+        {
+          "code": "countdown_set",
+          "value": "cancel"
+        },
+        {
+          "code": "countdown_left",
+          "value": 0
+        },
+        {
+          "code": "work_state",
+          "value": "heating"
+        }
+      ]
+    },
+    {
+      "active_time": 1753614690,
+      "biz_type": 18,
+      "category": "xfj",
+      "create_time": 1753614060,
+      "icon": "smart/icon/test.png",
+      "id": "xfj-04",
+      "ip": "203.0.113.1",
+      "lat": "0.0000",
+      "local_key": "0000000000000000",
+      "lon": "0.0000",
+      "model": "",
+      "name": "Бризер кабинет",
+      "online": true,
+      "owner_id": "00000000",
+      "product_id": "product-xfj",
+      "product_name": "Heat Recovery Ventilator",
+      "sub": false,
+      "time_zone": "+03:00",
+      "uid": "eu-test-uid",
+      "update_time": 1786784721,
+      "uuid": "uuid-xfj-04",
+      "status": [
+        {
+          "code": "switch",
+          "value": false
+        }
+      ]
+    },
+    {
+      "active_time": 1756877364,
+      "biz_type": 18,
+      "category": "dj",
+      "create_time": 1756877364,
+      "icon": "smart/icon/test.png",
+      "id": "dj-08",
+      "ip": "203.0.113.1",
+      "lat": "0.0000",
+      "local_key": "0000000000000000",
+      "lon": "0.0000",
+      "model": "",
+      "name": "lamp 9",
+      "online": false,
+      "owner_id": "00000000",
+      "product_id": "product-dj",
+      "product_name": "lamp",
+      "sub": true,
+      "time_zone": "+03:00",
+      "uid": "eu-test-uid",
+      "update_time": 1786784179,
+      "uuid": "uuid-dj-08",
+      "status": [
+        {
+          "code": "switch_led",
+          "value": true
+        },
+        {
+          "code": "bright_value_v2",
+          "value": 1000
+        },
+        {
+          "code": "temp_value_v2",
+          "value": 0
+        }
+      ]
+    },
+    {
+      "active_time": 1756877368,
+      "biz_type": 18,
+      "category": "dj",
+      "create_time": 1756877368,
+      "icon": "smart/icon/test.png",
+      "id": "dj-09",
+      "ip": "203.0.113.1",
+      "lat": "0.0000",
+      "local_key": "0000000000000000",
+      "lon": "0.0000",
+      "model": "",
+      "name": "lamp 10",
+      "online": false,
+      "owner_id": "00000000",
+      "product_id": "product-dj",
+      "product_name": "lamp",
+      "sub": true,
+      "time_zone": "+03:00",
+      "uid": "eu-test-uid",
+      "update_time": 1786784085,
+      "uuid": "uuid-dj-09",
+      "status": [
+        {
+          "code": "switch_led",
+          "value": true
+        },
+        {
+          "code": "bright_value_v2",
+          "value": 1000
+        },
+        {
+          "code": "temp_value_v2",
+          "value": 0
+        }
+      ]
+    },
+    {
+      "active_time": 1756876885,
+      "biz_type": 18,
+      "category": "dj",
+      "create_time": 1756876885,
+      "icon": "smart/icon/test.png",
+      "id": "dj-10",
+      "ip": "203.0.113.1",
+      "lat": "0.0000",
+      "local_key": "0000000000000000",
+      "lon": "0.0000",
+      "model": "",
+      "name": "lamp 8",
+      "online": false,
+      "owner_id": "00000000",
+      "product_id": "product-dj",
+      "product_name": "lamp",
+      "sub": true,
+      "time_zone": "+03:00",
+      "uid": "eu-test-uid",
+      "update_time": 1786784085,
+      "uuid": "uuid-dj-10",
+      "status": [
+        {
+          "code": "switch_led",
+          "value": true
+        },
+        {
+          "code": "bright_value_v2",
+          "value": 1000
+        },
+        {
+          "code": "temp_value_v2",
+          "value": 0
+        }
+      ]
+    },
+    {
+      "active_time": 1753611469,
+      "biz_type": 18,
+      "category": "xfj",
+      "create_time": 1753611469,
+      "icon": "smart/icon/test.png",
+      "id": "xfj-05",
+      "ip": "203.0.113.1",
+      "lat": "0.0000",
+      "local_key": "0000000000000000",
+      "lon": "0.0000",
+      "model": "",
+      "name": "Бризер зал",
+      "online": true,
+      "owner_id": "00000000",
+      "product_id": "product-xfj",
+      "product_name": "Heat Recovery Ventilator",
+      "sub": false,
+      "time_zone": "+03:00",
+      "uid": "eu-test-uid",
+      "update_time": 1786783922,
+      "uuid": "uuid-xfj-05",
+      "status": [
+        {
+          "code": "switch",
+          "value": false
+        }
+      ]
+    },
+    {
+      "active_time": 1756878225,
+      "biz_type": 18,
+      "category": "dj",
+      "create_time": 1756878225,
+      "icon": "smart/icon/test.png",
+      "id": "dj-11",
+      "ip": "203.0.113.1",
+      "lat": "0.0000",
+      "local_key": "0000000000000000",
+      "lon": "0.0000",
+      "model": "",
+      "name": "lamp 11",
+      "online": false,
+      "owner_id": "00000000",
+      "product_id": "product-dj",
+      "product_name": "lamp",
+      "sub": true,
+      "time_zone": "+03:00",
+      "uid": "eu-test-uid",
+      "update_time": 1786783804,
+      "uuid": "uuid-dj-11",
+      "status": [
+        {
+          "code": "switch_led",
+          "value": true
+        },
+        {
+          "code": "bright_value_v2",
+          "value": 1000
+        },
+        {
+          "code": "temp_value_v2",
+          "value": 0
+        }
+      ]
+    },
+    {
+      "active_time": 1742023819,
+      "biz_type": 18,
+      "category": "kg",
+      "create_time": 1715335119,
+      "icon": "smart/icon/test.png",
+      "id": "kg-01",
+      "ip": "203.0.113.1",
+      "lat": "0.0000",
+      "local_key": "0000000000000000",
+      "lon": "0.0000",
+      "model": "",
+      "name": "WD-01CE",
+      "online": false,
+      "owner_id": "00000000",
+      "product_id": "product-kg",
+      "product_name": "WD-01CE",
+      "sub": false,
+      "time_zone": "+03:00",
+      "uid": "eu-test-uid",
+      "update_time": 1758355201,
+      "uuid": "uuid-kg-01",
+      "status": [
+        {
+          "code": "switch_1",
+          "value": false
+        }
+      ]
+    }
+  ],
+  "success": true,
+  "t": 1786817862415,
+  "tid": "test-tid"
+}

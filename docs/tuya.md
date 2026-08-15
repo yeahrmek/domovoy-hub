@@ -26,7 +26,11 @@ user's devices reach it by linking their Smart Life account to our cloud project
 
 - `GET /v1.0/token?grant_type=1` with headers `client_id`, `sign`, `t`, `sign_method: HMAC-SHA256`.
   Returns `access_token` and `refresh_token`. _Verified against the account:_ `expire_time` is
-  7200 s, matching the documented ~2 h.
+  **the seconds left on the token, not a fresh lifetime** — two calls minutes apart answered 5433
+  and then 5385, because the host hands back the token it has already issued rather than minting
+  one. So the expiry is the moment of *that* call plus `expire_time`, and a client that assumes a
+  flat 7200 will send a dead token. `TuyaClient` takes a minute off it and refetches on the next
+  call after that.
   **It is GET, not POST** — this doc said POST until it was tried. `POST` returns
   `{"code":1108,"msg":"uri path invalid"}`, and so does POST to a path that does not exist at all,
   which is what makes 1108 misleading: it reads like a bad URL but means a bad method.
@@ -155,8 +159,17 @@ languages. The friction is commercial, not technical: quotas, editions and renew
   unknown — nothing has been commanded yet.
 - **How to write a custom datapoint.** `POST /v1.0/devices/{id}/commands` is the standard-set path,
   and the standard set for this product is just `switch` — so fan speed almost certainly needs the
-  thing-model write, `POST /v2.0/cloud/thing/{id}/shadow/properties/issue`. Unverified: writing
-  turns a real fan on in a real flat, so it needs a deliberate test, not a probe.
+  thing-model write, `POST /v2.0/cloud/thing/{id}/shadow/properties/issue`. Still unverified, and
+  now *written against*: the panel's on/off switch sends exactly that, and nothing has confirmed it
+  works. Writing turns a real fan on in a real flat, so it needs a deliberate test, not a probe.
+  Fan speed is read-only on the tile until the on/off write is proven.
+- **Whether the three speed booleans are mutually exclusive.** Nothing has been written, so nothing
+  has forced the question. The tile prints every speed reported as on rather than picking one, so
+  two at once would show up as `low + high` instead of being quietly halved.
+- **Nothing in the API confirms `temper` is °C and `huimi` is %RH** — `typeSpec.unit` is `""` for
+  both, and the app is the only check. That is now on the wall, so it is worth a second look:
+  compare the tile against a thermometer in the same room, or against the app on a cold day when
+  a wrong unit would be obvious.
 - **Getting `batch/shadow/properties` authorised.** It would cut a refresh from 5 calls to 1, which
   is the difference between a 5-minute and a 1-minute poll. `40001900 No space permission` suggests
   a project authorisation or space-model setting rather than a subscription, but that is a guess.
@@ -182,6 +195,17 @@ Reproduce with `scripts/tuya-probe.sh`, which reads the credentials from `local.
 device id, or any path starting with `/`, to probe further. Device ids, local keys, the account uid,
 the WAN address and the coordinates are all in the real responses and none of them are reproduced
 here.
+
+Redacted copies of the five below are the test fixtures, in `app/src/test/resources/tuya/`:
+`token.json`, `devices.json`, `shadow_properties.json`, `thing_model.json` and
+`batch_no_permission.json`. Real device ids are replaced with `xfj-01`…`xfj-05` (and `dj-`, `mjj-`,
+`wg2-`, `kg-` for the rest), local keys with zeroes, the WAN address with `203.0.113.1`, the
+coordinates with `0.0000` and the uid with `eu-test-uid` — the names, timestamps, datapoint values
+and envelope shapes are the account's own. Nothing in `src/test/` calls Tuya.
+
+**The envelope, on every route.** `{ "result": …, "success": true, "t": …, "tid": … }`, and a
+failure is `{ "code": …, "msg": …, "success": false, "t": …, "tid": … }` — **arriving as HTTP 200**.
+A client that only checks the status code reads a refused call as an empty house.
 
 ### `GET /v1.0/users/{uid}/devices` — verified against the account
 
@@ -272,12 +296,25 @@ temperature, humidity, three fan speeds and three modes for a device the API cal
 - **`huimi` and `temper` are tenths.** `330` is 33.0 %RH and `279` is 27.9 °C; `typeSpec` says
   `scale: 1`, and `min: 0 / max: 10000` is a nominal range, not a real one. The misspelled codes
   (`huimi`, `huimidity_*`) are the vendor's, not typos here.
+- **The thing model names no unit for either:** `"unit": ""` on both `typeSpec`s. So the API never
+  says these are °C and %RH — the Smart Life app does, showing the same figures for the same
+  device, which is where the reading above comes from. The tile prints `°C` and `%` on that basis,
+  hardcoded, with the app check named in the code as its only source. Worth being clear about the
+  footing: `scale` is asserted against the recorded thing model by a test, and the unit cannot be.
+  The two together are what the number on the wall rests on.
+- Each property is `{code, custom_name, dp_id, type, value, time}`, and `type` is `bool` or `value`
+  — which is what says how to read `value`, since the shadow carries no schema.
 - **Speeds and modes are three separate booleans each, not an enum.** Whether the device enforces
   mutual exclusion, or whether two speeds can be true at once, is unverified — nothing has been
   written yet.
 - dp 110 does not exist; the numbering has a hole.
 - `shadow/properties` carries a per-datapoint `time`, so staleness can be shown per reading rather
-  than per tile.
+  than per tile. It is **milliseconds** — read as seconds it puts the switch 54,000 years out — and
+  it is one timestamp, not two: whether it means "last reported" or "last changed" is not stated
+  anywhere, and the response gives nothing to tell them apart. On the recorded read the humidity
+  was 26 s old while the switch had not moved in 3 days, on a device that was online throughout.
+  The panel therefore carries the same instant in both fields of its model rather than inventing a
+  distinction the vendor does not make.
 
 ### Batch reads — the awkward part
 
@@ -295,6 +332,39 @@ Against the ~54,000 calls/month the console's billing rules actually buy, that i
 **a poll every ~4 minutes** around the clock, or ~2.7 minutes at 16 h a day. Unlocking the batch
 route would take the same allowance to **~48 seconds**, which is the difference between a tile that
 lags a tap by minutes and one that does not. See "What the console actually shows" for the rates.
+
+### What the panel does with this
+
+`integrations/tuya/` — `TuyaClient` plus the signature, sharing nothing with `integrations/yandex/`.
+
+- **The tile shows on/off, fan speed, temperature and humidity — four ages, on two lines.** Not one
+  age: on the recorded read the humidity was 26 s old while the switch had not moved in three days,
+  and the two climate readings were minutes apart from each other. A device that reported neither
+  `temper` nor `huimi` gets no second line at all rather than a row of "unknown".
+- **A refresh is `devices()` then `read()` per recuperator: 6 calls, or 7 with a token fetch.** The
+  inventory's `status` is not read at all — it is standard-set filtered to `switch`, and its only
+  timestamp is the device-level `update_time`, which belongs to no one datapoint. What it *is* read
+  for is the name and `online`.
+- **The access token is held until it expires**, not fetched per call, behind a lock so a tap and a
+  poll cannot each spend a call fetching one.
+- **`MainActivity` polls this every 6 minutes**, on its own timer, separate from Yandex's 15 s. A
+  tap re-reads only the device it touched — one call, not another five.
+- **A single recuperator's read failing is not the group failing.** That tile keeps the values it
+  had, says why it is not moving, and the other four update normally; only the inventory call
+  failing takes the whole group down. This is where the shape differs from the Yandex tiles, and it
+  differs because the call does.
+- `Device.online` exists on the shared model for this vendor: 11 of the account's 20 devices came
+  back `false` over a perfectly good HTTP 200, so a tile needs an offline state that has nothing to
+  do with whether the call worked. Yandex reports no such field and leaves it null.
+
+**The write is implemented and UNVERIFIED.** `RecuperatorTiles.toggle` sends `POST
+/v2.0/cloud/thing/{id}/shadow/properties/issue` with `{"properties":"{\"switch\":true}"}` — the
+body is a JSON object encoded as a string, which is Tuya's own shape. Neither the route nor the
+body has ever been sent to the account: writing turns a real fan on in a real flat, and it would
+also take one of the 10 controllable-device slots for the first time. The tile is repainted from a
+re-read rather than from the command's answer, so a command that silently does nothing shows up as
+a tile that does not change rather than as a tile that lies. **Try it deliberately before trusting
+the switch on the wall.**
 
 ### Errors seen
 
