@@ -51,6 +51,13 @@ android {
         buildConfigField("String", "TUYA_CLIENT_ID", "\"${localProperty("tuya.client.id")}\"")
         buildConfigField("String", "TUYA_CLIENT_SECRET", "\"${localProperty("tuya.client.secret")}\"")
         buildConfigField("String", "TUYA_UID", "\"${localProperty("tuya.uid")}\"")
+
+        // Which room each recuperator is in — `xfj-01=Спальня;xfj-05=Зал`. Not a credential, but
+        // apartment-identifying all the same, since it is a list of device ids; and it is here
+        // rather than in the code because Tuya's API answers nothing about grouping and the flat
+        // is the only thing that knows. Unset means the recuperators show up in the panel's
+        // unplaced section, which is a working panel. See ru.domovoy.panel.recuperatorRooms.
+        buildConfigField("String", "TUYA_ROOMS", "\"${localProperty("tuya.rooms")}\"")
     }
 
     buildTypes {

@@ -4,7 +4,6 @@ import android.content.Context
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.layout.Column
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
@@ -15,7 +14,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Modifier
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 import kotlinx.coroutines.delay
@@ -26,14 +24,11 @@ import ru.domovoy.integrations.domonap.domonapCalls
 import ru.domovoy.integrations.tuya.TuyaClient
 import ru.domovoy.integrations.tuya.TuyaCredentials
 import ru.domovoy.integrations.yandex.YandexClient
-import ru.domovoy.panel.AcTileList
-import ru.domovoy.panel.BulbTileList
-import ru.domovoy.panel.CurtainTileList
-import ru.domovoy.panel.LightStripTileList
-import ru.domovoy.panel.RecuperatorTileList
+import ru.domovoy.panel.PanelRooms
 import ru.domovoy.panel.TuyaPoll
 import ru.domovoy.panel.YandexPoll
 import ru.domovoy.panel.pollPausingForCalls
+import ru.domovoy.panel.recuperatorRooms
 import java.time.Instant
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
@@ -132,7 +127,17 @@ private fun Panel(secrets: PanelSecrets) {
             )
         }
     val poll = remember(client) { YandexPoll(client) }
-    val tuyaPoll = remember(http) { TuyaPoll(TuyaClient(http = http, credentials = secrets.tuya)) }
+    val tuyaPoll =
+        remember(http) {
+            TuyaPoll(
+                client = TuyaClient(http = http, credentials = secrets.tuya),
+                // Tuya's API names no room, so this is where the flat's own answer comes in. It is
+                // not a credential and does not go through the encrypted store: it is only in
+                // local.properties because device ids are apartment-identifying. Unset is a
+                // working panel — the recuperators simply show up unplaced.
+                rooms = recuperatorRooms(BuildConfig.TUYA_ROOMS),
+            )
+        }
     val tiles = poll.bulbs
     val curtains = poll.curtains
     val acs = poll.acs
@@ -168,34 +173,19 @@ private fun Panel(secrets: PanelSecrets) {
         }
     }
 
-    Column {
-        AcTileList(
-            state = acState,
-            now = now,
-            onToggle = { id -> scope.launch { acs.toggle(id) } },
-            onSetTemperature = { id, celsius -> scope.launch { acs.setTemperature(id, celsius) } },
-        )
-        CurtainTileList(
-            state = curtainState,
-            now = now,
-            onSetOpen = { id, percent -> scope.launch { curtains.setOpen(id, percent) } },
-        )
-        LightStripTileList(
-            state = stripState,
-            now = now,
-            onToggle = { id -> scope.launch { strips.toggle(id) } },
-            onSetBrightness = { id, percent -> scope.launch { strips.setBrightness(id, percent) } },
-        )
-        RecuperatorTileList(
-            state = recuperatorState,
-            now = now,
-            onToggle = { id -> scope.launch { recuperators.toggle(id) } },
-        )
-        BulbTileList(
-            state = state,
-            now = now,
-            modifier = Modifier.weight(1f),
-            onToggle = { id -> scope.launch { tiles.toggle(id) } },
-        )
-    }
+    PanelRooms(
+        acs = acState,
+        curtains = curtainState,
+        strips = stripState,
+        recuperators = recuperatorState,
+        bulbs = state,
+        now = now,
+        onToggleAc = { id -> scope.launch { acs.toggle(id) } },
+        onSetTemperature = { id, celsius -> scope.launch { acs.setTemperature(id, celsius) } },
+        onSetOpen = { id, percent -> scope.launch { curtains.setOpen(id, percent) } },
+        onToggleStrip = { id -> scope.launch { strips.toggle(id) } },
+        onSetBrightness = { id, percent -> scope.launch { strips.setBrightness(id, percent) } },
+        onToggleRecuperator = { id -> scope.launch { recuperators.toggle(id) } },
+        onToggleBulb = { id -> scope.launch { tiles.toggle(id) } },
+    )
 }

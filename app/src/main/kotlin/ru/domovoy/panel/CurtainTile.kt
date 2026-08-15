@@ -70,30 +70,3 @@ internal fun statusLine(
     val age = ageLabel(tile.lastUpdated, now)
     return if (error == null) "$position · $age" else "$position · $age · not updating: $error"
 }
-
-/**
- * The curtains of the flat. A plain [Column] rather than a lazy list: there is one curtain, and
- * this sits above the bulbs, which are the list that scrolls.
- */
-@Composable
-fun CurtainTileList(
-    state: CurtainPanelState,
-    now: Instant,
-    modifier: Modifier = Modifier,
-    onSetOpen: (String, Double) -> Unit = { _, _ -> },
-) {
-    Column(modifier = modifier) {
-        // Nothing has ever been read: there is no tile to hang the error on, so it gets its own
-        // line — otherwise the curtain simply would not be on the wall, with no reason given.
-        if (state.tiles.isEmpty() && state.error != null) {
-            Text(
-                text = "Шторы: not updating: ${state.error}",
-                style = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier.padding(12.dp),
-            )
-        }
-        state.tiles.forEach { tile ->
-            CurtainTile(tile = tile, now = now, error = state.error, onSetOpen = onSetOpen)
-        }
-    }
-}

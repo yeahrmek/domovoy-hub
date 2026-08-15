@@ -104,37 +104,3 @@ private fun temperatureLabel(tile: AcTileState): String {
     val target = tile.targetTemperature?.roundToInt() ?: return "unknown"
     return if (tile.unit == CELSIUS) "$target °C" else "$target"
 }
-
-/**
- * The air conditioners of the flat. A plain [Column] rather than a lazy list: there are three of
- * them, and this sits above the bulbs, which are the list that scrolls.
- */
-@Composable
-fun AcTileList(
-    state: AcPanelState,
-    now: Instant,
-    modifier: Modifier = Modifier,
-    onToggle: (String) -> Unit = {},
-    onSetTemperature: (String, Double) -> Unit = { _, _ -> },
-) {
-    Column(modifier = modifier) {
-        // Nothing has ever been read: there is no tile to hang the error on, so it gets its own
-        // line — otherwise the air conditioners simply would not be on the wall, with no reason.
-        if (state.tiles.isEmpty() && state.error != null) {
-            Text(
-                text = "Кондиционеры: not updating: ${state.error}",
-                style = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier.padding(12.dp),
-            )
-        }
-        state.tiles.forEach { tile ->
-            AcTile(
-                tile = tile,
-                now = now,
-                error = state.error,
-                onToggle = onToggle,
-                onSetTemperature = onSetTemperature,
-            )
-        }
-    }
-}

@@ -4,8 +4,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
@@ -63,30 +61,4 @@ internal fun statusLine(
         }
     val age = ageLabel(tile.lastUpdated, now)
     return if (error == null) "$power · $age" else "$power · $age · not updating: $error"
-}
-
-/** The bulbs of the flat, newest state first painted by whoever owns the poll timer. */
-@Composable
-fun BulbTileList(
-    state: BulbPanelState,
-    now: Instant,
-    modifier: Modifier = Modifier,
-    onToggle: (String) -> Unit = {},
-) {
-    LazyColumn(modifier = modifier) {
-        // Nothing has ever been read: there is no tile to hang the error on, so it gets its own
-        // line. Without this the panel would be blank after a first poll that failed.
-        if (state.tiles.isEmpty() && state.error != null) {
-            item {
-                Text(
-                    text = "Лампы: not updating: ${state.error}",
-                    style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.padding(12.dp),
-                )
-            }
-        }
-        items(state.tiles, key = { it.id }) { tile ->
-            BulbTile(tile = tile, now = now, error = state.error, onToggle = onToggle)
-        }
-    }
 }

@@ -24,6 +24,13 @@ enum class FanSpeed(
 data class RecuperatorTileState(
     val id: String,
     val name: String,
+    /**
+     * Which room the tile is shown in. Null whenever the flat has not said — Tuya's API names no
+     * room for any device, so this is null for every recuperator unless [TuyaPoll] was given the
+     * mapping out of `local.properties`. Null is not a hidden tile: it lands in the panel's
+     * unplaced section instead. See [roomSections] and [recuperatorRooms].
+     */
+    val room: String?,
     /** Null when the recuperator reported no `switch` at all — shown as unknown, never as "off". */
     val isOn: Boolean?,
     /** When the `switch` was read. */
@@ -154,6 +161,7 @@ private fun Device.toTile(error: String?): RecuperatorTileState {
     return RecuperatorTileState(
         id = id,
         name = name,
+        room = room,
         isOn = onOff?.isOn,
         powerLastUpdated = onOff?.lastUpdated ?: Reading.Never,
         speeds = speeds,
