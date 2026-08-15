@@ -87,11 +87,10 @@ private class LauncherApp(
  * `com.domonap.app` as the sender of a notification, which is a different fact about the same
  * string, and Xiaomi has no package under `integrations/` at all to import from.
  *
- * `com.domonap.app` is verified — read off the tablet with `adb shell dumpsys package`, recorded in
- * docs/domonap.md. **`com.xiaomi.smarthome` is not**: it is Mi Home's published package name and
- * has not been checked against this tablet. If it is wrong, the tile says "not installed" and names
- * the package it looked for, which is a wrong tile that reports its own error rather than a dead
- * one — check with `adb shell pm list packages | grep xiaomi`.
+ * Both are verified on the tablet, and both resolve a MAIN/LAUNCHER activity — which is the part
+ * that matters, since `getLaunchIntentForPackage` answers null without one:
+ * `com.domonap.app/.ui.main.MainActivity` and `com.xiaomi.smarthome/.SmartHomeMainActivity`. See
+ * docs/domonap.md and docs/xiaomi.md; the manifest's `<queries>` block names the same two.
  */
 private val CATALOGUE =
     listOf(

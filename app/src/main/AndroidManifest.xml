@@ -10,8 +10,8 @@
          named here is invisible to us: getLaunchIntentForPackage returns null for it, and the
          tile would read "not installed" on a tablet that has the app. Named one by one rather
          than as an <intent> query for every launchable app, because these two are the whole
-         list. com.domonap.app is read off the tablet (docs/domonap.md); com.xiaomi.smarthome is
-         Mi Home's published package and is not yet verified on this device (docs/xiaomi.md). -->
+         list. Both packages are read off the tablet, and the grant this block produces is
+         verified there too — see docs/domonap.md and docs/xiaomi.md. -->
     <queries>
         <package android:name="com.domonap.app" />
         <package android:name="com.xiaomi.smarthome" />

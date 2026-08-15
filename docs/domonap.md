@@ -183,6 +183,30 @@ The package is verified — read off the tablet, above. The manifest declares
 not name is invisible to `getLaunchIntentForPackage` and the tile would read "not installed" on a
 tablet that plainly has the app.
 
+**Verified end to end on the tablet, 2026-08-15.** `versionCode=9850` unchanged, the launcher
+intent resolves to `com.domonap.app/.ui.main.MainActivity`, the panel renders the tile in the
+Коридор section after that room's lights —
+
+```
+Коридор
+Споты в коридоре      on · never read
+Трек в коридоре       on · never read
+Акара в коридоре      on · 91 d ago
+Домофон               opens the app · no state to read
+```
+
+— and tapping it brings Domonap to the foreground.
+
+What came up was `com.domonap.authorization.AuthorizationActivity` — because the account was signed
+out by hand at
+the time of the check, not because a session had expired. **The app stays authorized on this
+tablet**, which is what the call path above assumes.
+
+One property that launch happens to demonstrate, and it is a real one: a Domonap that is not signed
+in posts no incoming-call notification, and the panel cannot tell that apart from an intercom
+nobody has rung. That is inherent to keying on notifications rather than anything to fix here — it
+is only worth knowing when the takeover is next tested and nothing happens.
+
 This rests on one unverified assumption: **that Domonap posts a notification we can see**, rather
 than only firing a full-screen intent. Partly answered since: the app has a dedicated
 `telecom_incoming_channel3` at importance MAX and holds `USE_FULL_SCREEN_INTENT`, so it does both —
@@ -307,7 +331,7 @@ and is rejected above for reasons that have nothing to do with layout.
 
 - **What the incoming-call notification actually contains** — extras, caller field, full-screen
   intent, category, tag. The channel exists; the record has not been captured. Everything the
-  listener keys on depends on this, and it needs the intercom rung once.
+  listener keys on depends on this, and it needs the intercom rung once, with the app signed in.
 - Is the notification or the Telecom call state the earlier / more reliable signal? Both exist now;
   neither has been timed.
 - Does the call screen actually come up portrait on this tablet? The app no longer looks like the
