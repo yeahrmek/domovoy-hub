@@ -11,7 +11,9 @@ unlock, gate it behind extra review, or allow it only on specific models.
 
 Not to be confused with the Domonap door release: that is the building entrance, this is the flat.
 
-Read from the public docs on 2026-08-15. **Nothing has been called yet.**
+Read from the public docs on 2026-08-15. **Nothing has been called yet** — the developer project was
+submitted for review on 2026-08-15 and no keys exist until it is approved. See "Registration, in
+practice".
 
 ## Verified in the docs
 
@@ -69,6 +71,25 @@ existing Aqara Home account works), pick individual or enterprise, create a proj
 project goes through **review** — keys (`AppId`, `AppKey`) only appear under Project Details → Key
 Management after approval. No published price list. Aqara's own FAQ says registration is not
 restricted by region.
+
+## Registration, in practice
+
+**2026-08-15 — project submitted, awaiting review.** The console's confirmation reads, verbatim:
+
+> Your application has been submitted successfully,Please wait patiently for the result of review.
+
+So the review gate in "Registration cost" above is real and is not instant. No `AppId` or `AppKey`
+exists yet, which means **nothing in this file below the auth section can be verified until the
+review returns** — every endpoint, signature and quota here is still read from documentation only.
+
+Not yet known, to be filled in when the result arrives:
+
+- how long the review actually took, and whether it was approved first time
+- whether anything beyond the form was asked for (justification, company details, a callback URL)
+- which resources the lock exposes under Application Management → Resource Authorization — the
+  thing that settles whether this model offers any action at all, and therefore whether the
+  read-only tile is a choice or the only option
+- whether the personal-account limits in the section below are shown anywhere in the console
 
 ## Second-hand — from the forum and doc summaries, not confirmed on the page itself
 
