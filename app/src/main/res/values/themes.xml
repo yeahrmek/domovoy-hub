@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Colours and typography come from Material 3 in Compose; this only has to
+         give the activity a window with no action bar. -->
+    <style name="Theme.DomovoyHub" parent="android:Theme.Material.Light.NoActionBar" />
+</resources>
