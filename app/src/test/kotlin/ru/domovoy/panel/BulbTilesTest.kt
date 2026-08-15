@@ -101,6 +101,37 @@ class BulbTilesTest {
     }
 
     @Test
+    fun `a panel with no token stored says so instead of standing there empty`() = runTest {
+        // No tile has ever been read, so there is nothing to hang the message on but the group
+        // error — and without it the wall would show a blank panel and no reason for it.
+        val tiles = BulbTiles(client(token = { "" }))
+
+        tiles.refresh()
+
+        val state = tiles.state.value
+        assertTrue(state.tiles.isEmpty())
+        assertTrue(
+            state.error.orEmpty().contains("token"),
+            "the panel must name the missing token: ${state.error}",
+        )
+    }
+
+    @Test
+    fun `a token stored after the panel started ends the error on the next poll`() = runTest {
+        server.enqueue(MockResponse(body = fixture()))
+        var stored = ""
+        val tiles = BulbTiles(client(token = { stored }))
+
+        tiles.refresh()
+        assertNotNull(tiles.state.value.error)
+        stored = "y0_stored_later"
+        tiles.refresh()
+
+        assertNull(tiles.state.value.error)
+        assertEquals(18, tiles.state.value.tiles.size)
+    }
+
+    @Test
     fun `a poll that recovers clears the error`() = runTest {
         server.enqueue(MockResponse(code = 500, body = "boom"))
         server.enqueue(MockResponse(body = fixture()))
@@ -153,9 +184,12 @@ class BulbTilesTest {
         assertTrue(tiles.state.value.error.orEmpty().contains("404"))
     }
 
-    private fun client(timeout: Duration = 10.seconds) = YandexClient(
+    private fun client(
+        timeout: Duration = 10.seconds,
+        token: () -> String = { "test-token" },
+    ) = YandexClient(
         http = OkHttpClient(),
-        token = "test-token",
+        token = token,
         householdId = "household-flat",
         baseUrl = server.url("/"),
         timeout = timeout,

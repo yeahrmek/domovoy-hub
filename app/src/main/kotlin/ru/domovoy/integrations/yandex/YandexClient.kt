@@ -31,6 +31,13 @@ private const val ON_OFF = "devices.capabilities.on_off"
 
 val YANDEX_BASE_URL: HttpUrl = "https://api.iot.yandex.net/".toHttpUrl()
 
+/**
+ * Said on the tile itself when the store holds no token, so it names both what is wrong and the
+ * one way a token gets in today. Sending an empty `Bearer` instead would come back `403` and the
+ * panel would blame the OAuth scopes — see docs/yandex.md.
+ */
+internal const val NO_TOKEN = "no Yandex token stored — set yandex.oauth.token in local.properties and reinstall"
+
 private val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
 
 private val json = Json { ignoreUnknownKeys = true }
@@ -41,10 +48,15 @@ private val json = Json { ignoreUnknownKeys = true }
  * The account behind the recorded response holds four households — the flat, two other homes and
  * a dacha. [householdId] is the only thing that says which of them the panel hangs in, so every
  * device from the other three is dropped here rather than anywhere downstream.
+ *
+ * [token] is asked for once per request rather than held: the panel runs for weeks on a wall, and
+ * a token written to the store while it runs has to be used by the next poll, not after a restart.
+ * It may fail — a store that will not open throws out of it — and that failure lands on the tile
+ * like any other, because the call sites below already run inside `runCatching`.
  */
 class YandexClient(
     http: OkHttpClient,
-    private val token: String,
+    private val token: () -> String,
     private val householdId: String,
     private val baseUrl: HttpUrl = YANDEX_BASE_URL,
     timeout: Duration = 10.seconds,
@@ -96,23 +108,31 @@ class YandexClient(
         }
     }
 
-    private suspend fun get(path: String): String = send(request(path).build())
+    private suspend fun get(path: String): String = send { request(path).build() }
 
     private suspend fun post(
         path: String,
         body: String,
-    ): String = send(request(path).post(body.toRequestBody(JSON_MEDIA_TYPE)).build())
+    ): String = send { request(path).post(body.toRequestBody(JSON_MEDIA_TYPE)).build() }
 
-    private fun request(path: String) = Request
-        .Builder()
-        .url(baseUrl.newBuilder().addPathSegments(path).build())
-        .header("Authorization", "Bearer $token")
+    // Building the request is where the token is fetched, so a missing one fails the call before
+    // a socket is opened — an unauthenticated request to Yandex is worse than no request at all.
+    private fun request(path: String): Request.Builder {
+        val token = token().trim()
+        if (token.isEmpty()) error(NO_TOKEN)
+        return Request
+            .Builder()
+            .url(baseUrl.newBuilder().addPathSegments(path).build())
+            .header("Authorization", "Bearer $token")
+    }
 
     // enqueue() hands the response back as soon as the headers land, but reading the body is a
     // blocking socket read — and it happens on whatever dispatcher called in. The panel polls from
     // Dispatchers.Main, so without this the tablet answers NetworkOnMainThreadException and no
-    // tile ever gets a value.
-    private suspend fun send(request: Request): String = withContext(Dispatchers.IO) {
+    // tile ever gets a value. The request is built in here too, so reading the token out of
+    // encrypted storage — a decrypt per call — happens off the main thread as well.
+    private suspend fun send(build: () -> Request): String = withContext(Dispatchers.IO) {
+        val request = build()
         http.newCall(request).await().use { response ->
             // A wrong OAuth scope answers with a bare non-JSON "Forbidden", so the body is read
             // before it is trusted to be JSON and quoted back in the failure.

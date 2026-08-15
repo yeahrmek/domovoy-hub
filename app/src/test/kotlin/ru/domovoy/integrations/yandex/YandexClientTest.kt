@@ -121,6 +121,54 @@ class YandexClientTest {
     }
 
     @Test
+    fun `with no token stored the poll fails with a readable message and never leaves the tablet`() = runTest {
+        val result = client(token = { "" }).devices()
+
+        assertTrue(result.isFailure)
+        assertTrue(
+            result.exceptionOrNull()?.message.orEmpty().contains("token"),
+            "the panel has to be able to print why: ${result.exceptionOrNull()?.message}",
+        )
+        // Not a request with an empty Bearer header either — Yandex would answer 403 and the
+        // tile would blame the scopes rather than the missing token.
+        assertEquals(0, server.requestCount)
+    }
+
+    @Test
+    fun `with no token stored a toggle is refused rather than sent`() = runTest {
+        val result = client(token = { "" }).setOn("light-01", on = true)
+
+        assertTrue(result.isFailure)
+        assertEquals(0, server.requestCount)
+    }
+
+    @Test
+    fun `the token is read at every call, so one stored later is used without a restart`() = runTest {
+        // The tablet is wall-mounted: whatever writes a fresh token must take effect without
+        // the panel being restarted, which is why the token is read per call and not held.
+        server.enqueue(MockResponse(body = fixture()))
+        var stored = ""
+        val client = client(token = { stored })
+
+        assertTrue(client.devices().isFailure)
+        stored = "y0_stored_later"
+
+        assertTrue(client.devices().isSuccess)
+        assertEquals("Bearer y0_stored_later", server.takeRequest().headers["Authorization"])
+    }
+
+    @Test
+    fun `a store that cannot be read at all is a failed poll, not a crash`() = runTest {
+        // EncryptedSharedPreferences can fail to open — a keystore the tablet lost across a
+        // reboot or a restored backup. That has to reach the tile like any other failure.
+        val result = client(token = { error("secure storage unavailable") }).devices()
+
+        assertTrue(result.isFailure)
+        assertTrue(result.exceptionOrNull()?.message.orEmpty().contains("secure storage unavailable"))
+        assertEquals(0, server.requestCount)
+    }
+
+    @Test
     fun `a poll rejected with Forbidden fails instead of throwing`() = runTest {
         // A token issued before the iot scopes were added answers with a bare, non-JSON body.
         server.enqueue(MockResponse(code = 403, body = "Forbidden"))
@@ -211,9 +259,10 @@ class YandexClientTest {
     private fun client(
         householdId: String = "household-flat",
         timeout: Duration = 10.seconds,
+        token: () -> String = { "test-token" },
     ) = YandexClient(
         http = OkHttpClient(),
-        token = "test-token",
+        token = token,
         householdId = householdId,
         baseUrl = server.url("/"),
         timeout = timeout,

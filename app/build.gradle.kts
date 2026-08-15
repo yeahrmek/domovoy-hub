@@ -13,6 +13,11 @@ plugins {
 // local.properties (gitignored) and reach the code only as BuildConfig constants. Absent values
 // stay empty rather than failing the build — a checkout with no local.properties must still
 // compile and run the tests; the panel surfaces the missing token as a visible error instead.
+//
+// YANDEX_OAUTH_TOKEN is a *seed* only: on first launch it is written into
+// EncryptedSharedPreferences, and from then on the panel reads the store, never this constant.
+// It is still in the APK, so it is the one thing here that a build without a token is better off
+// without — see docs/yandex.md, "How the token gets in".
 val localProperties =
     Properties().apply {
         val file = rootProject.file("local.properties")
@@ -73,6 +78,7 @@ dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)
+    implementation(libs.androidx.security.crypto)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.okhttp)
