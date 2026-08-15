@@ -48,9 +48,10 @@ class CurtainTilesTest {
     @Test
     fun `a tile shows how far open the curtain is and how old that reading is`() = runTest {
         server.enqueue(MockResponse(body = fixture()))
-        val curtains = CurtainTiles(client())
+        val poll = YandexPoll(client())
+        val curtains = poll.curtains
 
-        curtains.refresh()
+        poll.refresh()
 
         val tile = curtains.state.value.tiles.single()
         assertEquals("curtain-01", tile.id)
@@ -63,16 +64,13 @@ class CurtainTilesTest {
     @Test
     fun `the curtain does not land among the bulbs, nor a bulb among the curtains`() = runTest {
         server.enqueue(MockResponse(body = fixture()))
-        server.enqueue(MockResponse(body = fixture()))
-        val curtains = CurtainTiles(client())
-        val bulbs = BulbTiles(client())
+        val poll = YandexPoll(client())
 
-        curtains.refresh()
-        bulbs.refresh()
+        poll.refresh()
 
-        assertEquals(listOf("curtain-01"), curtains.state.value.tiles.map { it.id })
-        assertEquals(18, bulbs.state.value.tiles.size)
-        assertTrue(bulbs.state.value.tiles.none { it.id == "curtain-01" })
+        assertEquals(listOf("curtain-01"), poll.curtains.state.value.tiles.map { it.id })
+        assertEquals(18, poll.bulbs.state.value.tiles.size)
+        assertTrue(poll.bulbs.state.value.tiles.none { it.id == "curtain-01" })
     }
 
     @Test
@@ -80,9 +78,10 @@ class CurtainTilesTest {
         // 0% is a real position — the curtains are shut. A range that never reported is not that,
         // and a tile that prints "0% open" for it says the opposite of the truth.
         server.enqueue(MockResponse(body = fixtureWithoutCurtainPosition()))
-        val curtains = CurtainTiles(client())
+        val poll = YandexPoll(client())
+        val curtains = poll.curtains
 
-        curtains.refresh()
+        poll.refresh()
 
         val tile = curtains.state.value.tiles.single()
         assertNull(tile.openPercent)
@@ -93,11 +92,12 @@ class CurtainTilesTest {
     fun `a failed poll keeps the last position and age, and says it is not updating`() = runTest {
         server.enqueue(MockResponse(body = fixture()))
         server.enqueue(MockResponse(code = 500, body = "boom"))
-        val curtains = CurtainTiles(client())
+        val poll = YandexPoll(client())
+        val curtains = poll.curtains
 
-        curtains.refresh()
+        poll.refresh()
         val before = curtains.state.value.tiles.single()
-        curtains.refresh()
+        poll.refresh()
         val after = curtains.state.value
 
         assertNotNull(after.error)
@@ -108,9 +108,10 @@ class CurtainTilesTest {
 
     @Test
     fun `a panel with no token stored says so instead of standing there empty`() = runTest {
-        val curtains = CurtainTiles(client(token = { "" }))
+        val poll = YandexPoll(client(token = { "" }))
+        val curtains = poll.curtains
 
-        curtains.refresh()
+        poll.refresh()
 
         assertTrue(curtains.state.value.tiles.isEmpty())
         assertTrue(
@@ -124,9 +125,10 @@ class CurtainTilesTest {
         server.enqueue(MockResponse(body = fixture()))
         server.enqueue(MockResponse(body = """{"status":"ok","request_id":"r-1","devices":[]}"""))
         server.enqueue(MockResponse(body = fixture()))
-        val curtains = CurtainTiles(client())
+        val poll = YandexPoll(client())
+        val curtains = poll.curtains
 
-        curtains.refresh()
+        poll.refresh()
         curtains.setOpen("curtain-01", 70.0)
 
         server.takeRequest() // the first poll
@@ -145,9 +147,10 @@ class CurtainTilesTest {
         server.enqueue(MockResponse(body = fixture()))
         server.enqueue(MockResponse(body = """{"status":"ok","request_id":"r-1","devices":[]}"""))
         server.enqueue(MockResponse(body = fixture()))
-        val curtains = CurtainTiles(client())
+        val poll = YandexPoll(client())
+        val curtains = poll.curtains
 
-        curtains.refresh()
+        poll.refresh()
         curtains.setOpen("curtain-01", 140.0)
 
         server.takeRequest()
@@ -162,9 +165,10 @@ class CurtainTilesTest {
         server.enqueue(MockResponse(body = fixture()))
         server.enqueue(MockResponse(body = """{"status":"ok","request_id":"r-1","devices":[]}"""))
         server.enqueue(MockResponse(body = fixture()))
-        val curtains = CurtainTiles(client())
+        val poll = YandexPoll(client())
+        val curtains = poll.curtains
 
-        curtains.refresh()
+        poll.refresh()
         curtains.setOpen("curtain-01", 33.7)
 
         server.takeRequest()
@@ -176,9 +180,10 @@ class CurtainTilesTest {
     fun `a set that fails leaves the tile alone and reports the failure`() = runTest {
         server.enqueue(MockResponse(body = fixture()))
         server.enqueue(MockResponse(code = 404, body = "unknown device"))
-        val curtains = CurtainTiles(client())
+        val poll = YandexPoll(client())
+        val curtains = poll.curtains
 
-        curtains.refresh()
+        poll.refresh()
         val before = curtains.state.value.tiles
         curtains.setOpen("curtain-01", 70.0)
 
@@ -190,11 +195,12 @@ class CurtainTilesTest {
     fun `a poll that recovers clears the error`() = runTest {
         server.enqueue(MockResponse(code = 500, body = "boom"))
         server.enqueue(MockResponse(body = fixture()))
-        val curtains = CurtainTiles(client())
+        val poll = YandexPoll(client())
+        val curtains = poll.curtains
 
-        curtains.refresh()
+        poll.refresh()
         assertNotNull(curtains.state.value.error)
-        curtains.refresh()
+        poll.refresh()
 
         assertNull(curtains.state.value.error)
         assertEquals(0.0, curtains.state.value.tiles.single().openPercent)
