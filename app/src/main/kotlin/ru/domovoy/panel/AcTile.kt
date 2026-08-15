@@ -1,0 +1,140 @@
+package ru.domovoy.panel
+
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Card
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Slider
+import androidx.compose.material3.Switch
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
+import java.time.Instant
+import kotlin.math.roundToInt
+
+/** The one unit the flat's air conditioners report their target in. */
+private const val CELSIUS = "unit.temperature.celsius"
+
+/**
+ * One air conditioner: its name, whether it is on, what it is set to, and how old each of those
+ * two readings is. When [error] is set the poll behind them failed — the tile keeps showing the
+ * last values it had, and says so, rather than blanking out or spinning.
+ */
+@Composable
+fun AcTile(
+    tile: AcTileState,
+    now: Instant,
+    modifier: Modifier = Modifier,
+    error: String? = null,
+    onToggle: (String) -> Unit = {},
+    onSetTemperature: (String, Double) -> Unit = { _, _ -> },
+) {
+    Card(modifier = modifier.fillMaxWidth().padding(4.dp)) {
+        Column(modifier = Modifier.fillMaxWidth().padding(12.dp)) {
+            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(tile.name, style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        text = statusLine(tile, now, error),
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+                Switch(
+                    checked = tile.isOn == true,
+                    onCheckedChange = { onToggle(tile.id) },
+                )
+            }
+            val bounds = tile.bounds
+            if (bounds != null) {
+                // As on the curtain, the dragged value is local: the tile behind it only changes
+                // on the next poll, so binding the slider straight to it drags the handle back
+                // under the finger.
+                var dragged by remember(tile.id) { mutableFloatStateOf(sliderStart(tile, bounds.min)) }
+                Slider(
+                    value = dragged,
+                    onValueChange = { dragged = it },
+                    valueRange = bounds.min.toFloat()..bounds.max.toFloat(),
+                    onValueChangeFinished = { onSetTemperature(tile.id, dragged.toDouble()) },
+                )
+            }
+        }
+    }
+}
+
+// An ac that has never reported a target has none to start the handle from; the bottom of its
+// range is the one value that is certainly on the grid, and the line above says "unknown" anyway.
+private fun sliderStart(
+    tile: AcTileState,
+    min: Double,
+): Float = (tile.targetTemperature ?: min).toFloat()
+
+/**
+ * The line under the name: on/off and how old that is, then the target and how old *that* is.
+ * Two ages rather than one because the two capabilities are read separately — on ac-01 they are
+ * 81 days apart — and the error if the poll failed.
+ */
+internal fun statusLine(
+    tile: AcTileState,
+    now: Instant,
+    error: String?,
+): String {
+    val power =
+        when (tile.isOn) {
+            true -> "on"
+            false -> "off"
+            null -> "unknown"
+        }
+    val line =
+        "$power · ${ageLabel(tile.powerLastUpdated, now)} · " +
+            "${temperatureLabel(tile)} · ${ageLabel(tile.temperatureLastUpdated, now)}"
+    return if (error == null) line else "$line · not updating: $error"
+}
+
+// The degree sign is printed only for the unit the ac actually named. Hanging "°C" on a number
+// whose unit the vendor did not report would be the panel inventing it.
+private fun temperatureLabel(tile: AcTileState): String {
+    val target = tile.targetTemperature?.roundToInt() ?: return "unknown"
+    return if (tile.unit == CELSIUS) "$target °C" else "$target"
+}
+
+/**
+ * The air conditioners of the flat. A plain [Column] rather than a lazy list: there are three of
+ * them, and this sits above the bulbs, which are the list that scrolls.
+ */
+@Composable
+fun AcTileList(
+    state: AcPanelState,
+    now: Instant,
+    modifier: Modifier = Modifier,
+    onToggle: (String) -> Unit = {},
+    onSetTemperature: (String, Double) -> Unit = { _, _ -> },
+) {
+    Column(modifier = modifier) {
+        // Nothing has ever been read: there is no tile to hang the error on, so it gets its own
+        // line — otherwise the air conditioners simply would not be on the wall, with no reason.
+        if (state.tiles.isEmpty() && state.error != null) {
+            Text(
+                text = "Кондиционеры: not updating: ${state.error}",
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.padding(12.dp),
+            )
+        }
+        state.tiles.forEach { tile ->
+            AcTile(
+                tile = tile,
+                now = now,
+                error = state.error,
+                onToggle = onToggle,
+                onSetTemperature = onSetTemperature,
+            )
+        }
+    }
+}

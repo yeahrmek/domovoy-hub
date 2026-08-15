@@ -47,9 +47,9 @@ internal data class CapabilityDto(
 )
 
 /**
- * Only the parameters a `range` needs. Every capability type puts something different in here —
- * `split` on `on_off`, `modes` on `mode`, `temperature_k` on `color_setting` — and unknown keys
- * are ignored, so one class covers them all without pretending to describe them.
+ * Only the parameters a `range` and a `mode` need. Every capability type puts something different
+ * in here — `split` on `on_off`, `temperature_k` on `color_setting` — and unknown keys are ignored,
+ * so one class covers them all without pretending to describe them.
  */
 @Serializable
 internal data class CapabilityParametersDto(
@@ -57,6 +57,17 @@ internal data class CapabilityParametersDto(
     val instance: String? = null,
     val unit: String? = null,
     val range: RangeParametersDto? = null,
+    /** What a `mode` capability accepts. Empty on every other capability type. */
+    val modes: List<ModeParameterDto> = emptyList(),
+)
+
+/**
+ * One mode a device accepts. The vacuum's modes also carry a Russian `name`; the air conditioner's
+ * do not, and nothing displays one yet, so it stays out until something reads it.
+ */
+@Serializable
+internal data class ModeParameterDto(
+    val value: String,
 )
 
 @Serializable

@@ -24,12 +24,21 @@ data class Device(
      * device: one device carries several, and one poll is the whole house.
      */
     val ranges: Map<String, Range> = emptyMap(),
+    /**
+     * Every one-of-several capability the device reported, keyed by instance — `thermostat`,
+     * `fan_speed` and `swing` on the air conditioner. Keyed the same way and for the same reason
+     * as [ranges].
+     */
+    val modes: Map<String, Mode> = emptyMap(),
+    /** Every on/off capability that is not *the* on/off — `ionization`, `keep_warm`, `backlight`. */
+    val toggles: Map<String, Toggle> = emptyMap(),
 )
 
 /** The device types the panel has a tile for. Everything else is dropped at the vendor client. */
 enum class DeviceKind {
     Bulb,
     Curtain,
+    AirConditioner,
 }
 
 /**
@@ -57,6 +66,34 @@ data class Range(
     val bounds: Bounds?,
     /** As the vendor spells it, `unit.percent` or `unit.temperature.celsius`; null when blank. */
     val unit: String?,
+    val lastUpdated: Reading,
+    val stateChangedAt: Reading,
+)
+
+/**
+ * A capability that is one of a listed set of values: which way the air conditioner is swinging,
+ * how hard it is blowing. Carries the same two timestamps as [OnOff], for the same reason.
+ */
+data class Mode(
+    /**
+     * Null when the capability reported no value at all. That is *unknown*, and emphatically not
+     * the first of [available]: the recorded response lists every mode ac-01 accepts while saying
+     * nothing about which one is running, and "fan_only" printed on the wall would be an invention.
+     */
+    val current: String?,
+    /** The values the device said it accepts, in the order it listed them; never hardcoded. */
+    val available: List<String>,
+    val lastUpdated: Reading,
+    val stateChangedAt: Reading,
+)
+
+/**
+ * A boolean capability that is not the device's main power: ionization, keep-warm, the backlight.
+ * Carries the same two timestamps as [OnOff], for the same reason.
+ */
+data class Toggle(
+    /** Null when the capability reported no value at all — unknown, not off. */
+    val isOn: Boolean?,
     val lastUpdated: Reading,
     val stateChangedAt: Reading,
 )

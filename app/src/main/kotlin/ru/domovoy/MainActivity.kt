@@ -24,6 +24,8 @@ import okhttp3.OkHttpClient
 import ru.domovoy.core.TokenStore
 import ru.domovoy.integrations.domonap.domonapCalls
 import ru.domovoy.integrations.yandex.YandexClient
+import ru.domovoy.panel.AcTileList
+import ru.domovoy.panel.AcTiles
 import ru.domovoy.panel.BulbTileList
 import ru.domovoy.panel.BulbTiles
 import ru.domovoy.panel.CurtainTileList
@@ -99,16 +101,19 @@ private fun Panel(yandexToken: () -> String) {
         }
     val tiles = remember(client) { BulbTiles(client) }
     val curtains = remember(client) { CurtainTiles(client) }
+    val acs = remember(client) { AcTiles(client) }
     val state by tiles.state.collectAsState()
     val curtainState by curtains.state.collectAsState()
+    val acState by acs.state.collectAsState()
     var now by remember { mutableStateOf(Instant.now()) }
     val scope = rememberCoroutineScope()
 
-    // Two groups, two `/v1.0/user/info` calls per interval — each holds its own tiles and its own
-    // error, and one poll feeding both is the change the air conditioner should bring, not this
-    // one. See docs/yandex.md.
-    LaunchedEffect(tiles, curtains) {
+    // Three groups, three `/v1.0/user/info` calls per interval — each holds its own tiles and its
+    // own error. Collapsing them onto one poll every group reads from is the obvious next change
+    // and is deliberately not this one; it is recorded as owed in docs/yandex.md.
+    LaunchedEffect(tiles, curtains, acs) {
         pollPausingForCalls(domonapCalls.state, POLL_INTERVAL) {
+            acs.refresh()
             curtains.refresh()
             tiles.refresh()
         }
@@ -125,6 +130,12 @@ private fun Panel(yandexToken: () -> String) {
     }
 
     Column {
+        AcTileList(
+            state = acState,
+            now = now,
+            onToggle = { id -> scope.launch { acs.toggle(id) } },
+            onSetTemperature = { id, celsius -> scope.launch { acs.setTemperature(id, celsius) } },
+        )
         CurtainTileList(
             state = curtainState,
             now = now,

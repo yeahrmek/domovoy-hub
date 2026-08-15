@@ -19,9 +19,11 @@ import okhttp3.Response
 import ru.domovoy.core.Bounds
 import ru.domovoy.core.Device
 import ru.domovoy.core.DeviceKind
+import ru.domovoy.core.Mode
 import ru.domovoy.core.OnOff
 import ru.domovoy.core.Range
 import ru.domovoy.core.Reading
+import ru.domovoy.core.Toggle
 import java.io.IOException
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
@@ -32,17 +34,19 @@ import kotlin.time.toJavaDuration
 
 /**
  * The device types the panel has a tile for, matched exactly: `devices.types.light.strip` is a
- * different type from `devices.types.light` and deliberately not in scope, and so — for now — is
- * `devices.types.thermostat.ac`.
+ * different type from `devices.types.light` and deliberately not in scope.
  */
 private val KINDS =
     mapOf(
         "devices.types.light" to DeviceKind.Bulb,
         "devices.types.openable.curtain" to DeviceKind.Curtain,
+        "devices.types.thermostat.ac" to DeviceKind.AirConditioner,
     )
 
 private const val ON_OFF = "devices.capabilities.on_off"
 private const val RANGE = "devices.capabilities.range"
+private const val MODE = "devices.capabilities.mode"
+private const val TOGGLE = "devices.capabilities.toggle"
 
 val YANDEX_BASE_URL: HttpUrl = "https://api.iot.yandex.net/".toHttpUrl()
 
@@ -198,10 +202,13 @@ private fun DeviceDto.toDevice(
         }
     },
     ranges = capabilities.filter { it.type == RANGE }.mapNotNull(CapabilityDto::toRange).toMap(),
+    modes = capabilities.filter { it.type == MODE }.mapNotNull(CapabilityDto::toMode).toMap(),
+    toggles = capabilities.filter { it.type == TOGGLE }.mapNotNull(CapabilityDto::toToggle).toMap(),
 )
 
 // A range with no state at all is kept, not dropped: its bounds are still what the device accepts,
-// and "never reported" is a different thing from "no such capability" on the tile.
+// and "never reported" is a different thing from "no such capability" on the tile. The same holds
+// for the mode and toggle below — every one of ac-01's eight capabilities is in exactly that state.
 private fun CapabilityDto.toRange(): Pair<String, Range>? {
     val instance = parameters?.instance ?: state?.instance ?: return null
     return instance to
@@ -210,6 +217,28 @@ private fun CapabilityDto.toRange(): Pair<String, Range>? {
             bounds = parameters?.range?.let { Bounds(min = it.min, max = it.max, precision = it.precision) },
             // The TV's volume range carries "" rather than omitting the unit; both mean the same.
             unit = parameters?.unit?.takeIf { it.isNotBlank() },
+            lastUpdated = Reading.ofEpochSeconds(lastUpdated),
+            stateChangedAt = Reading.ofEpochSeconds(stateChangedAt),
+        )
+}
+
+private fun CapabilityDto.toMode(): Pair<String, Mode>? {
+    val instance = parameters?.instance ?: state?.instance ?: return null
+    return instance to
+        Mode(
+            // A mode's value is a string; isString keeps a number from being read as a mode name.
+            current = (state?.value as? JsonPrimitive)?.takeIf { it.isString }?.content,
+            available = parameters?.modes.orEmpty().map(ModeParameterDto::value),
+            lastUpdated = Reading.ofEpochSeconds(lastUpdated),
+            stateChangedAt = Reading.ofEpochSeconds(stateChangedAt),
+        )
+}
+
+private fun CapabilityDto.toToggle(): Pair<String, Toggle>? {
+    val instance = parameters?.instance ?: state?.instance ?: return null
+    return instance to
+        Toggle(
+            isOn = (state?.value as? JsonPrimitive)?.booleanOrNull,
             lastUpdated = Reading.ofEpochSeconds(lastUpdated),
             stateChangedAt = Reading.ofEpochSeconds(stateChangedAt),
         )

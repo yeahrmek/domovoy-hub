@@ -264,21 +264,71 @@ than a scalar.
 `Boolean`. Rather than a curtain-shaped field, `Device` now carries **every** range the poll
 returned, keyed by instance (`open`, `brightness`, `temperature`), alongside a `kind` that says
 which tile group the device belongs to. One `/v1.0/user/info` call is the whole house, so the AC's
-`range/temperature` is already parsed and waiting; its three `mode` capabilities (`thermostat`,
-`fan_speed`, `swing`) are **not** modelled and are the next thing to add.
+`range/temperature` is already parsed and waiting.
+
+`Mode` and `Toggle` now sit alongside `Range`, added the same way: `Device` carries **every** mode
+and **every** toggle the poll returned, keyed by instance, not an AC-shaped field. A `Mode` holds
+`current: String?` and `available: List<String>` — the values the device itself listed — and a
+`Toggle` holds `isOn: Boolean?`. Both carry the same two timestamps as everything else.
 
 `YandexClient.devices()` now returns every kind the panel has a tile for, told apart by `kind`,
-instead of bulbs only. The tile groups filter it. **Both groups poll separately, so the panel now
-makes two `/v1.0/user/info` calls per interval where it made one.** That is a real cost with no
-published rate limit to check it against — it is deliberate, kept because collapsing it means one
-object owning the poll that both groups read from, and that belongs in the change that adds the
-third group rather than this one.
+instead of bulbs only. The tile groups filter it. **Each group polls separately, so the panel makes
+three `/v1.0/user/info` calls per interval where it made one.** That is a real cost with no
+published rate limit to check it against. It was kept once because collapsing it means one object
+owning the poll that every group reads from — and with the third group now added, that debt is
+due: the next change to this integration should be the shared poll, not a fourth caller.
 
 > ⚠️ **`POST /v1.0/devices/actions` with `devices.capabilities.range` has never been sent to the
 > real curtain.** The body shape is from the capabilities docs and the code is tested against the
 > fixture and a loopback socket; nothing here proves the curtain moves, that `open` means "percent
 > open" rather than "percent closed", or how long it takes to report the new position back. The
 > `on_off` path was verified on the tablet on 2026-08-15 — this one has not been.
+
+### The air conditioners, as recorded
+
+Three of them, all `devices.types.thermostat.ac`, all `household-flat`, all the same
+Hisense `AS-13UW4RXVQH01(B)`: `ac-01` (Детская), `ac-02` (Спальня), `ac-03` (Зал). Each carries
+eight capabilities — one `range/temperature` (`16..32`, precision `1`,
+`unit.temperature.celsius`, `random_access: true`), one `on_off`, three `mode`
+(`thermostat`, `fan_speed`, `swing`) and up to three `toggle` (`ionization`, `keep_warm`,
+`backlight`) — plus a `properties` entry, a `devices.properties.float` for the *measured* room
+temperature whose `state` is `null` on all three and which nothing reads yet.
+
+**What actually carries state is not the same on the three units**, and the difference is the whole
+reason `null` had to be modelled rather than defaulted:
+
+| | `range/temperature` | `on_off` | the three `mode`s | the `toggle`s |
+| --- | --- | --- | --- | --- |
+| `ac-01` | `18`, read 1778169164 | `false`, read 1785174334 | **all `"state": null`** | all three present, **all `null`** |
+| `ac-02` | `20` | `false` | `cool` / `turbo` / `horizontal`, `last_updated` `0.0` | `ionization` `false`, `keep_warm` `false`, `backlight` **`null`** |
+| `ac-03` | `16` | `false` | `cool` / `auto` / `horizontal` | `ionization` `false`, `keep_warm` `false` — **no `backlight` capability at all** |
+
+- **A `mode` with `"state": null` lists what the device accepts without saying what is running.**
+  `ac-01`'s `thermostat` names `fan_only, heat, cool, dry, auto` and reports none of them. The
+  panel reads that as unknown; taking the first of the list would put "fan_only" on the wall for a
+  unit nobody has asked to blow. The available values come from `parameters.modes` on the device,
+  never from a constant here.
+- **A capability that is absent is not a capability that reported nothing.** `ac-03` has no
+  `backlight`; `ac-01` has one that has never reported. `Device.toggles` distinguishes them: a
+  missing key versus a key whose `isOn` is `null`.
+- **`ac-02`'s modes have real values with `last_updated: 0.0`** — the same "read, but no recorded
+  time" shape the curtain showed on `state_changed_at`, and another reason `0.0` is `Reading.Never`
+  rather than the epoch.
+- **The two readings on one tile are 81 days apart.** On `ac-01` the on/off was read 2026-07-27
+  and the target temperature on 2026-05-07. One age for the tile would have to lie about one of the
+  two values, so the tile prints two: `off · 2 h ago · 18 °C · 81 d ago`. (`ac-03` is the opposite
+  case — every one of its capabilities carries the same 2026-08-15 00:56 timestamp.)
+- **`°C` is printed only when the device named the unit.** All three do; a range that names none
+  gets the bare number, which is the shape the TV's volume range already has in this same response.
+
+> ⚠️ **Not sent to a real air conditioner.** `range/temperature` and `on_off` actions for these
+> devices are tested against the fixture and a loopback socket only. Whether the unit accepts a
+> target while it is off, and how long it takes to report the new target back, is unknown.
+
+**Left out on purpose:** the modes and toggles are parsed and modelled but are neither shown on the
+tile nor drivable — there is no `setMode`/`setToggle` on the client. Adding them means answering
+what a `mode` action body looks like for this device and what the tile should show for a mode that
+has never reported.
 
 ## Run on the tablet
 
@@ -314,8 +364,13 @@ tap.
   not timed — one tap that eventually works cannot distinguish `DONE`-on-accept from
   `DONE`-on-applied. Answering it needs the action response logged next to the moment the bulb
   visibly changes. Until then the tile keeps repainting from a fresh `/v1.0/user/info`.
-- Actual 429 behaviour under a 5 s poll — and now under two calls per interval rather than one,
-  see "The shared model, and why it grew".
+- Actual 429 behaviour under a 5 s poll — and now under **three** calls per interval rather than
+  one, see "The shared model, and why it grew". This is the reason the shared poll is owed.
+- Why every `mode` and `toggle` on `ac-01` reports `null` while `ac-03` reports all of them. Is it
+  the unit, the skill, or a state Yandex simply loses? The panel shows unknown either way, but the
+  answer decides whether a mode is ever worth putting on the tile.
+- What a `devices.capabilities.mode` action body looks like for this AC, and whether it is accepted
+  while the unit is off. Nothing in the panel sends one — no endpoint is guessed here.
 - Does `open` on the curtain mean percent *open* or percent *closed*, and does 0 mean shut? The
   panel assumes open, from the instance name alone. One tap on the real curtain settles it.
 - Does `/v1.0/devices/{id}` really carry `state` (`online`/`offline`) when the list call does not?

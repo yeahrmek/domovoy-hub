@@ -27,6 +27,7 @@ import java.time.Instant
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import kotlin.test.assertEquals
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
@@ -77,7 +78,7 @@ class YandexClientTest {
         // One /v1.0/user/info call is the whole house, so the kinds travel together and are told
         // apart here rather than by a second call per tile group.
         assertEquals(
-            mapOf(DeviceKind.Bulb to 18, DeviceKind.Curtain to 1),
+            mapOf(DeviceKind.Bulb to 18, DeviceKind.Curtain to 1, DeviceKind.AirConditioner to 3),
             devices.groupingBy { it.kind }.eachCount(),
         )
     }
@@ -88,12 +89,82 @@ class YandexClientTest {
 
         val ids = client().devices().map { list -> list.map { it.id } }.getOrThrow()
 
-        // light-09 and light-13 are bulbs, but of other households; light-strip-01 is a
-        // strip and ac-01 an air conditioner — no tile for either yet.
+        // light-09 and light-13 are bulbs, but of other households; light-strip-01 is a strip —
+        // a different type from devices.types.light, and no tile for it yet.
         assertTrue(
-            ids.none { it in setOf("light-09", "light-13", "light-14", "light-strip-01", "ac-01") },
+            ids.none { it in setOf("light-09", "light-13", "light-14", "light-strip-01") },
             "leaked out-of-scope devices: $ids",
         )
+    }
+
+    @Test
+    fun `the air conditioner comes back with its temperature range as the vendor reports it`() = runTest {
+        server.enqueue(MockResponse(body = fixture()))
+
+        val ac = client().devices().getOrThrow().single { it.id == "ac-01" }
+
+        assertEquals(DeviceKind.AirConditioner, ac.kind)
+        assertEquals("Residential air conditioner", ac.name)
+        assertEquals("Детская", ac.room)
+        assertEquals(setOf("temperature"), ac.ranges.keys)
+        val temperature = ac.ranges.getValue("temperature")
+        assertEquals(18.0, temperature.value)
+        assertEquals(Bounds(min = 16.0, max = 32.0, precision = 1.0), temperature.bounds)
+        assertEquals("unit.temperature.celsius", temperature.unit)
+        assertEquals(1_778_169_164, (temperature.lastUpdated as Reading.At).instant.epochSecond)
+    }
+
+    @Test
+    fun `a mode that never reported names the values the device accepts and no current one`() = runTest {
+        // Every mode on ac-01 carries "state": null — the API lists what the device accepts
+        // without saying which is active. Reading the first of the list as the current one would
+        // put "fan_only" on the wall for an air conditioner nobody has asked to blow.
+        server.enqueue(MockResponse(body = fixture()))
+
+        val ac = client().devices().getOrThrow().single { it.id == "ac-01" }
+
+        assertEquals(setOf("thermostat", "fan_speed", "swing"), ac.modes.keys)
+        val thermostat = ac.modes.getValue("thermostat")
+        assertNull(thermostat.current)
+        assertEquals(listOf("fan_only", "heat", "cool", "dry", "auto"), thermostat.available)
+        assertEquals(listOf("turbo", "high", "medium", "low", "quiet", "auto"), ac.modes.getValue("fan_speed").available)
+        assertEquals(listOf("stationary", "vertical", "horizontal", "auto"), ac.modes.getValue("swing").available)
+        assertEquals(Reading.Never, thermostat.lastUpdated)
+    }
+
+    @Test
+    fun `a mode that did report comes back with the value it reported, from the list it listed`() = runTest {
+        server.enqueue(MockResponse(body = fixture()))
+
+        val ac = client().devices().getOrThrow().single { it.id == "ac-03" }
+
+        val thermostat = ac.modes.getValue("thermostat")
+        assertEquals("cool", thermostat.current)
+        assertEquals(listOf("fan_only", "heat", "cool", "dry", "auto"), thermostat.available)
+        assertTrue(thermostat.current in thermostat.available)
+    }
+
+    @Test
+    fun `a toggle that never reported reads as unknown, not as off`() = runTest {
+        server.enqueue(MockResponse(body = fixture()))
+
+        val ac = client().devices().getOrThrow().single { it.id == "ac-01" }
+
+        assertEquals(setOf("ionization", "keep_warm", "backlight"), ac.toggles.keys)
+        assertNull(ac.toggles.getValue("ionization").isOn)
+        assertEquals(Reading.Never, ac.toggles.getValue("ionization").lastUpdated)
+    }
+
+    @Test
+    fun `a toggle the device does not have at all is absent, not unknown`() = runTest {
+        // ac-03 carries no backlight capability, while ac-01 carries one that has never reported.
+        // "no such capability" and "never reported" are different things and must stay so.
+        server.enqueue(MockResponse(body = fixture()))
+
+        val ac = client().devices().getOrThrow().single { it.id == "ac-03" }
+
+        assertEquals(setOf("ionization", "keep_warm"), ac.toggles.keys)
+        assertEquals(false, ac.toggles.getValue("ionization").isOn)
     }
 
     @Test
