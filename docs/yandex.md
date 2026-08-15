@@ -141,6 +141,50 @@ re-authorizing silently returns the *old* scope set. Fix: add the scopes, revoke
 `https://id.yandex.ru/security/apps`, then authorize again and accept the new consent screen.
 An API-level error would have been JSON; a plain-text `Forbidden` means it never reached the API.
 
+### How the token gets in
+
+The panel reads the token from `EncryptedSharedPreferences` (file `domovoy-secrets`, keys
+`AES256_SIV`, values `AES256_GCM`, master key in the AndroidKeyStore) on **every call**, not once
+at startup — so a token written while the panel is running is used by the next poll, with no
+restart. `local.properties` still seeds it:
+
+1. **Fresh install.** The store is empty, so `yandex.oauth.token` — carried into the APK as
+   `BuildConfig.YANDEX_OAUTH_TOKEN` — is written into it on first launch. That is the only way a
+   token reaches the tablet today.
+2. **Every launch after that.** The store already holds a token, so the build-time value is
+   ignored. Reinstalling the same APK over a store that has a fresher token does not put the stale
+   one back. *Uninstalling* wipes the store, and the next install seeds again from the APK.
+3. **Nothing stored.** No request is sent — an empty `Bearer` would come back as the same
+   plain-text `Forbidden` above and blame the scopes. The bulb group shows *«no Yandex token
+   stored — set yandex.oauth.token in local.properties and reinstall»*.
+4. **Store will not open.** A keystore lost across a restored backup or a wipe fails the poll with
+   *«secure storage unavailable: …»* on the tiles rather than taking the panel down.
+
+**Still true, and the reason this is only half the fix:** the seed rides in the APK, and there is
+no way to type a token into the panel. So an expired token today still means edit
+`local.properties`, rebuild, reinstall. What the move buys is that the *runtime* source of truth is
+now the store, so anything that can write to it fixes the panel in place.
+
+`androidx.security:security-crypto` is deprecated upstream — 1.1.0 is its last release. Kept
+because AGENTS.md names `EncryptedSharedPreferences` and it is still the shortest keystore-backed
+path; the replacement, if it ever matters, is AES-GCM against the AndroidKeyStore by hand, behind
+the same `TokenStore`.
+
+### What an OAuth refresh flow would need
+
+Not built, and not designed here. What it would have to answer first:
+
+- **Does the current app type even issue a refresh token?** Unknown. The app is registered as
+  *«Для доступа к API или отладки»* and the token was obtained by hand; `iot:*` token lifetime was
+  never confirmed (see "Inferred / not verified"). If the answer is no, the app has to be
+  re-registered as an "authorize users" type with a redirect URI before any of this is possible.
+- **Somewhere to keep the refresh token** — `TokenStore`, the same store, another key.
+- **A trigger.** `YandexClient` currently treats `401` and `403` as ordinary failures. Refresh
+  means recognising them, exchanging the refresh token, storing the new one and re-polling once —
+  and not looping when the exchange itself fails.
+- **A first authorization that a wall tablet can do.** The consent screen is a browser flow; the
+  panel has no place to run one today, so the first token would still arrive from a laptop.
+
 ## Ecosystem health
 
 Alive and first-party. Docs are current, in Russian, versioned under `yandex.ru/dev`, and this is
@@ -171,9 +215,8 @@ Built against the fixture; first run against the live API on the tablet on 2026-
   it, so the tile is repainted from a fresh `/v1.0/user/info`, never from the action result — see
   the first open question below, still unanswered. The tablet run shows the round trip works; it
   does not show that the response could have been trusted.
-- **The OAuth token** is read from `local.properties` as `yandex.oauth.token` into `BuildConfig`.
-  That is a stopgap: it puts the token in the APK. `EncryptedSharedPreferences`, which AGENTS.md
-  asks for, is not wired up yet.
+- **The OAuth token** is read at runtime from `EncryptedSharedPreferences`, not from `BuildConfig`
+  — see "How the token gets in" below. No token stored is a visible tile error, not an empty poll.
 
 ## Run on the tablet
 

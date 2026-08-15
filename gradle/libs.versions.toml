@@ -6,6 +6,7 @@ ktlint = "14.2.0"
 androidxCore = "1.19.0"
 androidxLifecycle = "2.11.0"
 androidxActivity = "1.13.0"
+androidxSecurity = "1.1.0"
 composeBom = "2026.08.00"
 coroutines = "1.11.0"
 okhttp = "5.4.0"
@@ -19,6 +20,10 @@ mockk = "1.14.11"
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "androidxCore" }
 androidx-lifecycle-runtime-ktx = { module = "androidx.lifecycle:lifecycle-runtime-ktx", version.ref = "androidxLifecycle" }
 androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "androidxActivity" }
+# EncryptedSharedPreferences — the token store AGENTS.md asks for. Jetpack Security Crypto is
+# deprecated upstream: 1.1.0 is the last release and gets no further updates. Kept because it is
+# still the shortest path to a keystore-backed store; the alternative is hand-rolled AES-GCM.
+androidx-security-crypto = { module = "androidx.security:security-crypto", version.ref = "androidxSecurity" }
 
 compose-bom = { module = "androidx.compose:compose-bom", version.ref = "composeBom" }
 compose-ui = { module = "androidx.compose.ui:ui" }
