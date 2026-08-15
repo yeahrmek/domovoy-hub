@@ -114,9 +114,11 @@ a deerma vacuum, two deerma humidifiers and a dmaker fan — i.e. the vacuum and
 `vendor-comparison.md` assigned to a hosted Mi Home widget "because no credentials can be had".
 Through Yandex they are ordinary devices with `on_off`, `mode` and `range` capabilities and no Mi
 credentials at all. That does not make the hosted-widget decision wrong — Yandex exposes what the
-skill chose to publish, not everything Mi Home shows — but it does mean the decision should be
-re-taken against this list rather than inherited. The Tuya recuperators are **not** in here; that
-plan is unchanged.
+skill chose to publish, not everything Mi Home shows — but it did mean the decision had to be
+re-taken against this list rather than inherited. **It was, on 2026-08-15: Mi Home stays.** Battery,
+cleaning status, consumables and the map beat an on/off and a mode list for a device whose useful
+state is not a switch. See `xiaomi.md`. The Tuya recuperators are **not** in here; that plan is
+unchanged.
 
 Also observed, and relevant to how tiles are built:
 

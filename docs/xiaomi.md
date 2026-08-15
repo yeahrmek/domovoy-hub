@@ -8,7 +8,27 @@ realistically start / dock / battery, not a map.
 
 The rest of this note is why: the blocker is administrative, not technical.
 
-Read from the public docs on 2026-08-15. **Nothing has been called yet.**
+Read from the public docs on 2026-08-15. **Nothing has been called yet**, and now nothing will be:
+see "Decided: Mi Home, not the Yandex copy".
+
+## Decided: Mi Home, not the Yandex copy
+
+The Yandex probe found the vacuum and both humidifiers already reachable through a linked
+third-party skill — `on_off`, `mode` and `range` capabilities, no Mi credentials involved (see
+`yandex.md`, "Coverage, measured"). That reopened the question this file answers, because it meant
+a vacuum tile could be built today with no Xiaomi integration at all.
+
+**Decision, 2026-08-15: the panel keeps using Mi Home for the vacuum.** What Yandex exposes is what
+the skill chose to publish — on/off and a mode list — while Mi Home shows battery, cleaning status,
+consumables and the map. For a device whose useful state is mostly *not* a switch, the vendor's own
+app is more informative than anything the shared device model could hold. The administrative
+blocker below is therefore moot rather than binding: even with MIoT credentials, the tile would be
+the poorer of the two.
+
+What this settles, and what it does not: the vacuum will not get a Yandex-derived tile. **Whether
+Mi Home is embedded as a hosted AppWidget or simply opened from a launcher tile is still open** —
+it depends on whether Mi Home ships a widget for this vacuum, which is the first open question
+below.
 
 ## Verified in the docs
 

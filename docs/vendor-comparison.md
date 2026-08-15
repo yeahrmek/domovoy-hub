@@ -39,6 +39,11 @@ from the Mi Dev Platform by manual review with a written justification, and no p
 terms for an individual. Rather than wait on that, the vacuum and humidifier get a hosted Mi Home
 widget — real state, vendor-maintained, in their design language, invisible to our device model.
 
+**Since confirmed as a preference, not a fallback (2026-08-15).** The Yandex probe found the vacuum
+and both humidifiers already reachable through a linked skill, so a tile could have been built with
+no Xiaomi credentials at all. Mi Home was kept anyway: it shows battery, cleaning status,
+consumables and the map, where Yandex publishes on/off and a mode list. See `xiaomi.md`.
+
 ## Build order
 
 1. **Yandex** — the reference integration. Register, token, `/v1.0/user/info`, one tile that turns
