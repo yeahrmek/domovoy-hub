@@ -1,10 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- Vendor APIs are all HTTP. The wake lock and <queries> block still land with the
-         feature that needs them; the notification listener below needs no permission of
-         its own, only the user-granted notification-access toggle. -->
+    <!-- Vendor APIs are all HTTP. The wake lock still lands with the feature that needs it;
+         the notification listener below needs no permission of its own, only the user-granted
+         notification-access toggle. -->
     <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- The two apps the launcher tiles open. Targeting API 30+ means a package we have not
+         named here is invisible to us: getLaunchIntentForPackage returns null for it, and the
+         tile would read "not installed" on a tablet that has the app. Named one by one rather
+         than as an <intent> query for every launchable app, because these two are the whole
+         list. Both packages are read off the tablet, and the grant this block produces is
+         verified there too — see docs/domonap.md and docs/xiaomi.md. -->
+    <queries>
+        <package android:name="com.domonap.app" />
+        <package android:name="com.xiaomi.smarthome" />
+    </queries>
 
     <application
         android:allowBackup="false"

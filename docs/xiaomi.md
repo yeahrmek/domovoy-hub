@@ -30,6 +30,95 @@ Mi Home is embedded as a hosted AppWidget or simply opened from a launcher tile 
 it depends on whether Mi Home ships a widget for this vacuum, which is the first open question
 below.
 
+## Shipped: a launcher tile, pending the widget answer
+
+The panel carries a launcher tile — "Пылесос" — that opens Mi Home and claims nothing else. It is
+the fallback this note already named, and it needs nothing verified beyond a package name, so it
+ships while the widget question stays open. If Mi Home turns out to ship a usable vacuum widget,
+the hosted-widget tile replaces this one; if not, this is the answer.
+
+**The package name is `com.xiaomi.smarthome`, verified on the tablet on 2026-08-15** — the app was
+installed and signed in that day, and read off the device rather than off the public record:
+
+```
+package:com.xiaomi.smarthome                       # the only xiaomi package installed
+versionName=11.7.622  versionCode=11070622  minSdk=24  targetSdk=35
+com.xiaomi.smarthome/.SmartHomeMainActivity        # cmd package resolve-activity, MAIN/LAUNCHER
+```
+
+The launcher activity resolving is the part that matters: `getLaunchIntentForPackage` returns null
+without one, and the tile would read "not installed" on a tablet that plainly has the app.
+
+**Verified end to end on the tablet, same day.** With the debug build installed, the panel renders
+
+```
+Без комнаты
+Пылесос
+opens the app · no state to read
+```
+
+and tapping it brings `com.xiaomi.smarthome/.SmartHomeMainActivity` to the foreground — the same
+activity resolved above. The `<queries>` block is what makes that work, and the system confirms it:
+
+```
+queriesPackages=[com.domonap.app, com.xiaomi.smarthome]     # dumpsys package ru.domovoy
+queries via package name:                                    # dumpsys package queries
+  ru.domovoy:
+    com.xiaomi.smarthome
+    com.domonap.app
+```
+
+**What the tile shows, and does not.** No state, no age, no polling: Mi Home's values never reach
+our device model, so there is nothing here that could go stale and nothing to say an age about. The
+line under the name says `opens the app · no state to read` rather than inventing a freshness.
+
+**The room: none.** The vacuum cleans every room and docks in one nobody has recorded, and the
+humidifier the same app holds is somewhere else again. The tile lands in the panel's "Без комнаты"
+section. That is an answer, not a gap — filling it in would mean picking a room the vacuum is not
+in.
+
+## Mi Home does ship widgets — five of them (2026-08-15)
+
+Read off the tablet with `adb shell dumpsys appwidget`, which is the first open question below
+half-answered: a widget exists, so the hosted-widget tile is not ruled out on availability.
+
+| provider (`com.xiaomi.smarthome.miui.widget.*`) | min size |
+|---|---|
+| `MiJiaSingeDeviceWidgetProvider` | 110 × 110 dp |
+| `MiJiaSmallEnvironmentWidgetProvider` | 110 × 110 dp |
+| `MiJiaMiddleWidgetProvider` | 300 × 110 dp |
+| `MiJiaMiddleEnvironmentWidgetProvider` | 300 × 110 dp |
+| `MiJiaBigWidgetProvider` | 300 × 250 dp |
+
+All five: `resizeMode=3` (resizable both ways), `widgetCategory=1` (home screen, not keyguard),
+`updatePeriodMillis=10000`. Sizes are decoded from the raw dumpsys values — `28161` is `0x6E01`,
+i.e. Android's `TypedValue` complex form with unit `1` (`COMPLEX_UNIT_DIP`) and mantissa `110`; the
+same decode gives 300 and 250 for `76801` and `64001`, consistently across all five.
+
+`MiJiaSingeDeviceWidgetProvider` — "single device", spelling Xiaomi's — is the one that matters
+here: a 110 dp square showing one device is the right shape for a tile on our panel.
+
+**What this does not settle, and none of it is inferable from a dumpsys:**
+
+- **Whether it supports the vacuum**, and whether it shows battery and cleaning status or only a
+  toggle. The provider list says nothing about which devices it accepts.
+- **Whether it needs a configuration activity** to choose the device. `android:configure` lives in
+  the `appwidget-provider` XML rather than in the manifest receiver, so this dump cannot show it;
+  it needs the APK pulled and `aapt2 dump`. A single-device widget almost certainly has one, and a
+  bind flow that must run a third-party configuration activity is a different job from binding a
+  widget outright.
+- **Whether these render on a non-MIUI tablet.** Every provider is namespaced `.miui.widget.` and
+  registers a `miui.appwidget.action.APPWIDGET_UPDATE` alongside the standard one. The system here
+  lists them as bindable providers, which is not the same as their populating with data on a
+  Samsung. `updatePeriodMillis=10000` is also below the platform's 30-minute floor, so real
+  refreshes come from the app's own broadcasts (`com.xiaomi.smarthome.miui.widget.refresh_widget_*`)
+  — which is Mi Home's business, not something we could drive.
+
+Binding one still needs a manifest change and a user-confirmed bind flow, "ask first" under
+AGENTS.md. The launcher tile stands until somebody places `MiJiaSingeDeviceWidgetProvider` on this
+tablet's home screen by hand and looks at what it actually shows for the vacuum — ten minutes, and
+it decides the question.
+
 ## Verified in the docs
 
 **Official third-party API for controlling a user's devices: not self-serve, and I could not find a
@@ -84,10 +173,17 @@ credentials is not.
 
 ## Open questions
 
-- Does Mi Home ship a widget for this vacuum, and does it show battery and status? If not, the
-  vacuum falls back to a launcher tile.
+- ~~Is `com.xiaomi.smarthome` the package on this tablet?~~ **Answered 2026-08-15: yes**, and the
+  launcher tile is verified working on the device.
+- Does Mi Home ship a widget for this vacuum, and does it show battery and status? **Half answered
+  2026-08-15**: five widgets exist, one of them single-device — but whether it takes the vacuum,
+  whether it needs a configuration activity, and whether a `.miui.` widget populates on a Samsung
+  are all still open. Placing it on the home screen by hand answers all three.
 - Widget binding needs a manifest change and a user-confirmed bind flow — "ask first" under
   AGENTS.md.
+- Should a launcher tile whose app is missing offer to install it? Today it refuses the tap and
+  names the package. A store deep link would need to know which store this tablet has — Domonap is
+  distributed through RuStore, Mi Home through Google Play — and neither has been checked.
 - Still worth ten minutes: is the vacuum already linked into Yandex via a skill? If so it appears
   in `/v1.0/user/info` and needs nothing from Xiaomi at all.
 - Only if the scope changes: can an individual obtain a MIoT client_id, and on what terms? That is

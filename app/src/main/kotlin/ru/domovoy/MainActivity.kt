@@ -2,6 +2,7 @@ package ru.domovoy
 
 import android.content.Context
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.material3.MaterialTheme
@@ -14,6 +15,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 import kotlinx.coroutines.delay
@@ -27,6 +29,7 @@ import ru.domovoy.integrations.yandex.YandexClient
 import ru.domovoy.panel.PanelRooms
 import ru.domovoy.panel.TuyaPoll
 import ru.domovoy.panel.YandexPoll
+import ru.domovoy.panel.launcherTiles
 import ru.domovoy.panel.pollPausingForCalls
 import ru.domovoy.panel.recuperatorRooms
 import java.time.Instant
@@ -151,6 +154,17 @@ private fun Panel(secrets: PanelSecrets) {
     var now by remember { mutableStateOf(Instant.now()) }
     val scope = rememberCoroutineScope()
 
+    // The launcher tiles hold no vendor state, so there is nothing here to poll — but whether an
+    // app is installed *can* change under the panel, and a tablet that has to be restarted before
+    // a freshly installed Mi Home stops reading "not installed" is a wall that lies. Keyed on
+    // `now`, so the check is redone on the same tick that ages every other tile: two
+    // `getLaunchIntentForPackage` calls a quarter-minute, against nobody's allowance.
+    val context = LocalContext.current
+    val launchers =
+        remember(now) {
+            launcherTiles { packageName -> context.packageManager.getLaunchIntentForPackage(packageName) != null }
+        }
+
     // One `/v1.0/user/info` call per interval feeds every group; each still holds its own
     // tiles, its own ages and its own error.
     LaunchedEffect(poll) {
@@ -179,6 +193,7 @@ private fun Panel(secrets: PanelSecrets) {
         strips = stripState,
         recuperators = recuperatorState,
         bulbs = state,
+        launchers = launchers,
         now = now,
         onToggleAc = { id -> scope.launch { acs.toggle(id) } },
         onSetTemperature = { id, celsius -> scope.launch { acs.setTemperature(id, celsius) } },
@@ -187,5 +202,26 @@ private fun Panel(secrets: PanelSecrets) {
         onSetBrightness = { id, percent -> scope.launch { strips.setBrightness(id, percent) } },
         onToggleRecuperator = { id -> scope.launch { recuperators.toggle(id) } },
         onToggleBulb = { id -> scope.launch { tiles.toggle(id) } },
+        onOpenApp = { packageName -> open(context, packageName) },
     )
+}
+
+/**
+ * Opens another app's launcher activity. The intent is resolved again at the tap rather than kept
+ * from the tile: the app can be uninstalled between the two, and a stale intent would throw.
+ *
+ * Nothing here can take the panel down. An app that disappeared resolves to null and the tap does
+ * nothing — the tile will say "not installed" on the next tick — and anything the framework throws
+ * on the way out is logged rather than raised: a wall panel that dies because somebody tapped a
+ * shortcut is worse than one that fails to open it.
+ */
+private fun open(
+    context: Context,
+    packageName: String,
+) {
+    // getLaunchIntentForPackage already sets FLAG_ACTIVITY_NEW_TASK, so the app opens as its own
+    // task and the panel is what the back gesture returns to.
+    val intent = context.packageManager.getLaunchIntentForPackage(packageName) ?: return
+    runCatching { context.startActivity(intent) }
+        .onFailure { failure -> Log.w("DomovoyHub", "could not open $packageName", failure) }
 }
