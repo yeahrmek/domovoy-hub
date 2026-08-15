@@ -72,22 +72,39 @@ Services → IoT Core → My Subscriptions lists two packs, both effective 2026-
 | IoT Core | — | — | 2026-09-15, with an **Extend Trial Period** button | In service |
 
 So the allowance is **denominated in money, not in calls** — $0.20 a month of "basic resources",
-which the page's own banner says is what API calls consume. The 26,000-calls figure is from the
-pricing doc and is not what the console meters. Nothing here converts one into the other, and
-guessing from the Flagship overage rate ($3.15/million, which would make $0.20 ≈ 63,000 calls) is
-arithmetic on an unrelated tier's price list, not a fact.
+which the page's own banner says is what API calls consume. Expanding the rows gives the rates, and
+with them the conversion the pricing doc does not:
 
-Two things this settles and one it does not:
+| Line item | Billing rule | What $0.20 buys |
+| --- | --- | --- |
+| `CLOUD_API` | 2.48 USD / 1,000,000 | ~80,600 calls |
+| `CLOUD_API_FOREIGN` | 3.71 USD / 1,000,000 | **~53,900 calls** |
+| `CLOUD_MSG` | 0.58 USD / 1,000,000 | ~345,000 messages |
+| `CLOUD_MSG_FOREIGN` | 1.46 USD / 1,000,000 | ~137,000 messages |
+
+Which of the two API rates applies is not stated. This project is in Central Europe, so the
+`_FOREIGN` rate is the one to plan against — **~54,000 calls/month, twice the documented 26,000**,
+and one pot shared with messages (which the panel does not use, since Pulsar is out).
+
+Expanding IoT Core gives the pools, and they match what the API returned: **Device Pool 20 / 50**,
+**Controllable Device Pool 0 / 10** (nothing has been commanded yet), **Data Center 1 / 1**.
+
+Three things this settles:
 
 - **The trial does not simply reset forever.** The quota refreshes monthly, but the pack itself
   expires 2026-09-15 — one month after signup. There is an **Extend Trial Period** button, so it is
   extendable; by how much, how often, and whether it needs justification is unknown.
-- **Usage read `0 / 0.2 USD` after roughly 20 API calls had already been made that day.** Either the
-  meter lags, or these reads are not billed against this pack. Until that is resolved, no poll
-  interval derived from the quota is trustworthy in either direction.
-- The cheapest way to settle it is to look again after a day of real polling: a known number of
-  calls against a moving counter gives the actual price per call, which is the number the poll
-  interval should come from.
+- **The `0 / 0.2 USD` reading after ~20 calls is not a lagging meter — it is rounding.** Twenty
+  calls cost $0.00007. One cent is ~2,700 calls at the foreign rate, so the counter cannot visibly
+  move at probe volumes. Watching it is only a measurement once the panel has polled for days.
+- **~54,000 calls/month is the number the poll interval comes from**, not 26,000:
+
+| Per refresh | Refreshes/month | Poll interval, 24/7 | Poll interval, 16 h/day |
+| --- | --- | --- | --- |
+| 5 calls (per-device, today) | ~10,800 | **~4 min** | ~2.7 min |
+| 1 call (if batch is unlocked) | ~54,000 | **~48 s** | ~32 s |
+
+Token refreshes add ~360/month, under 1%. Taps cost a command plus a re-read on top.
 
 **Push: yes — Tuya Message Service, over Pulsar.** Device registration, data reports and offline
 events are pushed to a subscriber. It is a modified Apache Pulsar with a custom auth algorithm and
@@ -129,12 +146,13 @@ languages. The friction is commercial, not technical: quotas, editions and renew
   pack expires **2026-09-15**. See the console table above.
 - **What happens on 2026-09-15, and what "Extend Trial Period" grants.** This is now the question
   that decides whether Tuya is viable past a month. Press it before the expiry, not after.
-- **What $0.20/month of basic resources actually buys.** The console meters money; the pricing doc
-  quotes calls; the meter read 0 after ~20 calls. Measure against a moving counter before choosing
-  a poll interval — every number below is provisional until then.
-- **Trial allows max 10 controllable devices; the account has 20.** Which 10 count, and what the
-  eleventh does when commanded, is unknown. The panel only needs the 5 recuperators, so this may
-  never bite — but nothing has been commanded yet.
+- ~~What $0.20/month of basic resources actually buys~~ — ~54,000 calls at the foreign rate,
+  ~80,600 at the domestic one. **Which of the two applies to a Central Europe project** is the
+  remaining unknown, and it is a 1.5× swing on the poll interval.
+- **Controllable Device Pool reads 0 / 10 against a Device Pool of 20 / 50.** So a device presumably
+  takes a controllable slot the first time it is commanded, and the panel's 5 recuperators would
+  leave 5. Whether a slot is ever released, and what the eleventh device does when commanded, is
+  unknown — nothing has been commanded yet.
 - **How to write a custom datapoint.** `POST /v1.0/devices/{id}/commands` is the standard-set path,
   and the standard set for this product is just `switch` — so fan speed almost certainly needs the
   thing-model write, `POST /v2.0/cloud/thing/{id}/shadow/properties/issue`. Unverified: writing
@@ -273,12 +291,10 @@ temperature, humidity, three fan speeds and three modes for a device the API cal
 The batch properties route exists — a business error, not `1108` — but the project is not authorised
 for it. Until that is sorted, **real state costs one call per device: 5 calls per refresh, not 1.**
 
-Against the *documented* 26,000/month that is ~5,200 refreshes: a poll every **~8 minutes** around
-the clock, or ~5 minutes at 16 h a day. Token refreshes add ~360/month; a tap costs a command plus a
-re-read. Treat those minutes as provisional — the console meters $0.20/month rather than a call
-count, and the two have not been reconciled (see "What the console actually shows"). The shape of
-the answer holds either way: minutes, not seconds, and the ratio between 1 call and 5 per refresh is
-what the batch permission is worth.
+Against the ~54,000 calls/month the console's billing rules actually buy, that is ~10,800 refreshes:
+**a poll every ~4 minutes** around the clock, or ~2.7 minutes at 16 h a day. Unlocking the batch
+route would take the same allowance to **~48 seconds**, which is the difference between a tile that
+lags a tap by minutes and one that does not. See "What the console actually shows" for the rates.
 
 ### Errors seen
 
