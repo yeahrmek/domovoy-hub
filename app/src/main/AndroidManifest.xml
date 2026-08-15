@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- Vendor APIs are all HTTP. Nothing else is requested yet: the notification
-         listener, wake lock and <queries> block each land with the feature that
-         needs them. -->
+    <!-- Vendor APIs are all HTTP. The wake lock and <queries> block still land with the
+         feature that needs them; the notification listener below needs no permission of
+         its own, only the user-granted notification-access toggle. -->
     <uses-permission android:name="android.permission.INTERNET" />
 
     <application
@@ -21,6 +21,19 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- BIND_NOTIFICATION_LISTENER_SERVICE is a signature permission the system holds; naming
+             it here is the guard that says only the system may bind this service. Exported for the
+             same reason: the binder is system_server, not us. -->
+        <service
+            android:name=".integrations.domonap.DomonapCallListener"
+            android:exported="true"
+            android:label="@string/domonap_listener_label"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
     </application>
 
 </manifest>

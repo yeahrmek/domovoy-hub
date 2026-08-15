@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Domovoy Hub</string>
+    <!-- Shown in Settings → Notification access, next to the toggle the user grants. -->
+    <string name="domonap_listener_label">Intercom calls</string>
 </resources>
