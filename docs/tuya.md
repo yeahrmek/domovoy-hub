@@ -278,6 +278,18 @@ real problem, and the answer is not to invent one. Three ways were on the table:
    someone who checked. `local.properties` rather than a checked-in file because the keys are
    device ids, which are apartment-identifying. The room names must be spelled as Yandex spells
    them, or the recuperator gets its own section next to the room it belongs to.
+
+   All five are mapped in the flat: four onto rooms Yandex already reports, and "Бризер данина
+   комната" onto **Маленькая детская** — a room no Yandex device is in, so that name reaches the
+   panel from this file alone. It is named in `ROOM_ORDER` as well, or it would sort after every
+   known room, down by the bathrooms.
+
+   **The room names are Cyrillic, and that is a trap in the build.** `Properties.load(InputStream)`
+   decodes ISO-8859-1, so read that way "Спальня" arrives as "Ð¡Ð¿Ð°Ð»ÑŒÐ½Ñ" — no error
+   anywhere, just five sections named after the mojibake, sorted below the real rooms. Verified on
+   the tablet, and fixed by reading the file through a UTF-8 `Reader` in `app/build.gradle.kts`.
+   Nothing in `src/test/` can see `local.properties`, so if the rooms ever look wrong, read the
+   generated `BuildConfig.java` first.
 3. **An unplaced section.** Kept as well, as the fallback: anything the mapping does not name — a
    new recuperator, a typo, an unset property — renders under "Без комнаты" at the bottom of the
    panel. A device is never dropped for want of a room, and a mistake in (2) shows up on the wall

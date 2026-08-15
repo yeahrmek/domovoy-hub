@@ -91,6 +91,41 @@ class RoomSectionsTest {
     }
 
     @Test
+    fun `a room only a recuperator is in is placed in the order like any other`() = runTest {
+        // "Маленькая детская" reaches the panel from local.properties alone: Yandex has no device
+        // in that room, so nothing else can name it. It is a child's bedroom all the same and
+        // belongs with the bedrooms — not after every named room, where a room the order has never
+        // heard of lands, down by the bathrooms.
+        server.enqueue(MockResponse(body = fixture()))
+        val poll = YandexPoll(client())
+        poll.refresh()
+
+        val sections =
+            roomSections(
+                acs = poll.acs.state.value.tiles,
+                curtains = poll.curtains.state.value.tiles,
+                strips = poll.strips.state.value.tiles,
+                recuperators = listOf(recuperator("xfj-01", room = "Маленькая детская")),
+                bulbs = poll.bulbs.state.value.tiles,
+            )
+
+        assertEquals(
+            listOf(
+                "Коридор",
+                "Зал",
+                "Спальня",
+                "Детская",
+                "Маленькая детская",
+                "Кабинет",
+                "Гардероб",
+                "Ванная",
+                "Детская ванная",
+            ),
+            sections.map { it.room },
+        )
+    }
+
+    @Test
     fun `a device no vendor placed is still on the wall, in a section of its own and last`() = runTest {
         // Tuya's API names no room, so every recuperator arrives with room = null unless the flat's
         // own answer was written into local.properties. Unplaced is not dropped: a device that

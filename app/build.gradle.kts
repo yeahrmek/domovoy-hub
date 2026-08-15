@@ -18,10 +18,15 @@ plugins {
 // EncryptedSharedPreferences, and from then on the panel reads the store, never this constant.
 // It is still in the APK, so it is the one thing here that a build without a token is better off
 // without — see docs/yandex.md, "How the token gets in".
+// Read through a UTF-8 Reader, not an InputStream: `Properties.load(InputStream)` decodes
+// ISO-8859-1, and the room names in `tuya.rooms` are Cyrillic. Loaded the other way, "Спальня"
+// reaches BuildConfig as "Ð¡Ð¿Ð°Ð»ÑŒÐ½Ñ" — which is not an error anywhere, it just puts every
+// recuperator in a section named after the mojibake. Verified by reading the generated
+// BuildConfig.java; nothing in `src/test/` can see this file.
 val localProperties =
     Properties().apply {
         val file = rootProject.file("local.properties")
-        if (file.exists()) file.inputStream().use(::load)
+        if (file.exists()) file.reader(Charsets.UTF_8).use(::load)
     }
 
 fun localProperty(name: String): String = localProperties.getProperty(name).orEmpty()

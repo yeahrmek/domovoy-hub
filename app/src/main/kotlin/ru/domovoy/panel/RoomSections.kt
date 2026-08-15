@@ -10,7 +10,11 @@ package ru.domovoy.panel
  *
  *  1. **Коридор** — the room the panel is in. Arriving and leaving, this is the one being switched.
  *  2. **Зал**, **Гостиная** — the shared rooms, walked into next and driven from the wall most.
- *  3. **Спальня**, **Спальня взрослая**, **Детская** — the rooms someone is in, or about to be.
+ *  3. **Спальня**, **Спальня взрослая**, **Детская**, **Маленькая детская** — the rooms someone is
+ *     in, or about to be. "Маленькая детская" is here even though no Yandex device is: the room's
+ *     only tile is a recuperator, and it reaches the panel through `tuya.rooms` (see
+ *     [recuperatorRooms]). Left out of this list it would sort after every named room, down by the
+ *     bathrooms, which is not where a bedroom belongs.
  *  4. **Кабинет**, **Гардероб** — entered on purpose, and rarely on the way past.
  *  5. **Ванная**, **Детская ванная**, **Балкон** — switched at their own door, standing in them;
  *     a wall panel in the hallway is the long way round for these, so they are last.
@@ -28,6 +32,7 @@ private val ROOM_ORDER =
         "Спальня",
         "Спальня взрослая",
         "Детская",
+        "Маленькая детская",
         "Кабинет",
         "Гардероб",
         "Ванная",
