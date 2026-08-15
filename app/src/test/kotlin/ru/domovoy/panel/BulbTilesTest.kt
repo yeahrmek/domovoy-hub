@@ -38,9 +38,10 @@ class BulbTilesTest {
     @Test
     fun `a tile shows the bulb's name, whether it is on, and how old the reading is`() = runTest {
         server.enqueue(MockResponse(body = fixture()))
-        val tiles = BulbTiles(client())
+        val poll = YandexPoll(client())
+        val tiles = poll.bulbs
 
-        tiles.refresh()
+        poll.refresh()
 
         val tile = tiles.state.value.tiles.single { it.id == "light-01" }
         assertEquals("Лампа 4", tile.name)
@@ -53,9 +54,10 @@ class BulbTilesTest {
     @Test
     fun `a bulb that never reported reads as never, not as 1 Jan 1970`() = runTest {
         server.enqueue(MockResponse(body = fixture()))
-        val tiles = BulbTiles(client())
+        val poll = YandexPoll(client())
+        val tiles = poll.bulbs
 
-        tiles.refresh()
+        poll.refresh()
 
         val tile = tiles.state.value.tiles.single { it.id == "light-04" }
         assertEquals(Reading.Never, tile.lastUpdated)
@@ -66,11 +68,12 @@ class BulbTilesTest {
     fun `a failed poll keeps the last known value and age, and says it is not updating`() = runTest {
         server.enqueue(MockResponse(body = fixture()))
         server.enqueue(MockResponse(code = 500, body = "boom"))
-        val tiles = BulbTiles(client())
+        val poll = YandexPoll(client())
+        val tiles = poll.bulbs
 
-        tiles.refresh()
+        poll.refresh()
         val before = tiles.state.value.tiles.single { it.id == "light-01" }
-        tiles.refresh()
+        poll.refresh()
         val after = tiles.state.value
 
         assertNotNull(after.error)
@@ -90,10 +93,11 @@ class BulbTilesTest {
                 .bodyDelay(10, TimeUnit.SECONDS)
                 .build(),
         )
-        val tiles = BulbTiles(client(timeout = 200.milliseconds))
+        val poll = YandexPoll(client(timeout = 200.milliseconds))
+        val tiles = poll.bulbs
 
-        tiles.refresh()
-        tiles.refresh()
+        poll.refresh()
+        poll.refresh()
 
         val state = tiles.state.value
         assertNotNull(state.error)
@@ -104,9 +108,10 @@ class BulbTilesTest {
     fun `a panel with no token stored says so instead of standing there empty`() = runTest {
         // No tile has ever been read, so there is nothing to hang the message on but the group
         // error — and without it the wall would show a blank panel and no reason for it.
-        val tiles = BulbTiles(client(token = { "" }))
+        val poll = YandexPoll(client(token = { "" }))
+        val tiles = poll.bulbs
 
-        tiles.refresh()
+        poll.refresh()
 
         val state = tiles.state.value
         assertTrue(state.tiles.isEmpty())
@@ -120,12 +125,13 @@ class BulbTilesTest {
     fun `a token stored after the panel started ends the error on the next poll`() = runTest {
         server.enqueue(MockResponse(body = fixture()))
         var stored = ""
-        val tiles = BulbTiles(client(token = { stored }))
+        val poll = YandexPoll(client(token = { stored }))
+        val tiles = poll.bulbs
 
-        tiles.refresh()
+        poll.refresh()
         assertNotNull(tiles.state.value.error)
         stored = "y0_stored_later"
-        tiles.refresh()
+        poll.refresh()
 
         assertNull(tiles.state.value.error)
         assertEquals(18, tiles.state.value.tiles.size)
@@ -135,15 +141,16 @@ class BulbTilesTest {
     fun `a poll that recovers clears the error`() = runTest {
         server.enqueue(MockResponse(code = 500, body = "boom"))
         server.enqueue(MockResponse(body = fixture()))
-        val tiles = BulbTiles(client())
+        val poll = YandexPoll(client())
+        val tiles = poll.bulbs
 
         tiles.state.test {
             assertEquals(BulbPanelState(), awaitItem())
 
-            tiles.refresh()
+            poll.refresh()
             assertNotNull(awaitItem().error)
 
-            tiles.refresh()
+            poll.refresh()
             val recovered = awaitItem()
             assertNull(recovered.error)
             assertEquals(18, recovered.tiles.size)
@@ -155,9 +162,10 @@ class BulbTilesTest {
         server.enqueue(MockResponse(body = fixture()))
         server.enqueue(MockResponse(body = """{"status":"ok","request_id":"r-1","devices":[]}"""))
         server.enqueue(MockResponse(body = fixture()))
-        val tiles = BulbTiles(client())
+        val poll = YandexPoll(client())
+        val tiles = poll.bulbs
 
-        tiles.refresh()
+        poll.refresh()
         assertEquals(true, tiles.state.value.tiles.single { it.id == "light-01" }.isOn)
         tiles.toggle("light-01")
 
@@ -174,9 +182,10 @@ class BulbTilesTest {
     fun `a toggle that fails leaves the tiles alone and reports the failure`() = runTest {
         server.enqueue(MockResponse(body = fixture()))
         server.enqueue(MockResponse(code = 404, body = "unknown device"))
-        val tiles = BulbTiles(client())
+        val poll = YandexPoll(client())
+        val tiles = poll.bulbs
 
-        tiles.refresh()
+        poll.refresh()
         val before = tiles.state.value.tiles
         tiles.toggle("light-01")
 

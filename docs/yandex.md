@@ -272,11 +272,16 @@ and **every** toggle the poll returned, keyed by instance, not an AC-shaped fiel
 `Toggle` holds `isOn: Boolean?`. Both carry the same two timestamps as everything else.
 
 `YandexClient.devices()` now returns every kind the panel has a tile for, told apart by `kind`,
-instead of bulbs only. The tile groups filter it. **Each group polls separately, so the panel makes
-three `/v1.0/user/info` calls per interval where it made one.** That is a real cost with no
-published rate limit to check it against. It was kept once because collapsing it means one object
-owning the poll that every group reads from — and with the third group now added, that debt is
-due: the next change to this integration should be the shared poll, not a fourth caller.
+instead of bulbs only. The tile groups filter it. Each group polled separately for a while, which
+made the panel send three identical `/v1.0/user/info` calls per interval where it had made one —
+a real cost against a rate limit nobody has published. **That is now one call: `YandexPoll` reads
+the house and hands the same device list to all three groups**, and the re-read after a toggle or
+a set goes through it too, so an action costs one read rather than one per group.
+
+What is shared is the fetch only. Each group still holds its own tiles, its own error and its own
+ages: the bulb, the curtain and the AC were last read days apart, so one "last read" for the panel
+would be a lie about most of it. A failed poll is one failure that reaches all three groups at
+once, each keeping the values and ages it already had.
 
 > ⚠️ **`POST /v1.0/devices/actions` with `devices.capabilities.range` has never been sent to the
 > real curtain.** The body shape is from the capabilities docs and the code is tested against the
@@ -407,8 +412,9 @@ tap.
   visibly changes. Until then the tile keeps repainting from a fresh `/v1.0/user/info`. The AC run
   did not settle it either: nobody was in the room to see the unit start, and the response body is
   still not logged.
-- Actual 429 behaviour under a 5 s poll — and now under **three** calls per interval rather than
-  one, see "The shared model, and why it grew". This is the reason the shared poll is owed.
+- Actual 429 behaviour under a 5 s poll. The three-calls-per-interval part of this is gone — the
+  panel is back to one `/v1.0/user/info` per interval, see "The shared model, and why it grew" —
+  but what Yandex allows for that one call is still unmeasured and still unpublished.
 - Why every `mode` and `toggle` on `ac-01` reports `null` while `ac-03` reports all of them. Is it
   the unit, the skill, or a state Yandex simply loses? The panel shows unknown either way, but the
   answer decides whether a mode is ever worth putting on the tile.

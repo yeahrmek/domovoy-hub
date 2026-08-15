@@ -35,28 +35,30 @@ data class BulbPanelState(
 )
 
 /**
- * Polls the Yandex bulbs and holds what the tiles show.
+ * Holds what the bulb tiles show.
  *
- * Nothing here schedules: [refresh] is called by whatever owns the timer, so a test drives the
- * poll directly instead of waiting for one.
+ * Nothing here fetches or schedules: [YandexPoll] reads the house once for the whole panel and
+ * hands the devices to [show], so a test drives a poll directly instead of waiting for one.
+ * [reread] is that same shared read, used after an action.
  */
 class BulbTiles(
     private val client: YandexClient,
+    private val reread: suspend () -> Unit,
 ) {
     private val mutableState = MutableStateFlow(BulbPanelState())
     val state: StateFlow<BulbPanelState> = mutableState.asStateFlow()
 
-    /** Polls once. On failure the tiles keep their last known value and age, plus an error. */
-    suspend fun refresh() {
-        client
-            .devices()
-            .onSuccess { devices ->
-                mutableState.value =
-                    BulbPanelState(
-                        tiles = devices.filter { it.kind == DeviceKind.Bulb }.map(Device::toTile),
-                    )
-            }
-            .onFailure { failure -> mutableState.value = mutableState.value.copy(error = failure.describe()) }
+    /** What one poll read. Every device in the house arrives; the bulbs are picked out here. */
+    fun show(devices: List<Device>) {
+        mutableState.value =
+            BulbPanelState(
+                tiles = devices.filter { it.kind == DeviceKind.Bulb }.map(Device::toTile),
+            )
+    }
+
+    /** The poll failed. The tiles keep their last known value and age, plus an error. */
+    fun showFailure(reason: String) {
+        mutableState.value = mutableState.value.copy(error = reason)
     }
 
     /**
@@ -67,7 +69,7 @@ class BulbTiles(
         val tile = mutableState.value.tiles.firstOrNull { it.id == id } ?: return
         client
             .setOn(id, on = tile.isOn != true)
-            .onSuccess { refresh() }
+            .onSuccess { reread() }
             .onFailure { failure -> mutableState.value = mutableState.value.copy(error = failure.describe()) }
     }
 }

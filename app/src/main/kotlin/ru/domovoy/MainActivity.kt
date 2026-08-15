@@ -25,11 +25,9 @@ import ru.domovoy.core.TokenStore
 import ru.domovoy.integrations.domonap.domonapCalls
 import ru.domovoy.integrations.yandex.YandexClient
 import ru.domovoy.panel.AcTileList
-import ru.domovoy.panel.AcTiles
 import ru.domovoy.panel.BulbTileList
-import ru.domovoy.panel.BulbTiles
 import ru.domovoy.panel.CurtainTileList
-import ru.domovoy.panel.CurtainTiles
+import ru.domovoy.panel.YandexPoll
 import ru.domovoy.panel.pollPausingForCalls
 import java.time.Instant
 import kotlin.time.Duration.Companion.seconds
@@ -99,24 +97,20 @@ private fun Panel(yandexToken: () -> String) {
                 householdId = BuildConfig.YANDEX_HOUSEHOLD_ID,
             )
         }
-    val tiles = remember(client) { BulbTiles(client) }
-    val curtains = remember(client) { CurtainTiles(client) }
-    val acs = remember(client) { AcTiles(client) }
+    val poll = remember(client) { YandexPoll(client) }
+    val tiles = poll.bulbs
+    val curtains = poll.curtains
+    val acs = poll.acs
     val state by tiles.state.collectAsState()
     val curtainState by curtains.state.collectAsState()
     val acState by acs.state.collectAsState()
     var now by remember { mutableStateOf(Instant.now()) }
     val scope = rememberCoroutineScope()
 
-    // Three groups, three `/v1.0/user/info` calls per interval — each holds its own tiles and its
-    // own error. Collapsing them onto one poll every group reads from is the obvious next change
-    // and is deliberately not this one; it is recorded as owed in docs/yandex.md.
-    LaunchedEffect(tiles, curtains, acs) {
-        pollPausingForCalls(domonapCalls.state, POLL_INTERVAL) {
-            acs.refresh()
-            curtains.refresh()
-            tiles.refresh()
-        }
+    // One `/v1.0/user/info` call per interval feeds all three groups; each still holds its own
+    // tiles, its own ages and its own error.
+    LaunchedEffect(poll) {
+        pollPausingForCalls(domonapCalls.state, POLL_INTERVAL, poll::refresh)
     }
 
     // The age on every tile has to keep climbing between polls, not freeze at the value the last

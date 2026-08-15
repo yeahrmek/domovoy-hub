@@ -43,10 +43,11 @@ data class AcPanelState(
 )
 
 /**
- * Polls the Yandex air conditioners and holds what the tiles show.
+ * Holds what the air conditioner tiles show.
  *
- * Nothing here schedules: [refresh] is called by whatever owns the timer, so a test drives the
- * poll directly instead of waiting for one.
+ * Nothing here fetches or schedules: [YandexPoll] reads the house once for the whole panel and
+ * hands the devices to [show], so a test drives a poll directly instead of waiting for one.
+ * [reread] is that same shared read, used after an action.
  *
  * The `mode` and `toggle` capabilities the flat's three units carry — `thermostat`, `fan_speed`,
  * `swing`, `ionization`, `keep_warm`, `backlight` — are parsed into the device model but are not
@@ -54,21 +55,22 @@ data class AcPanelState(
  */
 class AcTiles(
     private val client: YandexClient,
+    private val reread: suspend () -> Unit,
 ) {
     private val mutableState = MutableStateFlow(AcPanelState())
     val state: StateFlow<AcPanelState> = mutableState.asStateFlow()
 
-    /** Polls once. On failure the tiles keep their last known values and ages, plus an error. */
-    suspend fun refresh() {
-        client
-            .devices()
-            .onSuccess { devices ->
-                mutableState.value =
-                    AcPanelState(
-                        tiles = devices.filter { it.kind == DeviceKind.AirConditioner }.map(Device::toTile),
-                    )
-            }
-            .onFailure { failure -> mutableState.value = mutableState.value.copy(error = failure.describe()) }
+    /** What one poll read. Every device in the house arrives; the acs are picked out here. */
+    fun show(devices: List<Device>) {
+        mutableState.value =
+            AcPanelState(
+                tiles = devices.filter { it.kind == DeviceKind.AirConditioner }.map(Device::toTile),
+            )
+    }
+
+    /** The poll failed. The tiles keep their last known values and ages, plus an error. */
+    fun showFailure(reason: String) {
+        mutableState.value = mutableState.value.copy(error = reason)
     }
 
     /**
@@ -79,7 +81,7 @@ class AcTiles(
         val tile = mutableState.value.tiles.firstOrNull { it.id == id } ?: return
         client
             .setOn(id, on = tile.isOn != true)
-            .onSuccess { refresh() }
+            .onSuccess { reread() }
             .onFailure { failure -> mutableState.value = mutableState.value.copy(error = failure.describe()) }
     }
 
@@ -97,7 +99,7 @@ class AcTiles(
         val tile = mutableState.value.tiles.firstOrNull { it.id == id } ?: return
         client
             .setRange(id, instance = TEMPERATURE, value = tile.bounds?.snap(celsius) ?: celsius)
-            .onSuccess { refresh() }
+            .onSuccess { reread() }
             .onFailure { failure -> mutableState.value = mutableState.value.copy(error = failure.describe()) }
     }
 }

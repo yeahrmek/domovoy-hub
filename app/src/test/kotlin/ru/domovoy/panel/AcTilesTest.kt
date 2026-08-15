@@ -48,9 +48,10 @@ class AcTilesTest {
     @Test
     fun `a tile shows whether the ac is on, its target temperature and the age of each reading`() = runTest {
         server.enqueue(MockResponse(body = fixture()))
-        val acs = AcTiles(client())
+        val poll = YandexPoll(client())
+        val acs = poll.acs
 
-        acs.refresh()
+        poll.refresh()
 
         val tile = acs.state.value.tiles.single { it.id == "ac-01" }
         assertEquals("Residential air conditioner", tile.name)
@@ -64,20 +65,16 @@ class AcTilesTest {
     @Test
     fun `all three air conditioners of the flat become tiles, and none of them a bulb or a curtain`() = runTest {
         server.enqueue(MockResponse(body = fixture()))
-        server.enqueue(MockResponse(body = fixture()))
-        server.enqueue(MockResponse(body = fixture()))
-        val acs = AcTiles(client())
-        val bulbs = BulbTiles(client())
-        val curtains = CurtainTiles(client())
+        val poll = YandexPoll(client())
 
-        acs.refresh()
-        bulbs.refresh()
-        curtains.refresh()
+        poll.refresh()
 
-        assertEquals(listOf("ac-01", "ac-02", "ac-03"), acs.state.value.tiles.map { it.id })
-        assertEquals(18, bulbs.state.value.tiles.size)
-        assertEquals(listOf("curtain-01"), curtains.state.value.tiles.map { it.id })
-        assertTrue((bulbs.state.value.tiles.map { it.id } + curtains.state.value.tiles.map { it.id }).none { it.startsWith("ac-") })
+        val bulbs = poll.bulbs.state.value.tiles.map { it.id }
+        val curtains = poll.curtains.state.value.tiles.map { it.id }
+        assertEquals(listOf("ac-01", "ac-02", "ac-03"), poll.acs.state.value.tiles.map { it.id })
+        assertEquals(18, bulbs.size)
+        assertEquals(listOf("curtain-01"), curtains)
+        assertTrue((bulbs + curtains).none { it.startsWith("ac-") })
     }
 
     @Test
@@ -85,9 +82,10 @@ class AcTilesTest {
         // 16 °C is a real setting — it is what ac-03 is set to. A range that never reported is not
         // that, and a tile that prints the bottom of the range for it says the opposite of the truth.
         server.enqueue(MockResponse(body = fixtureWithAcRangeParts(dropState = true)))
-        val acs = AcTiles(client())
+        val poll = YandexPoll(client())
+        val acs = poll.acs
 
-        acs.refresh()
+        poll.refresh()
 
         val tile = acs.state.value.tiles.single { it.id == "ac-01" }
         assertNull(tile.targetTemperature)
@@ -97,9 +95,10 @@ class AcTilesTest {
     @Test
     fun `an ac that reported no on-off reads as unknown, not as off`() = runTest {
         server.enqueue(MockResponse(body = fixtureWithoutAcPower()))
-        val acs = AcTiles(client())
+        val poll = YandexPoll(client())
+        val acs = poll.acs
 
-        acs.refresh()
+        poll.refresh()
 
         val tile = acs.state.value.tiles.single { it.id == "ac-01" }
         assertNull(tile.isOn)
@@ -111,9 +110,10 @@ class AcTilesTest {
         // The same recorded response carries "" as the unit on the TV's volume range, so a range
         // that names no unit is a shape this panel has actually seen.
         server.enqueue(MockResponse(body = fixtureWithAcRangeParts(dropUnit = true)))
-        val acs = AcTiles(client())
+        val poll = YandexPoll(client())
+        val acs = poll.acs
 
-        acs.refresh()
+        poll.refresh()
 
         val tile = acs.state.value.tiles.single { it.id == "ac-01" }
         assertEquals("off · 2 h ago · 18 · 81 d ago", statusLine(tile, now(hours = 2), error = null))
@@ -124,9 +124,10 @@ class AcTilesTest {
         server.enqueue(MockResponse(body = fixture()))
         server.enqueue(MockResponse(body = """{"status":"ok","request_id":"r-1","devices":[]}"""))
         server.enqueue(MockResponse(body = fixture()))
-        val acs = AcTiles(client())
+        val poll = YandexPoll(client())
+        val acs = poll.acs
 
-        acs.refresh()
+        poll.refresh()
         acs.setTemperature("ac-02", 24.0)
 
         server.takeRequest() // the first poll
@@ -145,9 +146,10 @@ class AcTilesTest {
         server.enqueue(MockResponse(body = fixture()))
         server.enqueue(MockResponse(body = """{"status":"ok","request_id":"r-1","devices":[]}"""))
         server.enqueue(MockResponse(body = fixture()))
-        val acs = AcTiles(client())
+        val poll = YandexPoll(client())
+        val acs = poll.acs
 
-        acs.refresh()
+        poll.refresh()
         acs.setTemperature("ac-01", 40.0)
 
         server.takeRequest()
@@ -162,9 +164,10 @@ class AcTilesTest {
         server.enqueue(MockResponse(body = fixture()))
         server.enqueue(MockResponse(body = """{"status":"ok","request_id":"r-1","devices":[]}"""))
         server.enqueue(MockResponse(body = fixture()))
-        val acs = AcTiles(client())
+        val poll = YandexPoll(client())
+        val acs = poll.acs
 
-        acs.refresh()
+        poll.refresh()
         acs.toggle("ac-03")
 
         server.takeRequest()
@@ -184,9 +187,10 @@ class AcTilesTest {
         server.enqueue(MockResponse(body = fixtureWithoutAcPower()))
         server.enqueue(MockResponse(body = """{"status":"ok","request_id":"r-1","devices":[]}"""))
         server.enqueue(MockResponse(body = fixtureWithoutAcPower()))
-        val acs = AcTiles(client())
+        val poll = YandexPoll(client())
+        val acs = poll.acs
 
-        acs.refresh()
+        poll.refresh()
         acs.toggle("ac-01")
 
         server.takeRequest()
@@ -198,11 +202,12 @@ class AcTilesTest {
     fun `a failed poll keeps the last values and ages, and says it is not updating`() = runTest {
         server.enqueue(MockResponse(body = fixture()))
         server.enqueue(MockResponse(code = 500, body = "boom"))
-        val acs = AcTiles(client())
+        val poll = YandexPoll(client())
+        val acs = poll.acs
 
-        acs.refresh()
+        poll.refresh()
         val before = acs.state.value.tiles
-        acs.refresh()
+        poll.refresh()
         val after = acs.state.value
 
         assertNotNull(after.error)
@@ -219,9 +224,10 @@ class AcTilesTest {
     fun `a set that fails leaves the tiles alone and reports the failure`() = runTest {
         server.enqueue(MockResponse(body = fixture()))
         server.enqueue(MockResponse(code = 404, body = "unknown device"))
-        val acs = AcTiles(client())
+        val poll = YandexPoll(client())
+        val acs = poll.acs
 
-        acs.refresh()
+        poll.refresh()
         val before = acs.state.value.tiles
         acs.setTemperature("ac-01", 24.0)
 
@@ -231,9 +237,10 @@ class AcTilesTest {
 
     @Test
     fun `a panel with no token stored says so instead of standing there empty`() = runTest {
-        val acs = AcTiles(client(token = { "" }))
+        val poll = YandexPoll(client(token = { "" }))
+        val acs = poll.acs
 
-        acs.refresh()
+        poll.refresh()
 
         assertTrue(acs.state.value.tiles.isEmpty())
         assertTrue(
@@ -246,11 +253,12 @@ class AcTilesTest {
     fun `a poll that recovers clears the error`() = runTest {
         server.enqueue(MockResponse(code = 500, body = "boom"))
         server.enqueue(MockResponse(body = fixture()))
-        val acs = AcTiles(client())
+        val poll = YandexPoll(client())
+        val acs = poll.acs
 
-        acs.refresh()
+        poll.refresh()
         assertNotNull(acs.state.value.error)
-        acs.refresh()
+        poll.refresh()
 
         assertNull(acs.state.value.error)
         assertEquals(18.0, acs.state.value.tiles.single { it.id == "ac-01" }.targetTemperature)
