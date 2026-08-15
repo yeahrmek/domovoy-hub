@@ -190,8 +190,32 @@ Live notification listeners:
 ```
 
 The process stays up with no exception, so `onListenerConnected` and its `activeNotifications`
-replay are good on this device. Rebinding after reboot is handled by `requestRebind` in
-`onListenerDisconnected` and is **still untested** — it needs an actual reboot.
+replay are good on this device.
+
+**Reboot, measured on 2026-08-15 — the listener comes back on its own, but only after unlock.**
+
+| time | state |
+|---|---|
+| 16:48:42 | `adb reboot` |
+| 16:50:13 | `sys.boot_completed=1` |
+| still locked | `strongAuthRequired=0x1` (required after boot), our process **not running**, listener **not bound**, grant intact |
+| 16:50:51 | tablet unlocked by hand |
+| ≤ 7 s later | process started and listener **bound**, no app launch, no user action beyond the unlock |
+
+So nobody has to open the panel after a reboot — but **the credential lock screen gates it**. This
+tablet requires a PIN, so between an unattended reboot and someone physically unlocking it, the
+intercom takeover is dead: no listener, no yielding, and the call screen is Domonap's problem alone.
+For a panel whose whole premise is that the tablet "reboots unattended", that is the gap to close.
+
+Two candidate fixes, **neither verified**: drop the credential lock so storage unlocks at boot (a
+security decision, not a technical one), or try `android:directBootAware="true"` on the listener —
+Domonap's own `TelephonyService` sets it. Whether the framework will bind a notification listener
+before user unlock at all is unknown and needs testing before anyone relies on it.
+
+What the reboot did *not* exercise is `requestRebind` itself: the process died with the reboot, so
+`onListenerDisconnected` never ran. That path was seen once, when notification access was revoked
+by hand — the listener disconnected and correctly stayed down, `requestRebind` not being able to
+override a withdrawn grant, which is the behaviour we want.
 
 Rejected: our panel logging in and rendering the call itself. It would fix the orientation problem
 below, but it rests entirely on an unverified private API, and if the one-session-per-number limit
