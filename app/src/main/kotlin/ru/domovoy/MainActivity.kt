@@ -27,6 +27,7 @@ import ru.domovoy.integrations.yandex.YandexClient
 import ru.domovoy.panel.AcTileList
 import ru.domovoy.panel.BulbTileList
 import ru.domovoy.panel.CurtainTileList
+import ru.domovoy.panel.LightStripTileList
 import ru.domovoy.panel.YandexPoll
 import ru.domovoy.panel.pollPausingForCalls
 import java.time.Instant
@@ -101,13 +102,15 @@ private fun Panel(yandexToken: () -> String) {
     val tiles = poll.bulbs
     val curtains = poll.curtains
     val acs = poll.acs
+    val strips = poll.strips
     val state by tiles.state.collectAsState()
     val curtainState by curtains.state.collectAsState()
     val acState by acs.state.collectAsState()
+    val stripState by strips.state.collectAsState()
     var now by remember { mutableStateOf(Instant.now()) }
     val scope = rememberCoroutineScope()
 
-    // One `/v1.0/user/info` call per interval feeds all three groups; each still holds its own
+    // One `/v1.0/user/info` call per interval feeds every group; each still holds its own
     // tiles, its own ages and its own error.
     LaunchedEffect(poll) {
         pollPausingForCalls(domonapCalls.state, POLL_INTERVAL, poll::refresh)
@@ -134,6 +137,12 @@ private fun Panel(yandexToken: () -> String) {
             state = curtainState,
             now = now,
             onSetOpen = { id, percent -> scope.launch { curtains.setOpen(id, percent) } },
+        )
+        LightStripTileList(
+            state = stripState,
+            now = now,
+            onToggle = { id -> scope.launch { strips.toggle(id) } },
+            onSetBrightness = { id, percent -> scope.launch { strips.setBrightness(id, percent) } },
         )
         BulbTileList(
             state = state,

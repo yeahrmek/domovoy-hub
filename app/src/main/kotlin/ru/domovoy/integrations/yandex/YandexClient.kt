@@ -17,6 +17,7 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
 import ru.domovoy.core.Bounds
+import ru.domovoy.core.ColorSetting
 import ru.domovoy.core.Device
 import ru.domovoy.core.DeviceKind
 import ru.domovoy.core.Mode
@@ -33,12 +34,14 @@ import kotlin.time.Duration.Companion.seconds
 import kotlin.time.toJavaDuration
 
 /**
- * The device types the panel has a tile for, matched exactly: `devices.types.light.strip` is a
- * different type from `devices.types.light` and deliberately not in scope.
+ * The device types the panel has a tile for, matched exactly. `devices.types.light.strip` is its
+ * own type rather than a sub-type Yandex would fold into `devices.types.light`, so it needs its own
+ * entry here — without one the flat's two GLEDOPTO strips render as nothing at all.
  */
 private val KINDS =
     mapOf(
         "devices.types.light" to DeviceKind.Bulb,
+        "devices.types.light.strip" to DeviceKind.LightStrip,
         "devices.types.openable.curtain" to DeviceKind.Curtain,
         "devices.types.thermostat.ac" to DeviceKind.AirConditioner,
     )
@@ -47,6 +50,7 @@ private const val ON_OFF = "devices.capabilities.on_off"
 private const val RANGE = "devices.capabilities.range"
 private const val MODE = "devices.capabilities.mode"
 private const val TOGGLE = "devices.capabilities.toggle"
+private const val COLOR_SETTING = "devices.capabilities.color_setting"
 
 val YANDEX_BASE_URL: HttpUrl = "https://api.iot.yandex.net/".toHttpUrl()
 
@@ -204,6 +208,7 @@ private fun DeviceDto.toDevice(
     ranges = capabilities.filter { it.type == RANGE }.mapNotNull(CapabilityDto::toRange).toMap(),
     modes = capabilities.filter { it.type == MODE }.mapNotNull(CapabilityDto::toMode).toMap(),
     toggles = capabilities.filter { it.type == TOGGLE }.mapNotNull(CapabilityDto::toToggle).toMap(),
+    color = capabilities.firstOrNull { it.type == COLOR_SETTING }?.toColorSetting(),
 )
 
 // A range with no state at all is kept, not dropped: its bounds are still what the device accepts,
@@ -243,6 +248,17 @@ private fun CapabilityDto.toToggle(): Pair<String, Toggle>? {
             stateChangedAt = Reading.ofEpochSeconds(stateChangedAt),
         )
 }
+
+// Kept whatever it reported, which is where this differs from the three above: they key themselves
+// by instance and drop a capability that names none, but a color_setting names its instance only
+// inside `state` — so light-strip-02, whose state is null, has neither instance nor value. Dropping
+// it would tell the tile the strip has no colour, when what it has is a colour never reported.
+private fun CapabilityDto.toColorSetting(): ColorSetting = ColorSetting(
+    instance = state?.instance,
+    value = (state?.value as? JsonPrimitive)?.doubleOrNull,
+    lastUpdated = Reading.ofEpochSeconds(lastUpdated),
+    stateChangedAt = Reading.ofEpochSeconds(stateChangedAt),
+)
 
 // Yandex reports a percentage as 70 and a temperature as 24, and every range recorded so far has
 // precision 1 — so sending 70.0 back is a difference from the vendor's own spelling for no gain.

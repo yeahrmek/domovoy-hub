@@ -12,7 +12,8 @@ import ru.domovoy.integrations.yandex.YandexClient
  *
  * What is shared is the fetch. Each group still holds its own tiles, its own error and its own
  * ages: the bulb, the curtain and the air conditioner were read at different times — 81 days apart
- * on ac-01 alone — and one "last read" for the whole panel would be a lie about most of them.
+ * on ac-01 alone, and never at all on the two strips — and one "last read" for the whole panel
+ * would be a lie about most of them.
  *
  * Nothing here schedules; [refresh] is called by whatever owns the timer. See [pollPausingForCalls].
  */
@@ -24,6 +25,7 @@ class YandexPoll(
     val bulbs = BulbTiles(client) { refresh() }
     val curtains = CurtainTiles(client) { refresh() }
     val acs = AcTiles(client) { refresh() }
+    val strips = LightStripTiles(client) { refresh() }
 
     /**
      * Reads the house once and hands the same answer to every group. On failure every group goes
@@ -37,12 +39,14 @@ class YandexPoll(
                 bulbs.show(devices)
                 curtains.show(devices)
                 acs.show(devices)
+                strips.show(devices)
             }
             .onFailure { failure ->
                 val reason = failure.describe()
                 bulbs.showFailure(reason)
                 curtains.showFailure(reason)
                 acs.showFailure(reason)
+                strips.showFailure(reason)
             }
     }
 }

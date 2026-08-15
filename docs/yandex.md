@@ -196,8 +196,10 @@ availability is not a question the way it is for Aqara/Tuya regions.
 Built against the fixture; first run against the live API on the tablet on 2026-08-15, see
 "Run on the tablet" below.
 
-- **`devices.types.light` only.** Exact match, so `devices.types.light.strip` (the GLEDOPTO strip
-  in the зал) is *not* a bulb tile. 18 of the flat's 29 devices qualify.
+- **`devices.types.light` only.** Exact match, so `devices.types.light.strip` is *not* a bulb tile.
+  18 of the flat's 29 devices qualify. The two strips now have a tile of their own — see "The light
+  strips, as recorded" below — and the match here is unchanged: they are a separate `kind`, not a
+  bulb with extra capabilities.
 - **Filtering happens in `YandexClient`**, not downstream: 23 of the 41 devices returned belong to
   the other three households and never reach the shared model. `household_id` comes from
   `local.properties` as `yandex.household.id` via a `BuildConfig` constant.
@@ -279,9 +281,10 @@ the house and hands the same device list to all three groups**, and the re-read 
 a set goes through it too, so an action costs one read rather than one per group.
 
 What is shared is the fetch only. Each group still holds its own tiles, its own error and its own
-ages: the bulb, the curtain and the AC were last read days apart, so one "last read" for the panel
-would be a lie about most of it. A failed poll is one failure that reaches all three groups at
-once, each keeping the values and ages it already had.
+ages: the bulb, the curtain and the AC were last read days apart and the strips never at all, so
+one "last read" for the panel would be a lie about most of it. A failed poll is one failure that
+reaches every group at once, each keeping the values and ages it already had. Adding the strips as
+a fourth group cost no fourth call, which is the whole point of the shape.
 
 > ⚠️ **`POST /v1.0/devices/actions` with `devices.capabilities.range` has never been sent to the
 > real curtain.** The body shape is from the capabilities docs and the code is tested against the
@@ -376,6 +379,49 @@ client parses `status` and `request_id` but logs neither, so `DONE`-on-accept ve
 started when the tile said `on` is unconfirmed; only the cloud's own report was seen. Nothing here
 measures 429 behaviour, the three-poll cost, or hours of running.
 
+### The light strips, as recorded
+
+Two of them, both `devices.types.light.strip`, both `household-flat`, both GLEDOPTO `GL-C-009P`
+through the Yandex hub (`skill-04`): `light-strip-01` (Зал, "Подсветка в зале") and
+`light-strip-02` (Детская, "Подсветка в детской"). Built against the fixture only — **nothing in
+this section has been run against a real strip.**
+
+Each carries four capabilities: `on_off`, `range/brightness` (`1..100`, precision `1`,
+`unit.percent`, `random_access: true`), `color_setting`, and a `zigbee_node` nothing reads.
+
+| | `on_off` | `range/brightness` | `color_setting` |
+| --- | --- | --- | --- |
+| `light-strip-01` | `true` | `26` | `temperature_k` = `2700` |
+| `light-strip-02` | `true` | `100` | **`"state": null`** |
+
+- **`devices.types.light.strip` is a separate type, not a sub-type.** The bulb tile's exact match
+  meant both strips were dropped in `YandexClient` and rendered as nothing at all. They are now
+  their own `DeviceKind`, mapped in the same `KINDS` table.
+- **Every capability on both strips carries `last_updated: 0.0`** — brightness, on/off and colour
+  alike. So both tiles read `on · never read · 26% · never read`, values present and read times
+  absent. These are the first tiles where that is the whole story rather than one field of it, and
+  the reason `Reading.Never` existed before the strips did.
+- **Brightness is the existing `Range`,** the same model and the same `Bounds.snap` the curtain's
+  `open` percent uses; the action is the same `POST /v1.0/devices/actions` with
+  `devices.capabilities.range` and `instance: brightness`. Nothing new was added for it.
+- **The range is `1..100`, not `0..100`.** The bottom of a strip's brightness is dim, not off, so a
+  slider dragged to the bottom hands over a `0` the device never offered. Snapping turns that into
+  `1` before it is sent, exactly as the AC's `40` becomes `32`.
+- **`color_setting` is parsed and modelled, and deliberately not controllable.** The tile prints it
+  — `2700 K · never read · not controllable` — and there is no `setColor` on the client. The
+  capability differs from `range`/`mode`/`toggle` in one way that mattered: it names its instance
+  only inside `state`, never in `parameters`. `light-strip-02`'s `state` is `null`, so it has
+  neither instance nor value, and dropping such a capability would tell the tile the strip has no
+  colour when what it has is a colour that has never reported. It is kept, with a null instance.
+- **Two colour shapes are in the recorded response**, both handled: `temperature_k` (a Kelvin
+  number, on the strips and most bulbs) and `rgb` (a packed `0xRRGGBB`, on `light-21` — `16777200`,
+  printed `#FFFFF0`). The `parameters` also carry `temperature_k: {min, max}` (`1996..6369` on the
+  strips) and, on `light-21`, a `color_scene` list of four scenes; **the panel reads neither**,
+  because nothing drives colour and bounds for a control that does not exist would be dead weight.
+
+**Left out on purpose:** driving the colour. That means answering what a `color_setting` action
+body looks like for this device — an open question below, and no endpoint is guessed here.
+
 ## Run on the tablet
 
 2026-08-15, panel installed on the wall tablet, on the flat's Wi-Fi. First time any of this ran
@@ -420,6 +466,16 @@ tap.
   answer decides whether a mode is ever worth putting on the tile.
 - What a `devices.capabilities.mode` action body looks like for this AC, and whether it is accepted
   while the unit is off. Nothing in the panel sends one — no endpoint is guessed here.
+- What a `devices.capabilities.color_setting` action body looks like, and whether `temperature_k`
+  and `rgb` are set the same way. The strips' colour is read and shown but not driveable for
+  exactly this reason. Related and also open: whether a colour write is accepted while the strip is
+  off, and whether `light-strip-02`'s permanently `null` colour state is the device, the skill or
+  the same thing that leaves every `mode` on `ac-01` null.
+- Whether `devices.types.light.strip` and `devices.types.light` should stay two tile types at all.
+  In this response they are one shape: 13 of the 18 flat bulbs carry the same `on_off` +
+  `range/brightness` + `color_setting` trio as the strips, and `light-21` even carries the `rgb`
+  colour. Nothing separates them but the type string. The bulb tile shows on/off only, so the
+  difference on the wall today is a brightness slider the bulbs do not have and could.
 - Does `open` on the curtain mean percent *open* or percent *closed*, and does 0 mean shut? The
   panel assumes open, from the instance name alone. One tap on the real curtain settles it.
 - Does `/v1.0/devices/{id}` really carry `state` (`online`/`offline`) when the list call does not?
