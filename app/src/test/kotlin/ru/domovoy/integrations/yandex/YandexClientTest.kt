@@ -27,6 +27,7 @@ import java.time.Instant
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.time.Duration
@@ -78,7 +79,12 @@ class YandexClientTest {
         // One /v1.0/user/info call is the whole house, so the kinds travel together and are told
         // apart here rather than by a second call per tile group.
         assertEquals(
-            mapOf(DeviceKind.Bulb to 18, DeviceKind.Curtain to 1, DeviceKind.AirConditioner to 3),
+            mapOf(
+                DeviceKind.Bulb to 18,
+                DeviceKind.LightStrip to 2,
+                DeviceKind.Curtain to 1,
+                DeviceKind.AirConditioner to 3,
+            ),
             devices.groupingBy { it.kind }.eachCount(),
         )
     }
@@ -89,12 +95,52 @@ class YandexClientTest {
 
         val ids = client().devices().map { list -> list.map { it.id } }.getOrThrow()
 
-        // light-09 and light-13 are bulbs, but of other households; light-strip-01 is a strip —
-        // a different type from devices.types.light, and no tile for it yet.
+        // light-09 and light-13 are bulbs, but of other households; light-14 is of another
+        // household too. The type match is still exact — a vacuum or a socket has no tile — but
+        // devices.types.light.strip now has one of its own.
         assertTrue(
-            ids.none { it in setOf("light-09", "light-13", "light-14", "light-strip-01") },
+            ids.none { it in setOf("light-09", "light-13", "light-14") },
             "leaked out-of-scope devices: $ids",
         )
+        assertTrue(
+            ids.none { it.startsWith("vacuum-") || it.startsWith("socket-") },
+            "leaked a type the panel has no tile for: $ids",
+        )
+    }
+
+    @Test
+    fun `a light strip carries its brightness in the same Range the curtain's position uses`() = runTest {
+        server.enqueue(MockResponse(body = fixture()))
+
+        val strip = client().devices().getOrThrow().single { it.id == "light-strip-01" }
+
+        assertEquals(DeviceKind.LightStrip, strip.kind)
+        assertEquals("Подсветка в зале", strip.name)
+        assertEquals("Зал", strip.room)
+        assertEquals(setOf("brightness"), strip.ranges.keys)
+        val brightness = strip.ranges.getValue("brightness")
+        assertEquals(26.0, brightness.value)
+        assertEquals(Bounds(min = 1.0, max = 100.0, precision = 1.0), brightness.bounds)
+        assertEquals("unit.percent", brightness.unit)
+        assertEquals(true, strip.onOff?.isOn)
+    }
+
+    @Test
+    fun `a colour that has never reported is kept as a capability with no instance, not dropped`() = runTest {
+        // light-strip-02 carries "state": null on its color_setting, and a color_setting names its
+        // instance only inside state — so unlike a range it has no instance to fall back on. It is
+        // still a capability the device has: "never reported" is not "no colour at all".
+        server.enqueue(MockResponse(body = fixture()))
+
+        val devices = client().devices().getOrThrow()
+
+        val reported = devices.single { it.id == "light-strip-01" }.color
+        assertEquals("temperature_k", reported?.instance)
+        assertEquals(2700.0, reported?.value)
+        val silent = devices.single { it.id == "light-strip-02" }.color
+        assertNotNull(silent)
+        assertNull(silent.instance)
+        assertNull(silent.value)
     }
 
     @Test

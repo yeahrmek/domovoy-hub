@@ -49,7 +49,7 @@ class YandexPollTest {
     }
 
     @Test
-    fun `one poll is one request, and it feeds the bulbs, the curtains and the air conditioners`() = runTest {
+    fun `one poll is one request, and it feeds every tile group`() = runTest {
         server.enqueue(MockResponse(body = fixture()))
         val poll = YandexPoll(client())
 
@@ -60,6 +60,8 @@ class YandexPollTest {
         assertEquals(18, poll.bulbs.state.value.tiles.size)
         assertEquals(listOf("curtain-01"), poll.curtains.state.value.tiles.map { it.id })
         assertEquals(listOf("ac-01", "ac-02", "ac-03"), poll.acs.state.value.tiles.map { it.id })
+        // A fourth group costs no fourth call — that is the whole reason the fetch is shared.
+        assertEquals(listOf("light-strip-01", "light-strip-02"), poll.strips.state.value.tiles.map { it.id })
     }
 
     @Test
@@ -72,22 +74,27 @@ class YandexPollTest {
         val bulbsBefore = poll.bulbs.state.value.tiles
         val curtainsBefore = poll.curtains.state.value.tiles
         val acsBefore = poll.acs.state.value.tiles
+        val stripsBefore = poll.strips.state.value.tiles
         poll.refresh()
 
         assertEquals(2, server.requestCount, "a failed refresh must not be retried once per group")
         val bulbs = poll.bulbs.state.value
         val curtains = poll.curtains.state.value
         val acs = poll.acs.state.value
-        // The one failure reaches all three groups: no group is left painting a value as current
+        val strips = poll.strips.state.value
+        // The one failure reaches every group: no group is left painting a value as current
         // while the panel behind it is not updating.
         assertTrue(bulbs.error.orEmpty().contains("500"), "the bulbs must say why: ${bulbs.error}")
         assertTrue(curtains.error.orEmpty().contains("500"), "the curtains must say why: ${curtains.error}")
         assertTrue(acs.error.orEmpty().contains("500"), "the air conditioners must say why: ${acs.error}")
+        assertTrue(strips.error.orEmpty().contains("500"), "the strips must say why: ${strips.error}")
         assertEquals(bulbsBefore, bulbs.tiles)
         assertEquals(curtainsBefore, curtains.tiles)
         assertEquals(acsBefore, acs.tiles)
+        assertEquals(stripsBefore, strips.tiles)
         // Sharing the fetch does not merge the ages: the bulb, the curtain and the ac were read
-        // days apart, and one "last read" for the panel would be a lie about two of them.
+        // days apart, the strips never at all, and one "last read" for the panel would be a lie
+        // about most of them.
         assertEquals(
             "on · 20 d ago · not updating: ${bulbs.error}",
             statusLine(bulbs.tiles.single { it.id == "light-01" }, now, bulbs.error),
@@ -99,6 +106,10 @@ class YandexPollTest {
         assertEquals(
             "off · 17 d ago · 18 °C · 98 d ago · not updating: ${acs.error}",
             statusLine(acs.tiles.single { it.id == "ac-01" }, now, acs.error),
+        )
+        assertEquals(
+            "on · never read · 26% · never read · not updating: ${strips.error}",
+            statusLine(strips.tiles.single { it.id == "light-strip-01" }, now, strips.error),
         )
     }
 
@@ -120,6 +131,7 @@ class YandexPollTest {
         assertEquals("/v1.0/user/info", server.takeRequest().target)
         assertEquals(40.0, poll.curtains.state.value.tiles.single().openPercent)
         assertEquals(3, poll.acs.state.value.tiles.size)
+        assertEquals(2, poll.strips.state.value.tiles.size)
     }
 
     private fun client(

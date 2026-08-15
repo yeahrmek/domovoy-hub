@@ -32,11 +32,17 @@ data class Device(
     val modes: Map<String, Mode> = emptyMap(),
     /** Every on/off capability that is not *the* on/off — `ionization`, `keep_warm`, `backlight`. */
     val toggles: Map<String, Toggle> = emptyMap(),
+    /**
+     * The one `color_setting` a device carries, if it carries one. A single field rather than a map
+     * because — unlike a range or a mode — no device in the recorded response has two of them.
+     */
+    val color: ColorSetting? = null,
 )
 
 /** The device types the panel has a tile for. Everything else is dropped at the vendor client. */
 enum class DeviceKind {
     Bulb,
+    LightStrip,
     Curtain,
     AirConditioner,
 }
@@ -94,6 +100,26 @@ data class Mode(
 data class Toggle(
     /** Null when the capability reported no value at all — unknown, not off. */
     val isOn: Boolean?,
+    val lastUpdated: Reading,
+    val stateChangedAt: Reading,
+)
+
+/**
+ * The colour a light reports. Read and shown, never driven: there is no `setColor` on any vendor
+ * client, so nothing in the panel can send one of these back. See docs/yandex.md.
+ *
+ * Carries the same two timestamps as [OnOff] — a colour the panel prints has to be able to say how
+ * old it is, like every other value on a tile.
+ */
+data class ColorSetting(
+    /**
+     * `temperature_k` or `rgb`, whichever the light last reported — the two the recorded response
+     * carries. Null when the capability reported nothing at all: a `color_setting` names its
+     * instance only inside `state`, so unlike a [Range] it has no parameters to fall back on.
+     */
+    val instance: String?,
+    /** Kelvin for `temperature_k`, a packed `0xRRGGBB` for `rgb`; null when unknown, not black. */
+    val value: Double?,
     val lastUpdated: Reading,
     val stateChangedAt: Reading,
 )
