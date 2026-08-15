@@ -47,12 +47,13 @@ private val ROOM_ORDER =
  *
  * The tiles are kept apart by type inside the section because each renders through its own
  * composable, and within a room they are shown in this order: what heats, cools and moves first,
- * then the lights, which are the many.
+ * then the lights, which are the many, and last the launcher tiles — which change nothing in the
+ * room and only send whoever tapped them into another app.
  */
 data class RoomSection(
     /**
-     * The room's name as the vendor spells it, or null for the section holding the devices no
-     * vendor placed. Rooms are matched by name and not by id, because a name is all
+     * The room's name as the vendor spells it, or null for the section holding the tiles that are
+     * in no room. Rooms are matched by name and not by id, because a name is all
      * [ru.domovoy.core.Device] carries — so the six rooms the recorded response calls "Спальня"
      * are one section here, which is what someone who named them all the same would expect.
      */
@@ -62,6 +63,7 @@ data class RoomSection(
     val strips: List<LightStripTileState> = emptyList(),
     val recuperators: List<RecuperatorTileState> = emptyList(),
     val bulbs: List<BulbTileState> = emptyList(),
+    val launchers: List<LauncherTileState> = emptyList(),
 )
 
 /**
@@ -71,10 +73,18 @@ data class RoomSection(
  * nothing in it never appears — the recorded response has seven such rooms, plus a "Гостиная"
  * holding only a vacuum and a tv, neither of which the panel has a tile for.
  *
- * The section for the unplaced devices is last and is never dropped. Tuya names no room for the
- * recuperators (docs/tuya.md), so unless the flat's own answer reached [TuyaPoll] they arrive with
- * `room = null` — and a device falling off the wall because no vendor said where it is would be a
- * bug, not a tidy panel.
+ * The last section is the one for the tiles in no room, and it is never dropped. Two different
+ * things land there, both of them on purpose:
+ *
+ * - Tuya names no room for the recuperators (docs/tuya.md), so unless the flat's own answer reached
+ *   [TuyaPoll] they arrive with `room = null` — and a device falling off the wall because no vendor
+ *   said where it is would be a bug, not a tidy panel.
+ * - The vacuum's launcher tile has no room because it *has* no room: see [launcherTiles]. That one
+ *   is not a gap waiting to be filled.
+ *
+ * Every tile group is a parameter here, launchers included and none of them defaulted. A tile group
+ * that could be left out by forgetting to pass it is exactly how a section of the wall goes missing
+ * without anybody being told.
  */
 fun roomSections(
     acs: List<AcTileState>,
@@ -82,6 +92,7 @@ fun roomSections(
     strips: List<LightStripTileState>,
     recuperators: List<RecuperatorTileState>,
     bulbs: List<BulbTileState>,
+    launchers: List<LauncherTileState>,
 ): List<RoomSection> {
     val rooms =
         buildList {
@@ -90,6 +101,7 @@ fun roomSections(
             addAll(strips.map { it.room })
             addAll(recuperators.map { it.room })
             addAll(bulbs.map { it.room })
+            addAll(launchers.map { it.room })
         }.distinct()
             .sortedWith(compareBy<String?> { rank(it) }.thenBy { it.orEmpty() })
     return rooms.map { room ->
@@ -100,6 +112,7 @@ fun roomSections(
             strips = strips.filter { it.room == room },
             recuperators = recuperators.filter { it.room == room },
             bulbs = bulbs.filter { it.room == room },
+            launchers = launchers.filter { it.room == room },
         )
     }
 }
@@ -118,6 +131,10 @@ private fun rank(room: String?): Int = when {
  * A group that failed *with* tiles on the wall is not here — each of its tiles already says "not
  * updating" next to the last value it had, and saying it again at the top of the panel would be
  * one error printed twice.
+ *
+ * The launcher tiles are not a group here and cannot be: nothing polls them, so there is no call
+ * to fail. The one thing that can go wrong for them — the app not being installed — is on the tile
+ * itself, where it names the missing package.
  */
 internal fun groupFailures(
     acs: AcPanelState,

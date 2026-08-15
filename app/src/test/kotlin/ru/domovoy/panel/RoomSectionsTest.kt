@@ -84,6 +84,7 @@ class RoomSectionsTest {
                 strips = emptyList(),
                 recuperators = listOf(recuperator("xfj-09", room = "Сауна")),
                 bulbs = poll.bulbs.state.value.tiles,
+                launchers = emptyList(),
             )
 
         assertEquals("Сауна", sections.map { it.room }.last())
@@ -107,6 +108,7 @@ class RoomSectionsTest {
                 strips = poll.strips.state.value.tiles,
                 recuperators = listOf(recuperator("xfj-01", room = "Маленькая детская")),
                 bulbs = poll.bulbs.state.value.tiles,
+                launchers = emptyList(),
             )
 
         assertEquals(
@@ -141,6 +143,7 @@ class RoomSectionsTest {
                 strips = poll.strips.state.value.tiles,
                 recuperators = listOf(recuperator("xfj-01"), recuperator("xfj-05")),
                 bulbs = poll.bulbs.state.value.tiles,
+                launchers = emptyList(),
             )
 
         val unplaced = sections.last()
@@ -167,6 +170,7 @@ class RoomSectionsTest {
                 strips = emptyList(),
                 recuperators = listOf(recuperator("xfj-05", room = "Зал")),
                 bulbs = emptyList(),
+                launchers = emptyList(),
             )
 
         // One section, not two: the recuperator sits with the air conditioner of the same room.
@@ -174,6 +178,57 @@ class RoomSectionsTest {
         assertEquals(listOf("xfj-05"), hall.recuperators.map { it.id })
         assertEquals(listOf("ac-03"), hall.acs.map { it.id })
         assertTrue(sections.none { it.room == null }, "nothing is unplaced any more: ${sections.map { it.room }}")
+    }
+
+    @Test
+    fun `a launcher tile is grouped by room like any other, and the one with no room is not dropped`() = runTest {
+        server.enqueue(MockResponse(body = fixture()))
+        val poll = YandexPoll(client())
+        poll.refresh()
+
+        val sections =
+            roomSections(
+                acs = poll.acs.state.value.tiles,
+                curtains = poll.curtains.state.value.tiles,
+                strips = poll.strips.state.value.tiles,
+                recuperators = emptyList(),
+                bulbs = poll.bulbs.state.value.tiles,
+                launchers = launcherTiles(canOpen = { true }),
+            )
+
+        // The intercom is a tile of the коридор, next to that room's own lights — not a row of
+        // shortcuts parked at the top or the bottom of the panel.
+        val hallway = sections.single { it.room == "Коридор" }
+        assertEquals(listOf("com.domonap.app"), hallway.launchers.map { it.packageName })
+        assertTrue(hallway.bulbs.isNotEmpty(), "the коридор's own tiles are still there")
+
+        // Mi Home names no room, and a tile with no room goes where every unplaced tile goes.
+        val unplaced = sections.last()
+        assertEquals(null, unplaced.room)
+        assertEquals(listOf("com.xiaomi.smarthome"), unplaced.launchers.map { it.packageName })
+    }
+
+    @Test
+    fun `a launcher tile whose app is missing is still on the wall, saying so`() = runTest {
+        // The tile is what tells someone the app is gone; dropping it would hide exactly the fact
+        // it exists to report, and the panel would silently lose the intercom shortcut.
+        server.enqueue(MockResponse(body = fixture()))
+        val poll = YandexPoll(client())
+        poll.refresh()
+
+        val sections =
+            roomSections(
+                acs = emptyList(),
+                curtains = emptyList(),
+                strips = emptyList(),
+                recuperators = emptyList(),
+                bulbs = poll.bulbs.state.value.tiles,
+                launchers = launcherTiles(canOpen = { false }),
+            )
+
+        val hallway = sections.single { it.room == "Коридор" }
+        assertEquals(listOf("Домофон"), hallway.launchers.map { it.name })
+        assertEquals(listOf(false), hallway.launchers.map { it.openable })
     }
 
     @Test
@@ -230,6 +285,7 @@ class RoomSectionsTest {
             strips = poll.strips.state.value.tiles,
             recuperators = emptyList(),
             bulbs = poll.bulbs.state.value.tiles,
+            launchers = emptyList(),
         )
     }
 

@@ -163,6 +163,26 @@ incoming-call notification and can use it to yield the screen, dim, log the even
 panel afterwards; the caller's name and photo may also be readable from the notification's own
 extras. Plus a launcher tile for opening the app on purpose.
 
+### The launcher tile (shipped)
+
+"Домофон", in the **Коридор** — the intercom is answered at the front door, which is the room the
+panel hangs in, so it is the first section on the wall. It opens `com.domonap.app` and nothing
+else: no `api.domonap.ru` call, no endpoint from the unverified list above becomes load-bearing.
+
+The tile is the *deliberate* direction — looking at the call log, or letting someone in before they
+ring. It is not the call path: the takeover is Domonap's own screen, arrives on its own and is
+untouched by this.
+
+It shows **no state and no age**, unlike every other tile on the panel. Nothing polls it, nothing
+about the intercom is read on it, so there is nothing to be stale; the line under the name says
+`opens the app · no state to read`. If the app is not installed the tile refuses the tap and says
+`not installed · com.domonap.app` instead of swallowing it.
+
+The package is verified — read off the tablet, above. The manifest declares
+`<queries><package android:name="com.domonap.app" /></queries>`: targeting API 30+, a package we do
+not name is invisible to `getLaunchIntentForPackage` and the tile would read "not installed" on a
+tablet that plainly has the app.
+
 This rests on one unverified assumption: **that Domonap posts a notification we can see**, rather
 than only firing a full-screen intent. Partly answered since: the app has a dedicated
 `telecom_incoming_channel3` at importance MAX and holds `USE_FULL_SCREEN_INTENT`, so it does both —

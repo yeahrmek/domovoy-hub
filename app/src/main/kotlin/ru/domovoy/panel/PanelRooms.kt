@@ -11,9 +11,10 @@ import androidx.compose.ui.unit.dp
 import java.time.Instant
 
 /**
- * What the section holding the unplaced devices is called. Not a room name and not pretending to
- * be one: whatever is under it is on the wall because the panel refuses to drop a device it cannot
- * place, and the heading says exactly that much.
+ * What the section holding the roomless tiles is called. Not a room name and not pretending to be
+ * one: under it are the devices the panel refuses to drop because no vendor placed them, and the
+ * launcher tiles that belong to no room in the first place. The heading is true of both — it says
+ * where these are, not why they are there, which each tile is left to say for itself.
  */
 private const val UNPLACED = "Без комнаты"
 
@@ -34,6 +35,7 @@ fun PanelRooms(
     strips: LightStripPanelState,
     recuperators: RecuperatorPanelState,
     bulbs: BulbPanelState,
+    launchers: List<LauncherTileState>,
     now: Instant,
     modifier: Modifier = Modifier,
     onToggleAc: (String) -> Unit = {},
@@ -43,8 +45,10 @@ fun PanelRooms(
     onSetBrightness: (String, Double) -> Unit = { _, _ -> },
     onToggleRecuperator: (String) -> Unit = {},
     onToggleBulb: (String) -> Unit = {},
+    onOpenApp: (String) -> Unit = {},
 ) {
-    val sections = roomSections(acs.tiles, curtains.tiles, strips.tiles, recuperators.tiles, bulbs.tiles)
+    val sections =
+        roomSections(acs.tiles, curtains.tiles, strips.tiles, recuperators.tiles, bulbs.tiles, launchers)
     LazyColumn(modifier = modifier) {
         // Above every room: the groups that failed before they ever had a tile, which have nothing
         // of their own on the wall to say it on.
@@ -94,6 +98,11 @@ fun PanelRooms(
             }
             items(section.bulbs, key = { "bulb:${it.id}" }) { tile ->
                 BulbTile(tile = tile, now = now, error = bulbs.error, onToggle = onToggleBulb)
+            }
+            // Last in the room, and the only tiles here taking no `now`: they open another app
+            // rather than showing anything the panel read, so there is no age on them to keep.
+            items(section.launchers, key = { "launcher:${it.packageName}" }) { tile ->
+                LauncherTile(tile = tile, onOpen = onOpenApp)
             }
         }
     }

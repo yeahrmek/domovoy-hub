@@ -30,6 +30,39 @@ Mi Home is embedded as a hosted AppWidget or simply opened from a launcher tile 
 it depends on whether Mi Home ships a widget for this vacuum, which is the first open question
 below.
 
+## Shipped: a launcher tile, pending the widget answer
+
+The panel carries a launcher tile — "Пылесос" — that opens Mi Home and claims nothing else. It is
+the fallback this note already named, and it needs nothing verified beyond a package name, so it
+ships while the widget question stays open. If Mi Home turns out to ship a usable vacuum widget,
+the hosted-widget tile replaces this one; if not, this is the answer.
+
+**The package name is `com.xiaomi.smarthome`, and it is *not* verified on this tablet.** It is Mi
+Home's published package, taken from the public record rather than read off the device. Check it
+with:
+
+```bash
+adb shell pm list packages | grep -i xiaomi
+```
+
+If it is wrong, the failure is visible rather than silent: the tile renders
+`not installed · com.xiaomi.smarthome`, naming the package it looked for. That is also exactly what
+it renders if Mi Home genuinely is not installed, which is why this line needs running once — the
+two cases are indistinguishable from the wall.
+
+**What the tile shows, and does not.** No state, no age, no polling: Mi Home's values never reach
+our device model, so there is nothing here that could go stale and nothing to say an age about. The
+line under the name says `opens the app · no state to read` rather than inventing a freshness.
+
+**The room: none.** The vacuum cleans every room and docks in one nobody has recorded, and the
+humidifier the same app holds is somewhere else again. The tile lands in the panel's "Без комнаты"
+section. That is an answer, not a gap — filling it in would mean picking a room the vacuum is not
+in.
+
+The manifest now declares `<queries><package android:name="com.xiaomi.smarthome" /></queries>`;
+without it, package-visibility filtering on API 30+ makes the app invisible and the tile reads "not
+installed" on a tablet that has it.
+
 ## Verified in the docs
 
 **Official third-party API for controlling a user's devices: not self-serve, and I could not find a
@@ -84,10 +117,15 @@ credentials is not.
 
 ## Open questions
 
+- **Is `com.xiaomi.smarthome` the package on this tablet?** One `adb shell pm list packages`, and
+  the launcher tile above is either right or says "not installed" forever.
 - Does Mi Home ship a widget for this vacuum, and does it show battery and status? If not, the
-  vacuum falls back to a launcher tile.
+  launcher tile that shipped is the final answer rather than the interim one.
 - Widget binding needs a manifest change and a user-confirmed bind flow — "ask first" under
   AGENTS.md.
+- Should a launcher tile whose app is missing offer to install it? Today it refuses the tap and
+  names the package. A store deep link would need to know which store this tablet has — Domonap is
+  distributed through RuStore, Mi Home through Google Play — and neither has been checked.
 - Still worth ten minutes: is the vacuum already linked into Yandex via a skill? If so it appears
   in `/v1.0/user/info` and needs nothing from Xiaomi at all.
 - Only if the scope changes: can an individual obtain a MIoT client_id, and on what terms? That is
