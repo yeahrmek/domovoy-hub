@@ -253,6 +253,47 @@ Notes that matter for the tile:
 - `local_key` is handed out in this very response, so the unofficial LAN path needs no extra call.
   It is also a secret: this response must never be committed raw, and the fixture derived from it
   has to have the keys replaced.
+- **There is no room field, on any of the 20 devices.** The keys are `active_time`, `biz_type`,
+  `category`, `create_time`, `icon`, `id`, `ip`, `lat`, `local_key`, `lon`, `model`, `name`,
+  `online`, `owner_id`, `product_id`, `product_name`, `status`, `sub`, `time_zone`, `uid`,
+  `update_time`, `uuid` — and the only grouping among them, `owner_id`, is the same `00000000` on
+  all 20, so it is the home, not a room. The Smart Life app *does* have the recuperators in rooms,
+  so the grouping exists in Tuya's own product; this endpoint does not carry it, and the shadow
+  routes below carry even less. `Device.room` is therefore null for every Tuya device.
+
+**What the panel does about it.** The panel groups its tiles by room, so a device with no room is a
+real problem, and the answer is not to invent one. Three ways were on the table:
+
+1. **Parse the name.** They read "Бризер зал", "Бризер спальня", "Бризер детская", "Бризер
+   кабинет" — four of them do name a room. Rejected: `name` is a free-text field the owner edits in
+   the Smart Life app, so a rename would silently move a tile to another room, or to none; the
+   spelling would have to be matched to Yandex's rooms case- and declension-insensitively, which is
+   a second guess on top of the first; and it does not even work here — the fifth is "Бризер данина
+   комната", which names no room Yandex knows. Parsing places four and still needs an answer for
+   the fifth.
+2. **Record it by hand** in `local.properties` as `tuya.rooms=<device id>=<room>;…`, reaching the
+   code as the `TUYA_ROOMS` `BuildConfig` constant and parsed by `panel.recuperatorRooms`. **This
+   is what the panel does.** The knowledge exists — the flat knows where its recuperators are — and
+   the only thing missing is a vendor willing to say it, so it is written down once, explicitly, by
+   someone who checked. `local.properties` rather than a checked-in file because the keys are
+   device ids, which are apartment-identifying. The room names must be spelled as Yandex spells
+   them, or the recuperator gets its own section next to the room it belongs to.
+
+   All five are mapped in the flat: four onto rooms Yandex already reports, and "Бризер данина
+   комната" onto **Маленькая детская** — a room no Yandex device is in, so that name reaches the
+   panel from this file alone. It is named in `ROOM_ORDER` as well, or it would sort after every
+   known room, down by the bathrooms.
+
+   **The room names are Cyrillic, and that is a trap in the build.** `Properties.load(InputStream)`
+   decodes ISO-8859-1, so read that way "Спальня" arrives as "Ð¡Ð¿Ð°Ð»ÑŒÐ½Ñ" — no error
+   anywhere, just five sections named after the mojibake, sorted below the real rooms. Verified on
+   the tablet, and fixed by reading the file through a UTF-8 `Reader` in `app/build.gradle.kts`.
+   Nothing in `src/test/` can see `local.properties`, so if the rooms ever look wrong, read the
+   generated `BuildConfig.java` first.
+3. **An unplaced section.** Kept as well, as the fallback: anything the mapping does not name — a
+   new recuperator, a typo, an unset property — renders under "Без комнаты" at the bottom of the
+   panel. A device is never dropped for want of a room, and a mistake in (2) shows up on the wall
+   where it can be seen, instead of disappearing.
 
 ### `GET /v1.0/devices/{id}/specifications` and `/functions` — verified, and misleading
 
@@ -353,6 +394,10 @@ lags a tap by minutes and one that does not. See "What the console actually show
   had, says why it is not moving, and the other four update normally; only the inventory call
   failing takes the whole group down. This is where the shape differs from the Yandex tiles, and it
   differs because the call does.
+- **The panel is grouped by room and Tuya names none**, so the recuperators are placed by hand from
+  `tuya.rooms` in `local.properties`, and whatever is not in there renders in the panel's "Без
+  комнаты" section rather than being guessed from the device name. See the inventory section above
+  for why the name is not parsed.
 - `Device.online` exists on the shared model for this vendor: 11 of the account's 20 devices came
   back `false` over a perfectly good HTTP 200, so a tile needs an offline state that has nothing to
   do with whether the call worked. Yandex reports no such field and leaves it null.

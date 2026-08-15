@@ -386,6 +386,50 @@ class RecuperatorTilesTest {
         assertTrue(poll.recuperators.state.value.tiles.filter { it.id != "xfj-02" }.all { it.error == null })
     }
 
+    @Test
+    fun `a recuperator is in the room the flat recorded for it, and in none when it did not`() = runTest {
+        // Tuya's inventory carries no room for any device, so the only source is local.properties.
+        // What is not in there is left unplaced rather than read out of the device's name: "Бризер
+        // данина комната" names no room Yandex knows, and the name is renameable from the vendor's
+        // own app. Unplaced is visible on the wall — see roomSections — not dropped.
+        enqueueRefresh()
+        val poll = TuyaPoll(client(), rooms = recuperatorRooms("xfj-01=Спальня;xfj-05=Зал"))
+
+        poll.refresh()
+
+        val tiles = poll.recuperators.state.value.tiles
+        assertEquals("Спальня", tiles.single { it.id == "xfj-01" }.room)
+        assertEquals("Зал", tiles.single { it.id == "xfj-05" }.room)
+        assertNull(tiles.single { it.id == "xfj-03" }.room)
+    }
+
+    @Test
+    fun `a tap does not move a recuperator out of its room`() = runTest {
+        // The tile is repainted from a fresh read of that one device, and the read answers only
+        // datapoints — nothing in it says which room the device is in.
+        enqueueRefresh()
+        server.enqueue(MockResponse(body = """{"result":true,"success":true,"t":1,"tid":"test-tid"}"""))
+        server.enqueue(MockResponse(body = fixture("shadow_properties.json")))
+        val poll = TuyaPoll(client(), rooms = recuperatorRooms("xfj-01=Спальня"))
+
+        poll.refresh()
+        poll.recuperators.toggle("xfj-01")
+
+        assertEquals("Спальня", poll.recuperators.state.value.tiles.single { it.id == "xfj-01" }.room)
+    }
+
+    @Test
+    fun `a mistyped room entry leaves that recuperator unplaced instead of failing the panel`() {
+        // A build constant nobody can see is the worst place for a parse error to end the panel:
+        // the wall would go blank for a missing "=". The entry is skipped, and the recuperator
+        // turns up in the unplaced section, which is where the mistake becomes visible.
+        assertEquals(
+            mapOf("xfj-01" to "Спальня", "xfj-04" to "Кабинет"),
+            recuperatorRooms(" xfj-01 = Спальня ;xfj-05;=Зал;xfj-02= ;xfj-04=Кабинет;"),
+        )
+        assertEquals(emptyMap(), recuperatorRooms(""))
+    }
+
     private fun now(minutes: Long): Instant = lastRead.plusSeconds(minutes * 60)
 
     private fun enqueueToken() = server.enqueue(MockResponse(body = fixture("token.json")))

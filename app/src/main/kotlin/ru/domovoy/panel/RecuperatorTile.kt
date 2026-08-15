@@ -128,30 +128,3 @@ private fun measured(
     value: Double?,
     unit: String,
 ): String = value?.let { String.format(Locale.ROOT, "%.1f %s", it, unit) } ?: "unknown"
-
-/**
- * The flat's recuperators. A plain [Column] like the air conditioners: there are five of them and
- * the list that scrolls is the bulbs'.
- */
-@Composable
-fun RecuperatorTileList(
-    state: RecuperatorPanelState,
-    now: Instant,
-    modifier: Modifier = Modifier,
-    onToggle: (String) -> Unit = {},
-) {
-    Column(modifier = modifier) {
-        // Nothing has ever been read — the inventory call has never come back — so there is no
-        // tile to hang the reason on and it gets its own line.
-        if (state.tiles.isEmpty() && state.error != null) {
-            Text(
-                text = "Бризеры: not updating: ${state.error}",
-                style = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier.padding(12.dp),
-            )
-        }
-        state.tiles.forEach { tile ->
-            RecuperatorTile(tile = tile, now = now, groupError = state.error, onToggle = onToggle)
-        }
-    }
-}

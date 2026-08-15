@@ -145,37 +145,3 @@ private fun colorLabel(
         else -> "unknown"
     }
 }
-
-/**
- * The light strips of the flat. A plain [Column] rather than a lazy list: there are two of them,
- * and this sits above the bulbs, which are the list that scrolls.
- */
-@Composable
-fun LightStripTileList(
-    state: LightStripPanelState,
-    now: Instant,
-    modifier: Modifier = Modifier,
-    onToggle: (String) -> Unit = {},
-    onSetBrightness: (String, Double) -> Unit = { _, _ -> },
-) {
-    Column(modifier = modifier) {
-        // Nothing has ever been read: there is no tile to hang the error on, so it gets its own
-        // line — otherwise the strips simply would not be on the wall, with no reason given.
-        if (state.tiles.isEmpty() && state.error != null) {
-            Text(
-                text = "Подсветка: not updating: ${state.error}",
-                style = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier.padding(12.dp),
-            )
-        }
-        state.tiles.forEach { tile ->
-            LightStripTile(
-                tile = tile,
-                now = now,
-                error = state.error,
-                onToggle = onToggle,
-                onSetBrightness = onSetBrightness,
-            )
-        }
-    }
-}
