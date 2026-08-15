@@ -19,6 +19,8 @@ import okhttp3.OkHttpClient
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import ru.domovoy.core.Bounds
+import ru.domovoy.core.DeviceKind
 import ru.domovoy.core.OnOff
 import ru.domovoy.core.Reading
 import java.time.Instant
@@ -62,22 +64,96 @@ class YandexClientTest {
                 "light-07", "light-08", "light-10", "light-11", "light-12", "light-15",
                 "light-16", "light-17", "light-18", "light-19", "light-20", "light-21",
             ),
-            devices.map { it.id }.sorted(),
+            devices.filter { it.kind == DeviceKind.Bulb }.map { it.id }.sorted(),
         )
     }
 
     @Test
-    fun `bulbs of another household and things that are not bulbs are left out`() = runTest {
+    fun `one poll brings back every kind the panel has a tile for, each said apart`() = runTest {
+        server.enqueue(MockResponse(body = fixture()))
+
+        val devices = client().devices().getOrThrow()
+
+        // One /v1.0/user/info call is the whole house, so the kinds travel together and are told
+        // apart here rather than by a second call per tile group.
+        assertEquals(
+            mapOf(DeviceKind.Bulb to 18, DeviceKind.Curtain to 1),
+            devices.groupingBy { it.kind }.eachCount(),
+        )
+    }
+
+    @Test
+    fun `devices of another household and types the panel has no tile for are left out`() = runTest {
         server.enqueue(MockResponse(body = fixture()))
 
         val ids = client().devices().map { list -> list.map { it.id } }.getOrThrow()
 
         // light-09 and light-13 are bulbs, but of other households; light-strip-01 is a
-        // strip, ac-01 an air conditioner, curtain-01 the curtains — none in scope here.
+        // strip and ac-01 an air conditioner — no tile for either yet.
         assertTrue(
-            ids.none { it in setOf("light-09", "light-13", "light-14", "light-strip-01", "ac-01", "curtain-01") },
+            ids.none { it in setOf("light-09", "light-13", "light-14", "light-strip-01", "ac-01") },
             "leaked out-of-scope devices: $ids",
         )
+    }
+
+    @Test
+    fun `the curtain comes back with its open range as the vendor reports it`() = runTest {
+        server.enqueue(MockResponse(body = fixture()))
+
+        val curtain = client().devices().getOrThrow().single { it.kind == DeviceKind.Curtain }
+
+        assertEquals("Шторы", curtain.name)
+        assertEquals("Спальня", curtain.room)
+        // on_off and zigbee_node are on this device too; neither is a range, and zigbee_node's
+        // state is an object, so a mapper that took every capability would choke on it.
+        assertEquals(setOf("open"), curtain.ranges.keys)
+        val open = curtain.ranges.getValue("open")
+        assertEquals(0.0, open.value)
+        assertEquals(Bounds(min = 0.0, max = 100.0, precision = 1.0), open.bounds)
+        assertEquals("unit.percent", open.unit)
+        assertEquals(1_786_667_879, (open.lastUpdated as Reading.At).instant.epochSecond)
+        // The range has never changed since Yandex started counting: 0.0, which is not the epoch.
+        assertEquals(Reading.Never, open.stateChangedAt)
+    }
+
+    @Test
+    fun `a bulb's brightness range is read too, without becoming a bulb tile's business`() = runTest {
+        // The model has to carry every range the poll returned, or the AC's temperature would
+        // need a second parse of the same response.
+        server.enqueue(MockResponse(body = fixture()))
+
+        val bulb = client().devices().getOrThrow().single { it.id == "light-01" }
+
+        assertEquals(5.0, bulb.ranges.getValue("brightness").value)
+    }
+
+    @Test
+    fun `driving a range posts the instance and a whole-number value`() = runTest {
+        server.enqueue(MockResponse(body = """{"status":"ok","request_id":"r-1","devices":[]}"""))
+
+        client().setRange("curtain-01", instance = "open", value = 70.0).getOrThrow()
+
+        val request = server.takeRequest()
+        assertEquals("POST", request.method)
+        assertEquals("/v1.0/devices/actions", request.target)
+        val body = requireNotNull(request.body) { "the action was sent with no body" }.utf8()
+        val device = Json.parseToJsonElement(body).jsonObject["devices"]!!.jsonArray.single()
+        assertEquals("curtain-01", device.jsonObject["id"]!!.jsonPrimitive.content)
+        val action = device.jsonObject["actions"]!!.jsonArray.single().jsonObject
+        assertEquals("devices.capabilities.range", action["type"]!!.jsonPrimitive.content)
+        val state = action["state"]!!.jsonObject
+        assertEquals("open", state["instance"]!!.jsonPrimitive.content)
+        // The curtain reports its position as 0, not 0.0, and its precision is 1 — so "70.0" is a
+        // difference from what the vendor itself sends for no gain.
+        assertEquals("70", state["value"]!!.jsonPrimitive.content)
+    }
+
+    @Test
+    fun `with no token stored a range action is refused rather than sent`() = runTest {
+        val result = client(token = { "" }).setRange("curtain-01", instance = "open", value = 70.0)
+
+        assertTrue(result.isFailure)
+        assertEquals(0, server.requestCount)
     }
 
     @Test

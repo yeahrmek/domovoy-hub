@@ -4,6 +4,7 @@ import android.content.Context
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.layout.Column
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
@@ -25,6 +26,8 @@ import ru.domovoy.integrations.domonap.domonapCalls
 import ru.domovoy.integrations.yandex.YandexClient
 import ru.domovoy.panel.BulbTileList
 import ru.domovoy.panel.BulbTiles
+import ru.domovoy.panel.CurtainTileList
+import ru.domovoy.panel.CurtainTiles
 import ru.domovoy.panel.pollPausingForCalls
 import java.time.Instant
 import kotlin.time.Duration.Companion.seconds
@@ -86,22 +89,29 @@ private fun encryptedPrefs(context: Context) = EncryptedSharedPreferences.create
 
 @Composable
 private fun Panel(yandexToken: () -> String) {
-    val tiles =
+    val client =
         remember {
-            BulbTiles(
-                YandexClient(
-                    http = OkHttpClient(),
-                    token = yandexToken,
-                    householdId = BuildConfig.YANDEX_HOUSEHOLD_ID,
-                ),
+            YandexClient(
+                http = OkHttpClient(),
+                token = yandexToken,
+                householdId = BuildConfig.YANDEX_HOUSEHOLD_ID,
             )
         }
+    val tiles = remember(client) { BulbTiles(client) }
+    val curtains = remember(client) { CurtainTiles(client) }
     val state by tiles.state.collectAsState()
+    val curtainState by curtains.state.collectAsState()
     var now by remember { mutableStateOf(Instant.now()) }
     val scope = rememberCoroutineScope()
 
-    LaunchedEffect(tiles) {
-        pollPausingForCalls(domonapCalls.state, POLL_INTERVAL) { tiles.refresh() }
+    // Two groups, two `/v1.0/user/info` calls per interval — each holds its own tiles and its own
+    // error, and one poll feeding both is the change the air conditioner should bring, not this
+    // one. See docs/yandex.md.
+    LaunchedEffect(tiles, curtains) {
+        pollPausingForCalls(domonapCalls.state, POLL_INTERVAL) {
+            curtains.refresh()
+            tiles.refresh()
+        }
     }
 
     // The age on every tile has to keep climbing between polls, not freeze at the value the last
@@ -114,10 +124,17 @@ private fun Panel(yandexToken: () -> String) {
         }
     }
 
-    BulbTileList(
-        state = state,
-        now = now,
-        modifier = Modifier,
-        onToggle = { id -> scope.launch { tiles.toggle(id) } },
-    )
+    Column {
+        CurtainTileList(
+            state = curtainState,
+            now = now,
+            onSetOpen = { id, percent -> scope.launch { curtains.setOpen(id, percent) } },
+        )
+        BulbTileList(
+            state = state,
+            now = now,
+            modifier = Modifier.weight(1f),
+            onToggle = { id -> scope.launch { tiles.toggle(id) } },
+        )
+    }
 }
