@@ -4,10 +4,6 @@ import kotlin.math.roundToLong
 
 /**
  * A device as the panel sees it, whichever vendor it came from.
- *
- * There is deliberately no `online` / `offline` here: `/v1.0/user/info` carries no such field for
- * any of the 41 devices it returned, so from a poll the panel can only say how old a reading is.
- * See docs/yandex.md.
  */
 data class Device(
     val id: String,
@@ -37,6 +33,16 @@ data class Device(
      * because — unlike a range or a mode — no device in the recorded response has two of them.
      */
     val color: ColorSetting? = null,
+    /**
+     * Whether the vendor says the device is reachable — and null when the vendor does not say at
+     * all, which is not the same as "offline".
+     *
+     * Yandex is the null case: `/v1.0/user/info` carries no such field for any of the 41 devices it
+     * returned, so from a poll the panel can only say how old a reading is. Tuya does report it,
+     * per device, and reports it independently of whether the call succeeded — 11 of the account's
+     * 20 devices came back `false` over a perfectly good HTTP 200. See docs/tuya.md.
+     */
+    val online: Boolean? = null,
 )
 
 /** The device types the panel has a tile for. Everything else is dropped at the vendor client. */
@@ -45,6 +51,7 @@ enum class DeviceKind {
     LightStrip,
     Curtain,
     AirConditioner,
+    Recuperator,
 }
 
 /**

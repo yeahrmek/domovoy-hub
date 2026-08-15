@@ -43,6 +43,14 @@ android {
 
         buildConfigField("String", "YANDEX_HOUSEHOLD_ID", "\"${localProperty("yandex.household.id")}\"")
         buildConfigField("String", "YANDEX_OAUTH_TOKEN", "\"${localProperty("yandex.oauth.token")}\"")
+
+        // Tuya's cloud project credentials and the uid of the Smart Life account linked to it,
+        // seeded into the same encrypted store on first launch and read from there afterwards.
+        // `tuya.region.host` is deliberately not here: the account is in Central Europe and that
+        // is the client's own default, so a second place to get it wrong buys nothing.
+        buildConfigField("String", "TUYA_CLIENT_ID", "\"${localProperty("tuya.client.id")}\"")
+        buildConfigField("String", "TUYA_CLIENT_SECRET", "\"${localProperty("tuya.client.secret")}\"")
+        buildConfigField("String", "TUYA_UID", "\"${localProperty("tuya.uid")}\"")
     }
 
     buildTypes {

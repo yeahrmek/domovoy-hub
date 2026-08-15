@@ -24,4 +24,19 @@ class ReadingTest {
     fun `a whole-second timestamp has no stray nanos`() {
         assertEquals(Reading.At(Instant.ofEpochSecond(1_784_883_564)), Reading.ofEpochSeconds(1_784_883_564.0))
     }
+
+    @Test
+    fun `milliseconds are read as milliseconds, not as seconds`() {
+        // Tuya times every datapoint in milliseconds. Read as seconds, the recuperator's switch
+        // would sit 54,000 years in the future and every tile would say "0 d ago" forever.
+        assertEquals(
+            Reading.At(Instant.ofEpochSecond(1_786_539_930, 159_000_000)),
+            Reading.ofEpochMillis(1_786_539_930_159L),
+        )
+    }
+
+    @Test
+    fun `zero milliseconds means never reported too`() {
+        assertEquals(Reading.Never, Reading.ofEpochMillis(0L))
+    }
 }

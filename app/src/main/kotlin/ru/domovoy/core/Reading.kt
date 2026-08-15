@@ -26,5 +26,11 @@ sealed interface Reading {
             val nanos = ((seconds - whole) * 1_000_000_000L).roundToLong()
             return At(Instant.ofEpochSecond(whole, nanos))
         }
+
+        /**
+         * Tuya times every datapoint in milliseconds. Same rule as above about zero, and the same
+         * reason for having a named constructor at all: the unit is the thing that gets read wrong.
+         */
+        fun ofEpochMillis(millis: Long): Reading = if (millis <= 0L) Never else At(Instant.ofEpochMilli(millis))
     }
 }

@@ -1,0 +1,113 @@
+{
+  "result": {
+    "properties": [
+      {
+        "code": "switch",
+        "custom_name": "",
+        "dp_id": 1,
+        "time": 1786539930159,
+        "type": "bool",
+        "value": false
+      },
+      {
+        "code": "speed_one",
+        "custom_name": "",
+        "dp_id": 101,
+        "time": 1786518256586,
+        "type": "bool",
+        "value": false
+      },
+      {
+        "code": "speed_two",
+        "custom_name": "",
+        "dp_id": 102,
+        "time": 1786524382665,
+        "type": "bool",
+        "value": false
+      },
+      {
+        "code": "speed_three",
+        "custom_name": "",
+        "dp_id": 103,
+        "time": 1786539930168,
+        "type": "bool",
+        "value": false
+      },
+      {
+        "code": "sleep_mode",
+        "custom_name": "",
+        "dp_id": 104,
+        "time": 1786517821110,
+        "type": "bool",
+        "value": false
+      },
+      {
+        "code": "huimidity_one",
+        "custom_name": "",
+        "dp_id": 105,
+        "time": 1786517821111,
+        "type": "bool",
+        "value": false
+      },
+      {
+        "code": "huimidity_two",
+        "custom_name": "",
+        "dp_id": 106,
+        "time": 1786517821112,
+        "type": "bool",
+        "value": false
+      },
+      {
+        "code": "huimidity_three",
+        "custom_name": "",
+        "dp_id": 107,
+        "time": 1786517821112,
+        "type": "bool",
+        "value": false
+      },
+      {
+        "code": "huimi",
+        "custom_name": "",
+        "dp_id": 108,
+        "time": 1786817884638,
+        "type": "value",
+        "value": 322
+      },
+      {
+        "code": "temper",
+        "custom_name": "",
+        "dp_id": 109,
+        "time": 1786817652972,
+        "type": "value",
+        "value": 293
+      },
+      {
+        "code": "in_mode",
+        "custom_name": "",
+        "dp_id": 111,
+        "time": 1786524387317,
+        "type": "bool",
+        "value": false
+      },
+      {
+        "code": "out_mode",
+        "custom_name": "",
+        "dp_id": 112,
+        "time": 1786517821079,
+        "type": "bool",
+        "value": false
+      },
+      {
+        "code": "auto_mode",
+        "custom_name": "",
+        "dp_id": 113,
+        "time": 1786539930162,
+        "type": "bool",
+        "value": false
+      }
+    ]
+  },
+  "success": true,
+  "t": 1786817910562,
+  "tid": "test-tid"
+}
