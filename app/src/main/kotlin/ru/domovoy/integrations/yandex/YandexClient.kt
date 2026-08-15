@@ -6,6 +6,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
+import kotlinx.serialization.json.doubleOrNull
 import okhttp3.Call
 import okhttp3.Callback
 import okhttp3.HttpUrl
@@ -15,19 +16,33 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
+import ru.domovoy.core.Bounds
 import ru.domovoy.core.Device
+import ru.domovoy.core.DeviceKind
 import ru.domovoy.core.OnOff
+import ru.domovoy.core.Range
 import ru.domovoy.core.Reading
 import java.io.IOException
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
+import kotlin.math.floor
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.toJavaDuration
 
-/** `devices.types.light.strip` is a different type and deliberately not in scope. */
-private const val LIGHT = "devices.types.light"
+/**
+ * The device types the panel has a tile for, matched exactly: `devices.types.light.strip` is a
+ * different type from `devices.types.light` and deliberately not in scope, and so — for now — is
+ * `devices.types.thermostat.ac`.
+ */
+private val KINDS =
+    mapOf(
+        "devices.types.light" to DeviceKind.Bulb,
+        "devices.types.openable.curtain" to DeviceKind.Curtain,
+    )
+
 private const val ON_OFF = "devices.capabilities.on_off"
+private const val RANGE = "devices.capabilities.range"
 
 val YANDEX_BASE_URL: HttpUrl = "https://api.iot.yandex.net/".toHttpUrl()
 
@@ -43,7 +58,7 @@ private val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
 private val json = Json { ignoreUnknownKeys = true }
 
 /**
- * Reads and drives the bulbs of one Yandex household.
+ * Reads and drives the devices of one Yandex household that the panel has a tile for.
  *
  * The account behind the recorded response holds four households — the flat, two other homes and
  * a dacha. [householdId] is the only thing that says which of them the panel hangs in, so every
@@ -68,7 +83,8 @@ class YandexClient(
 
     /**
      * One `/v1.0/user/info` call is the whole house, so this is the panel's poll. Returns the
-     * bulbs of [householdId] only; failures come back as a failed [Result] for the caller to show.
+     * devices of [householdId] the panel has a tile for — every kind together, told apart by
+     * [Device.kind]; failures come back as a failed [Result] for the caller to show.
      */
     suspend fun devices(): Result<List<Device>> = runCatching {
         val body = get("v1.0/user/info")
@@ -78,18 +94,35 @@ class YandexClient(
         }
         val roomNames = info.rooms.associate { it.id to it.name }
         info.devices
-            .filter { it.householdId == householdId && it.type == LIGHT }
-            .map { it.toDevice(roomNames) }
+            .filter { it.householdId == householdId }
+            .mapNotNull { device -> KINDS[device.type]?.let { device.toDevice(it, roomNames) } }
     }
 
     /**
-     * Turns one bulb on or off. Success means Yandex accepted the request — the docs do not say
-     * whether `DONE` waits for the bulb to physically change, so the caller re-reads rather than
+     * Turns one device on or off. Success means Yandex accepted the request — the docs do not say
+     * whether `DONE` waits for the device to physically change, so the caller re-reads rather than
      * painting the new value from this result alone.
      */
     suspend fun setOn(
         deviceId: String,
         on: Boolean,
+    ): Result<Unit> = action(deviceId, ON_OFF, ActionStateDto("on", JsonPrimitive(on)))
+
+    /**
+     * Drives one numeric capability — the curtain's `open`, later the air conditioner's
+     * `temperature` — to [value]. Nothing is clamped here: what the device accepts is on the
+     * device, and the caller holds the bounds the poll reported. Re-read as for [setOn].
+     */
+    suspend fun setRange(
+        deviceId: String,
+        instance: String,
+        value: Double,
+    ): Result<Unit> = action(deviceId, RANGE, ActionStateDto(instance, value.asJson()))
+
+    private suspend fun action(
+        deviceId: String,
+        type: String,
+        state: ActionStateDto,
     ): Result<Unit> = runCatching {
         val payload =
             ActionsRequestDto(
@@ -97,7 +130,7 @@ class YandexClient(
                 listOf(
                     ActionDeviceDto(
                         id = deviceId,
-                        actions = listOf(ActionDto(type = ON_OFF, state = ActionStateDto("on", on))),
+                        actions = listOf(ActionDto(type = type, state = state)),
                     ),
                 ),
             )
@@ -145,9 +178,13 @@ class YandexClient(
     }
 }
 
-private fun DeviceDto.toDevice(roomNames: Map<String, String>): Device = Device(
+private fun DeviceDto.toDevice(
+    kind: DeviceKind,
+    roomNames: Map<String, String>,
+): Device = Device(
     id = id,
     name = name,
+    kind = kind,
     room = room?.let(roomNames::get),
     onOff =
     capabilities.firstOrNull { it.type == ON_OFF }?.let { capability ->
@@ -160,7 +197,31 @@ private fun DeviceDto.toDevice(roomNames: Map<String, String>): Device = Device(
             )
         }
     },
+    ranges = capabilities.filter { it.type == RANGE }.mapNotNull(CapabilityDto::toRange).toMap(),
 )
+
+// A range with no state at all is kept, not dropped: its bounds are still what the device accepts,
+// and "never reported" is a different thing from "no such capability" on the tile.
+private fun CapabilityDto.toRange(): Pair<String, Range>? {
+    val instance = parameters?.instance ?: state?.instance ?: return null
+    return instance to
+        Range(
+            value = (state?.value as? JsonPrimitive)?.doubleOrNull,
+            bounds = parameters?.range?.let { Bounds(min = it.min, max = it.max, precision = it.precision) },
+            // The TV's volume range carries "" rather than omitting the unit; both mean the same.
+            unit = parameters?.unit?.takeIf { it.isNotBlank() },
+            lastUpdated = Reading.ofEpochSeconds(lastUpdated),
+            stateChangedAt = Reading.ofEpochSeconds(stateChangedAt),
+        )
+}
+
+// Yandex reports a percentage as 70 and a temperature as 24, and every range recorded so far has
+// precision 1 — so sending 70.0 back is a difference from the vendor's own spelling for no gain.
+private fun Double.asJson(): JsonPrimitive = if (isFinite() && this == floor(this)) {
+    JsonPrimitive(toLong())
+} else {
+    JsonPrimitive(this)
+}
 
 private suspend fun Call.await(): Response = suspendCancellableCoroutine { continuation ->
     continuation.invokeOnCancellation { cancel() }

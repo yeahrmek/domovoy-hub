@@ -3,6 +3,7 @@ package ru.domovoy.integrations.yandex
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonPrimitive
 
 /**
  * Only the parts of `/v1.0/user/info` the bulb tile needs. The response also carries `groups`,
@@ -41,13 +42,35 @@ internal data class CapabilityDto(
     /** Absent on group capabilities, and `0.0` for a capability that has never reported. */
     @SerialName("last_updated") val lastUpdated: Double = 0.0,
     @SerialName("state_changed_at") val stateChangedAt: Double = 0.0,
+    val parameters: CapabilityParametersDto? = null,
     val state: CapabilityStateDto? = null,
+)
+
+/**
+ * Only the parameters a `range` needs. Every capability type puts something different in here —
+ * `split` on `on_off`, `modes` on `mode`, `temperature_k` on `color_setting` — and unknown keys
+ * are ignored, so one class covers them all without pretending to describe them.
+ */
+@Serializable
+internal data class CapabilityParametersDto(
+    /** The instance is here as well as in `state`, and it is the only one a stateless range has. */
+    val instance: String? = null,
+    val unit: String? = null,
+    val range: RangeParametersDto? = null,
+)
+
+@Serializable
+internal data class RangeParametersDto(
+    val min: Double,
+    val max: Double,
+    /** `1` on every range in the recorded response; kept optional so a missing one is not fatal. */
+    val precision: Double = 1.0,
 )
 
 @Serializable
 internal data class CapabilityStateDto(
     val instance: String? = null,
-    /** Boolean for `on_off`, but an object for `zigbee_node` — so it stays untyped here. */
+    /** Boolean for `on_off`, a number for `range`, an object for `zigbee_node` — so it stays untyped. */
     val value: JsonElement? = null,
 )
 
@@ -71,7 +94,8 @@ internal data class ActionDto(
 @Serializable
 internal data class ActionStateDto(
     val instance: String,
-    val value: Boolean,
+    /** `true` for `on_off`, a number for `range` — the same field, two shapes, as Yandex has it. */
+    val value: JsonPrimitive,
 )
 
 @Serializable

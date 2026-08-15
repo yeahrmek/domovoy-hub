@@ -4,6 +4,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import ru.domovoy.core.Device
+import ru.domovoy.core.DeviceKind
 import ru.domovoy.core.Reading
 import ru.domovoy.integrations.yandex.YandexClient
 import java.time.Duration
@@ -49,7 +50,12 @@ class BulbTiles(
     suspend fun refresh() {
         client
             .devices()
-            .onSuccess { devices -> mutableState.value = BulbPanelState(tiles = devices.map(Device::toTile)) }
+            .onSuccess { devices ->
+                mutableState.value =
+                    BulbPanelState(
+                        tiles = devices.filter { it.kind == DeviceKind.Bulb }.map(Device::toTile),
+                    )
+            }
             .onFailure { failure -> mutableState.value = mutableState.value.copy(error = failure.describe()) }
     }
 
@@ -75,7 +81,8 @@ private fun Device.toTile() = BulbTileState(
     stateChangedAt = onOff?.stateChangedAt ?: Reading.Never,
 )
 
-private fun Throwable.describe(): String = message?.takeIf { it.isNotBlank() } ?: this::class.simpleName.orEmpty()
+/** How a failure reads on a tile; shared with the curtain group, which fails the same way. */
+internal fun Throwable.describe(): String = message?.takeIf { it.isNotBlank() } ?: this::class.simpleName.orEmpty()
 
 /**
  * How old a reading is, in the words the tile prints. A capability that never reported comes back

@@ -218,6 +218,68 @@ Built against the fixture; first run against the live API on the tablet on 2026-
 - **The OAuth token** is read at runtime from `EncryptedSharedPreferences`, not from `BuildConfig`
   — see "How the token gets in" below. No token stored is a visible tile error, not an empty poll.
 
+## What the curtain tile actually does with this
+
+Built against the fixture only. **Nothing in this section has been run against the real curtain** —
+see the warning at the end of it.
+
+The flat has one `devices.types.openable.curtain`, a LUMI `lumi.curtain` through the Yandex hub
+(`skill-04`). What it carries, verbatim from the recorded response:
+
+```json
+{ "type": "devices.capabilities.range",
+  "state_changed_at": 0.0, "last_updated": 1786667879.388499,
+  "parameters": { "instance": "open", "unit": "unit.percent", "random_access": true,
+                  "looped": false, "range": { "min": 0, "max": 100, "precision": 1 } },
+  "state": { "instance": "open", "value": 0 } }
+```
+
+plus an `on_off` whose value is `false` and whose **both** timestamps are `0.0`, and a
+`zigbee_node` whose `state.value` is an *object* (`signal_quality`, `channel`, `is_active`) rather
+than a scalar.
+
+- **The tile shows the `range` timestamps, not the `on_off` ones.** The position is what the tile
+  prints, so its age is the age of the position — and on this device `on_off` has never reported at
+  all, so hanging the age on it would have said "never read" next to a position read minutes ago.
+- **`state_changed_at: 0.0` with a real `last_updated`** is the reverse of the bulbs' case: the
+  capability *has* been read, it just has no recorded change. Both are kept, `Reading.Never` covers
+  the `0.0`, and the tile prints the age of `last_updated` — the same choice as the bulbs, and the
+  same open question below.
+- **A `range` with no `state` at all reads as unknown, never as 0.** A curtain at 0% is shut; one
+  that has never reported is not, and a tile that prints "0% open" for it says the opposite of the
+  truth. The recorded response does carry a stateless range — on the TV's `channel` — so the shape
+  is real even though this curtain happens to have a value.
+- **`random_access: true`** is what makes an absolute position a legal action at all; on a range
+  without it, only relative moves would be. Every range in scope has it, so the panel does not
+  store the flag — the first `false` one is the moment to start.
+- **The value is snapped before it is sent**: clamped to `min`..`max` and rounded to `precision`,
+  from the bounds *that device reported*, not from constants. A slider hands over anything, and an
+  action Yandex rejects reaches the wall as "not updating" for a reason that was ours.
+- **Whole numbers go out as whole numbers.** Yandex reports the position as `0`, not `0.0`, and
+  precision is 1, so the action sends `"value": 70`.
+
+### The shared model, and why it grew
+
+`range` is the first non-boolean state in the panel's device model — the bulbs only ever needed a
+`Boolean`. Rather than a curtain-shaped field, `Device` now carries **every** range the poll
+returned, keyed by instance (`open`, `brightness`, `temperature`), alongside a `kind` that says
+which tile group the device belongs to. One `/v1.0/user/info` call is the whole house, so the AC's
+`range/temperature` is already parsed and waiting; its three `mode` capabilities (`thermostat`,
+`fan_speed`, `swing`) are **not** modelled and are the next thing to add.
+
+`YandexClient.devices()` now returns every kind the panel has a tile for, told apart by `kind`,
+instead of bulbs only. The tile groups filter it. **Both groups poll separately, so the panel now
+makes two `/v1.0/user/info` calls per interval where it made one.** That is a real cost with no
+published rate limit to check it against — it is deliberate, kept because collapsing it means one
+object owning the poll that both groups read from, and that belongs in the change that adds the
+third group rather than this one.
+
+> ⚠️ **`POST /v1.0/devices/actions` with `devices.capabilities.range` has never been sent to the
+> real curtain.** The body shape is from the capabilities docs and the code is tested against the
+> fixture and a loopback socket; nothing here proves the curtain moves, that `open` means "percent
+> open" rather than "percent closed", or how long it takes to report the new position back. The
+> `on_off` path was verified on the tablet on 2026-08-15 — this one has not been.
+
 ## Run on the tablet
 
 2026-08-15, panel installed on the wall tablet, on the flat's Wi-Fi. First time any of this ran
@@ -252,7 +314,10 @@ tap.
   not timed — one tap that eventually works cannot distinguish `DONE`-on-accept from
   `DONE`-on-applied. Answering it needs the action response logged next to the moment the bulb
   visibly changes. Until then the tile keeps repainting from a fresh `/v1.0/user/info`.
-- Actual 429 behaviour under a 5 s poll.
+- Actual 429 behaviour under a 5 s poll — and now under two calls per interval rather than one,
+  see "The shared model, and why it grew".
+- Does `open` on the curtain mean percent *open* or percent *closed*, and does 0 mean shut? The
+  panel assumes open, from the instance name alone. One tap on the real curtain settles it.
 - Does `/v1.0/devices/{id}` really carry `state` (`online`/`offline`) when the list call does not?
   If it does, an unreachable device costs one extra call per tile to detect.
 - What is `state_changed_at` when `last_updated` is `0.0`, and which of the two should a tile show?
