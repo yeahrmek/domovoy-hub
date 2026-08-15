@@ -1,0 +1,4318 @@
+{
+  "status": "ok",
+  "request_id": "test-request-id",
+  "rooms": [
+    {
+      "id": "room-01",
+      "name": "Спальня",
+      "aliases": [],
+      "household_id": "household-2",
+      "devices": [
+        "switch-02",
+        "humidifier-02",
+        "light-09",
+        "fan-01",
+        "light-14",
+        "speaker-03"
+      ]
+    },
+    {
+      "id": "room-02",
+      "name": "Коридор",
+      "aliases": [],
+      "household_id": "household-flat",
+      "devices": [
+        "vacuum-01",
+        "light-04",
+        "light-06",
+        "light-21"
+      ]
+    },
+    {
+      "id": "room-03",
+      "name": "Спальня",
+      "aliases": [],
+      "household_id": "household-3",
+      "devices": []
+    },
+    {
+      "id": "room-04",
+      "name": "Ванная",
+      "aliases": [],
+      "household_id": "household-flat",
+      "devices": [
+        "light-08"
+      ]
+    },
+    {
+      "id": "room-05",
+      "name": "Спальня взрослая",
+      "aliases": [],
+      "household_id": "household-3",
+      "devices": [
+        "humidifier-01"
+      ]
+    },
+    {
+      "id": "room-06",
+      "name": "Living room",
+      "aliases": [],
+      "household_id": "household-3",
+      "devices": []
+    },
+    {
+      "id": "room-07",
+      "name": "Зал",
+      "aliases": [],
+      "household_id": "household-3",
+      "devices": []
+    },
+    {
+      "id": "room-08",
+      "name": "Зал",
+      "aliases": [],
+      "household_id": "household-flat",
+      "devices": [
+        "light-01",
+        "light-02",
+        "light-03",
+        "speaker-01",
+        "tv-01",
+        "light-strip-01",
+        "light-15",
+        "ac-03"
+      ]
+    },
+    {
+      "id": "room-09",
+      "name": "Гостиная",
+      "aliases": [],
+      "household_id": "household-3",
+      "devices": [
+        "vacuum-02",
+        "tv-02"
+      ]
+    },
+    {
+      "id": "room-10",
+      "name": "Детская",
+      "aliases": [],
+      "household_id": "household-3",
+      "devices": []
+    },
+    {
+      "id": "room-11",
+      "name": "Гардероб",
+      "aliases": [],
+      "household_id": "household-flat",
+      "devices": [
+        "switch-01",
+        "switch-03",
+        "light-10"
+      ]
+    },
+    {
+      "id": "room-12",
+      "name": "Кабинет",
+      "aliases": [],
+      "household_id": "household-flat",
+      "devices": [
+        "light-11"
+      ]
+    },
+    {
+      "id": "room-13",
+      "name": "Детская ванная",
+      "aliases": [],
+      "household_id": "household-flat",
+      "devices": [
+        "light-20"
+      ]
+    },
+    {
+      "id": "room-14",
+      "name": "Спальня",
+      "aliases": [],
+      "household_id": "household-flat",
+      "devices": [
+        "curtain-01",
+        "light-05",
+        "light-07",
+        "ac-02",
+        "light-12",
+        "light-16",
+        "light-17",
+        "light-18",
+        "light-19"
+      ]
+    },
+    {
+      "id": "room-15",
+      "name": "Спальня",
+      "aliases": [],
+      "household_id": "household-4",
+      "devices": [
+        "speaker-02"
+      ]
+    },
+    {
+      "id": "room-16",
+      "name": "Маленькая комната",
+      "aliases": [],
+      "household_id": "household-flat",
+      "devices": []
+    },
+    {
+      "id": "room-17",
+      "name": "Детская",
+      "aliases": [],
+      "household_id": "household-flat",
+      "devices": [
+        "ac-01",
+        "light-strip-02"
+      ]
+    },
+    {
+      "id": "room-18",
+      "name": "Балкон",
+      "aliases": [],
+      "household_id": "household-3",
+      "devices": [
+        "socket-01"
+      ]
+    },
+    {
+      "id": "room-19",
+      "name": "entrance",
+      "aliases": [],
+      "household_id": "household-2",
+      "devices": []
+    },
+    {
+      "id": "room-20",
+      "name": "Спальня",
+      "aliases": [],
+      "household_id": "household-3",
+      "devices": []
+    },
+    {
+      "id": "room-21",
+      "name": "Коридор",
+      "aliases": [],
+      "household_id": "household-2",
+      "devices": [
+        "light-13"
+      ]
+    }
+  ],
+  "groups": [
+    {
+      "id": "group-01",
+      "name": "Трек в спальне",
+      "aliases": [],
+      "household_id": "household-flat",
+      "type": "devices.types.light",
+      "devices": [
+        "light-05",
+        "light-07",
+        "light-12",
+        "light-16",
+        "light-17",
+        "light-18",
+        "light-19"
+      ],
+      "capabilities": [
+        {
+          "retrievable": true,
+          "type": "devices.capabilities.range",
+          "parameters": {
+            "instance": "brightness",
+            "unit": "unit.percent",
+            "random_access": true,
+            "looped": false,
+            "range": {
+              "min": 0,
+              "max": 100,
+              "precision": 1
+            }
+          },
+          "state": {
+            "instance": "brightness",
+            "value": 100
+          }
+        },
+        {
+          "retrievable": true,
+          "type": "devices.capabilities.color_setting",
+          "parameters": {
+            "temperature_k": {
+              "min": 2700,
+              "max": 6500
+            }
+          },
+          "state": {
+            "instance": "temperature_k",
+            "value": 2700,
+            "internal_state": {
+              "color_id": "soft_white"
+            }
+          }
+        },
+        {
+          "retrievable": true,
+          "type": "devices.capabilities.on_off",
+          "parameters": {
+            "split": false
+          },
+          "state": {
+            "instance": "on",
+            "value": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "group-02",
+      "name": "Светильники",
+      "aliases": [],
+      "household_id": "household-2",
+      "type": "devices.types.light",
+      "devices": [
+        "light-09",
+        "light-14"
+      ],
+      "capabilities": [
+        {
+          "retrievable": true,
+          "type": "devices.capabilities.on_off",
+          "parameters": {
+            "split": false
+          },
+          "state": {
+            "instance": "on",
+            "value": false
+          }
+        },
+        {
+          "retrievable": true,
+          "type": "devices.capabilities.range",
+          "parameters": {
+            "instance": "brightness",
+            "unit": "unit.percent",
+            "random_access": true,
+            "looped": false,
+            "range": {
+              "min": 1,
+              "max": 100,
+              "precision": 1
+            }
+          },
+          "state": {
+            "instance": "brightness",
+            "value": 100
+          }
+        },
+        {
+          "retrievable": true,
+          "type": "devices.capabilities.color_setting",
+          "parameters": {
+            "temperature_k": {
+              "min": 2500,
+              "max": 4800
+            }
+          },
+          "state": null
+        }
+      ]
+    },
+    {
+      "id": "group-03",
+      "name": "Трек в зале",
+      "aliases": [],
+      "household_id": "household-flat",
+      "type": "devices.types.light",
+      "devices": [
+        "light-01",
+        "light-02",
+        "light-03",
+        "light-15"
+      ],
+      "capabilities": [
+        {
+          "retrievable": true,
+          "type": "devices.capabilities.color_setting",
+          "parameters": {
+            "temperature_k": {
+              "min": 2700,
+              "max": 6500
+            }
+          },
+          "state": null
+        },
+        {
+          "retrievable": true,
+          "type": "devices.capabilities.on_off",
+          "parameters": {
+            "split": false
+          },
+          "state": {
+            "instance": "on",
+            "value": true
+          }
+        },
+        {
+          "retrievable": true,
+          "type": "devices.capabilities.range",
+          "parameters": {
+            "instance": "brightness",
+            "unit": "unit.percent",
+            "random_access": true,
+            "looped": false,
+            "range": {
+              "min": 0,
+              "max": 100,
+              "precision": 1
+            }
+          },
+          "state": null
+        }
+      ]
+    }
+  ],
+  "devices": [
+    {
+      "id": "curtain-01",
+      "name": "Шторы",
+      "aliases": [],
+      "type": "devices.types.openable.curtain",
+      "external_id": "ext-curtain-01",
+      "skill_id": "skill-04",
+      "household_id": "household-flat",
+      "room": "room-14",
+      "groups": [],
+      "capabilities": [
+        {
+          "reportable": true,
+          "retrievable": true,
+          "type": "devices.capabilities.on_off",
+          "state_changed_at": 0.0,
+          "last_updated": 0.0,
+          "parameters": {
+            "split": false
+          },
+          "state": {
+            "instance": "on",
+            "value": false
+          }
+        },
+        {
+          "reportable": true,
+          "retrievable": true,
+          "type": "devices.capabilities.range",
+          "state_changed_at": 0.0,
+          "last_updated": 1786667879.388499,
+          "parameters": {
+            "instance": "open",
+            "unit": "unit.percent",
+            "random_access": true,
+            "looped": false,
+            "range": {
+              "min": 0,
+              "max": 100,
+              "precision": 1
+            }
+          },
+          "state": {
+            "instance": "open",
+            "value": 0
+          }
+        },
+        {
+          "reportable": true,
+          "retrievable": false,
+          "type": "devices.capabilities.zigbee_node",
+          "state_changed_at": 1786790249.4202769,
+          "last_updated": 1786790249.4202769,
+          "parameters": {
+            "type": "router"
+          },
+          "state": {
+            "value": {
+              "signal_quality": {
+                "status": "good",
+                "lqi": 118,
+                "rssi": -60
+              },
+              "channel": 11,
+              "is_active": true
+            }
+          }
+        }
+      ],
+      "properties": [
+        {
+          "type": "devices.properties.event",
+          "reportable": true,
+          "retrievable": false,
+          "parameters": {
+            "instance": "button",
+            "events": [
+              {
+                "value": "click"
+              },
+              {
+                "value": "double_click"
+              },
+              {
+                "value": "long_press"
+              }
+            ]
+          },
+          "state": null,
+          "last_updated": 0.0
+        },
+        {
+          "type": "devices.properties.float",
+          "reportable": true,
+          "retrievable": false,
+          "parameters": {
+            "instance": "signal_level",
+            "unit": "unit.percent"
+          },
+          "state": null,
+          "last_updated": 0.0
+        }
+      ],
+      "device_info": {
+        "manufacturer": "LUMI",
+        "model": "lumi.curtain"
+      }
+    },
+    {
+      "id": "light-01",
+      "name": "Лампа 4",
+      "aliases": [],
+      "type": "devices.types.light",
+      "external_id": "ext-light-01",
+      "skill_id": "skill-02",
+      "household_id": "household-flat",
+      "room": "room-08",
+      "groups": [
+        "group-03"
+      ],
+      "capabilities": [
+        {
+          "reportable": true,
+          "retrievable": true,
+          "type": "devices.capabilities.color_setting",
+          "state_changed_at": 1762006164.6363142,
+          "last_updated": 1784883564.0,
+          "parameters": {
+            "temperature_k": {
+              "min": 2700,
+              "max": 6500
+            }
+          },
+          "state": {
+            "instance": "temperature_k",
+            "value": 4500,
+            "internal_state": {
+              "color_id": "white"
+            }
+          }
+        },
+        {
+          "reportable": true,
+          "retrievable": true,
+          "type": "devices.capabilities.on_off",
+          "state_changed_at": 1778228459.0,
+          "last_updated": 1784883564.0,
+          "parameters": {
+            "split": false
+          },
+          "state": {
+            "instance": "on",
+            "value": true
+          }
+        },
+        {
+          "reportable": true,
+          "retrievable": true,
+          "type": "devices.capabilities.range",
+          "state_changed_at": 1769609597.0,
+          "last_updated": 1784883564.0,
+          "parameters": {
+            "instance": "brightness",
+            "unit": "unit.percent",
+            "random_access": true,
+            "looped": false,
+            "range": {
+              "min": 0,
+              "max": 100,
+              "precision": 1
+            }
+          },
+          "state": {
+            "instance": "brightness",
+            "value": 5
+          }
+        }
+      ],
+      "properties": [],
+      "device_info": {
+        "manufacturer": "SMART LIFE",
+        "model": "T-01"
+      }
+    },
+    {
+      "id": "light-02",
+      "name": "Лампа 2",
+      "aliases": [],
+      "type": "devices.types.light",
+      "external_id": "ext-light-02",
+      "skill_id": "skill-02",
+      "household_id": "household-flat",
+      "room": "room-08",
+      "groups": [
+        "group-03"
+      ],
+      "capabilities": [
+        {
+          "reportable": true,
+          "retrievable": true,
+          "type": "devices.capabilities.color_setting",
+          "state_changed_at": 1783622105.0,
+          "last_updated": 1784883564.0,
+          "parameters": {
+            "temperature_k": {
+              "min": 2700,
+              "max": 6500
+            }
+          },
+          "state": {
+            "instance": "temperature_k",
+            "value": 2700
+          }
+        },
+        {
+          "reportable": true,
+          "retrievable": true,
+          "type": "devices.capabilities.on_off",
+          "state_changed_at": 1778228460.0,
+          "last_updated": 1784883564.0,
+          "parameters": {
+            "split": false
+          },
+          "state": {
+            "instance": "on",
+            "value": true
+          }
+        },
+        {
+          "reportable": true,
+          "retrievable": true,
+          "type": "devices.capabilities.range",
+          "state_changed_at": 1783622105.0,
+          "last_updated": 1784883564.0,
+          "parameters": {
+            "instance": "brightness",
+            "unit": "unit.percent",
+            "random_access": true,
+            "looped": false,
+            "range": {
+              "min": 0,
+              "max": 100,
+              "precision": 1
+            }
+          },
+          "state": {
+            "instance": "brightness",
+            "value": 100
+          }
+        }
+      ],
+      "properties": [],
+      "device_info": {
+        "manufacturer": "SMART LIFE",
+        "model": "T-01"
+      }
+    },
+    {
+      "id": "light-03",
+      "name": "Лампа 3",
+      "aliases": [],
+      "type": "devices.types.light",
+      "external_id": "ext-light-03",
+      "skill_id": "skill-02",
+      "household_id": "household-flat",
+      "room": "room-08",
+      "groups": [
+        "group-03"
+      ],
+      "capabilities": [
+        {
+          "reportable": true,
+          "retrievable": true,
+          "type": "devices.capabilities.color_setting",
+          "state_changed_at": 1779909809.0,
+          "last_updated": 1784883564.0,
+          "parameters": {
+            "temperature_k": {
+              "min": 2700,
+              "max": 6500
+            }
+          },
+          "state": {
+            "instance": "temperature_k",
+            "value": 2700
+          }
+        },
+        {
+          "reportable": true,
+          "retrievable": true,
+          "type": "devices.capabilities.on_off",
+          "state_changed_at": 1778228460.0,
+          "last_updated": 1784883564.0,
+          "parameters": {
+            "split": false
+          },
+          "state": {
+            "instance": "on",
+            "value": true
+          }
+        },
+        {
+          "reportable": true,
+          "retrievable": true,
+          "type": "devices.capabilities.range",
+          "state_changed_at": 1780173933.0,
+          "last_updated": 1784883564.0,
+          "parameters": {
+            "instance": "brightness",
+            "unit": "unit.percent",
+            "random_access": true,
+            "looped": false,
+            "range": {
+              "min": 0,
+              "max": 100,
+              "precision": 1
+            }
+          },
+          "state": {
+            "instance": "brightness",
+            "value": 90
+          }
+        }
+      ],
+      "properties": [],
+      "device_info": {
+        "manufacturer": "SMART LIFE",
+        "model": "T-01"
+      }
+    },
+    {
+      "id": "speaker-01",
+      "name": "Яндекс Станция Миди",
+      "aliases": [],
+      "type": "devices.types.smart_speaker.yandex.station.cucumber",
+      "external_id": "ext-speaker-01",
+      "skill_id": "Q",
+      "household_id": "household-flat",
+      "room": "room-08",
+      "groups": [],
+      "capabilities": [
+        {
+          "reportable": false,
+          "retrievable": false,
+          "type": "devices.capabilities.color_setting",
+          "state_changed_at": 0.0,
+          "last_updated": 0.0,
+          "parameters": {
+            "color_scene": {
+              "scenes": [
+                {
+                  "id": "lava_lamp",
+                  "name": "Лава лампа"
+                },
+                {
+                  "id": "inactive",
+                  "name": "Неактивный"
+                },
+                {
+                  "id": "night",
+                  "name": "Ночь"
+                },
+                {
+                  "id": "candle",
+                  "name": "Свеча"
+                }
+              ]
+            }
+          },
+          "state": null
+        }
+      ],
+      "properties": [
+        {
+          "type": "devices.properties.event",
+          "reportable": true,
+          "retrievable": false,
+          "parameters": {
+            "instance": "motion",
+            "events": [
+              {
+                "value": "detected",
+                "name": "движение"
+              }
+            ]
+          },
+          "state": null,
+          "last_updated": 0.0
+        },
+        {
+          "type": "devices.properties.event",
+          "reportable": true,
+          "retrievable": false,
+          "parameters": {
+            "instance": "noise",
+            "events": [
+              {
+                "value": "clap",
+                "name": "хлопок"
+              },
+              {
+                "value": "snap",
+                "name": "щелчок пальцами"
+              },
+              {
+                "value": "fall",
+                "name": "падение"
+              },
+              {
+                "value": "stomp",
+                "name": "топот"
+              },
+              {
+                "value": "child_cry",
+                "name": "плач ребенка"
+              },
+              {
+                "value": "water_sound",
+                "name": "шум воды"
+              },
+              {
+                "value": "alarm",
+                "name": "вой сигнализации"
+              },
+              {
+                "value": "break_glass",
+                "name": "разбитое стекло"
+              },
+              {
+                "value": "dog_bark",
+                "name": "лай собаки"
+              },
+              {
+                "value": "meow",
+                "name": "мяуканье"
+              },
+              {
+                "value": "sneezing",
+                "name": "чихание"
+              },
+              {
+                "value": "custom_noise",
+                "name": "пользовательский звук"
+              }
+            ]
+          },
+          "state": null,
+          "last_updated": 0.0
+        },
+        {
+          "type": "devices.properties.event",
+          "reportable": true,
+          "retrievable": false,
+          "parameters": {
+            "instance": "voice_activity",
+            "events": [
+              {
+                "value": "speech_finished"
+              }
+            ]
+          },
+          "state": null,
+          "last_updated": 0.0
+        }
+      ],
+      "quasar_info": {
+        "device_id": "quasar-01",
+        "platform": "cucumber",
+        "device_color": "T"
+      },
+      "device_info": {
+        "manufacturer": "Intertech Services AG",
+        "model": "YNDX-00054"
+      }
+    },
+    {
+      "id": "vacuum-01",
+      "name": "Робот пылесос",
+      "aliases": [],
+      "type": "devices.types.vacuum_cleaner",
+      "external_id": "ext-vacuum-01",
+      "skill_id": "skill-05",
+      "household_id": "household-flat",
+      "room": "room-02",
+      "groups": [],
+      "capabilities": [
+        {
+          "reportable": true,
+          "retrievable": true,
+          "type": "devices.capabilities.mode",
+          "state_changed_at": 1764740630.7974243,
+          "last_updated": 1767021170.6251378,
+          "parameters": {
+            "instance": "cleanup_mode",
+            "modes": [
+              {
+                "value": "dry_cleaning",
+                "name": "Сухая уборка"
+              },
+              {
+                "value": "wet_cleaning",
+                "name": "Влажная уборка"
+              },
+              {
+                "value": "mixed_cleaning",
+                "name": "Смешанная уборка"
+              }
+            ]
+          },
+          "state": {
+            "instance": "cleanup_mode",
+            "value": "mixed_cleaning"
+          }
+        },
+        {
+          "reportable": true,
+          "retrievable": true,
+          "type": "devices.capabilities.on_off",
+          "state_changed_at": 1786695303.9381254,
+          "last_updated": 1786705147.1092217,
+          "parameters": {
+            "split": false
+          },
+          "state": {
+            "instance": "on",
+            "value": false
+          }
+        },
+        {
+          "reportable": true,
+          "retrievable": true,
+          "type": "devices.capabilities.toggle",
+          "state_changed_at": 1764740394.7578795,
+          "last_updated": 1786705147.1092217,
+          "parameters": {
+            "instance": "pause"
+          },
+          "state": {
+            "instance": "pause",
+            "value": false
+          }
+        }
+      ],
+      "properties": [
+        {
+          "type": "devices.properties.float",
+          "reportable": true,
+          "retrievable": true,
+          "parameters": {
+            "instance": "battery_level",
+            "unit": "unit.percent"
+          },
+          "state": {
+            "instance": "battery_level",
+            "value": 100
+          },
+          "state_changed_at": 1786704548.8042402,
+          "last_updated": 1786704548.8042402
+        }
+      ],
+      "device_info": {
+        "manufacturer": "deerma",
+        "model": "deerma.vacuum.a2506"
+      }
+    },
+    {
+      "id": "tv-01",
+      "name": "ТВ Станция",
+      "aliases": [],
+      "type": "devices.types.media_device.tv.yandex.magritte",
+      "external_id": "ext-tv-01",
+      "skill_id": "Q",
+      "household_id": "household-flat",
+      "room": "room-08",
+      "groups": [],
+      "capabilities": [
+        {
+          "reportable": true,
+          "retrievable": true,
+          "type": "devices.capabilities.on_off",
+          "state_changed_at": 1786734112.1859999,
+          "last_updated": 1786751522.1539998,
+          "parameters": {
+            "split": false
+          },
+          "state": {
+            "instance": "on",
+            "value": false
+          }
+        }
+      ],
+      "properties": [
+        {
+          "type": "devices.properties.event",
+          "reportable": true,
+          "retrievable": false,
+          "parameters": {
+            "instance": "voice_activity",
+            "events": [
+              {
+                "value": "speech_finished"
+              }
+            ]
+          },
+          "state": null,
+          "last_updated": 0.0
+        }
+      ],
+      "quasar_info": {
+        "device_id": "quasar-02",
+        "platform": "magritte",
+        "device_color": "K"
+      }
+    },
+    {
+      "id": "switch-01",
+      "name": "Нижняя кнопка",
+      "aliases": [],
+      "type": "devices.types.switch",
+      "external_id": "ext-switch-01",
+      "skill_id": "skill-04",
+      "household_id": "household-flat",
+      "room": "room-11",
+      "groups": [],
+      "capabilities": [
+        {
+          "reportable": true,
+          "retrievable": false,
+          "type": "devices.capabilities.zigbee_node",
+          "state_changed_at": 1786773258.454571,
+          "last_updated": 1786773258.454571,
+          "parameters": {
+            "type": "end_device"
+          },
+          "state": {
+            "value": {
+              "signal_quality": {
+                "status": "ok",
+                "lqi": 88,
+                "rssi": -70
+              },
+              "channel": 11,
+              "is_active": false
+            }
+          }
+        }
+      ],
+      "properties": [
+        {
+          "type": "devices.properties.float",
+          "reportable": true,
+          "retrievable": false,
+          "parameters": {
+            "instance": "battery_level",
+            "unit": "unit.percent"
+          },
+          "state": {
+            "instance": "battery_level",
+            "value": 100
+          },
+          "last_updated": 1786786124.337929
+        },
+        {
+          "type": "devices.properties.event",
+          "reportable": true,
+          "retrievable": false,
+          "parameters": {
+            "instance": "button",
+            "events": [
+              {
+                "value": "click"
+              },
+              {
+                "value": "double_click"
+              },
+              {
+                "value": "long_press"
+              }
+            ]
+          },
+          "state": {
+            "instance": "button",
+            "value": "click"
+          },
+          "last_updated": 1786769712.2417228
+        },
+        {
+          "type": "devices.properties.float",
+          "reportable": true,
+          "retrievable": false,
+          "parameters": {
+            "instance": "signal_level",
+            "unit": "unit.percent"
+          },
+          "state": null,
+          "last_updated": 0.0
+        }
+      ],
+      "device_info": {
+        "manufacturer": "Yandex",
+        "model": "YNDX-00534"
+      }
+    },
+    {
+      "id": "light-strip-01",
+      "name": "Подсветка в зале",
+      "aliases": [],
+      "type": "devices.types.light.strip",
+      "external_id": "ext-light-strip-01",
+      "skill_id": "skill-04",
+      "household_id": "household-flat",
+      "room": "room-08",
+      "groups": [],
+      "capabilities": [
+        {
+          "reportable": true,
+          "retrievable": true,
+          "type": "devices.capabilities.on_off",
+          "state_changed_at": 0.0,
+          "last_updated": 0.0,
+          "parameters": {
+            "split": false
+          },
+          "state": {
+            "instance": "on",
+            "value": true
+          }
+        },
+        {
+          "reportable": true,
+          "retrievable": true,
+          "type": "devices.capabilities.range",
+          "state_changed_at": 0.0,
+          "last_updated": 0.0,
+          "parameters": {
+            "instance": "brightness",
+            "unit": "unit.percent",
+            "random_access": true,
+            "looped": false,
+            "range": {
+              "min": 1,
+              "max": 100,
+              "precision": 1
+            }
+          },
+          "state": {
+            "instance": "brightness",
+            "value": 26
+          }
+        },
+        {
+          "reportable": true,
+          "retrievable": true,
+          "type": "devices.capabilities.color_setting",
+          "state_changed_at": 0.0,
+          "last_updated": 0.0,
+          "parameters": {
+            "temperature_k": {
+              "min": 1996,
+              "max": 6369
+            }
+          },
+          "state": {
+            "instance": "temperature_k",
+            "value": 2700,
+            "internal_state": {
+              "color_id": "soft_white"
+            }
+          }
+        },
+        {
+          "reportable": true,
+          "retrievable": false,
+          "type": "devices.capabilities.zigbee_node",
+          "state_changed_at": 1786310949.772465,
+          "last_updated": 1786310949.772465,
+          "parameters": {
+            "type": "router"
+          },
+          "state": {
+            "value": {
+              "signal_quality": {
+                "status": "weak",
+                "lqi": 51,
+                "rssi": -82
+              },
+              "channel": 11,
+              "is_active": true
+            }
+          }
+        }
+      ],
+      "properties": [
+        {
+          "type": "devices.properties.float",
+          "reportable": true,
+          "retrievable": false,
+          "parameters": {
+            "instance": "signal_level",
+            "unit": "unit.percent"
+          },
+          "state": null,
+          "last_updated": 0.0
+        }
+      ],
+      "device_info": {
+        "manufacturer": "GLEDOPTO",
+        "model": "GL-C-009P"
+      }
+    },
+    {
+      "id": "vacuum-02",
+      "name": "Робот пылесос",
+      "aliases": [],
+      "type": "devices.types.vacuum_cleaner",
+      "external_id": "ext-vacuum-02",
+      "skill_id": "skill-05",
+      "household_id": "household-3",
+      "room": "room-09",
+      "groups": [],
+      "capabilities": [
+        {
+          "reportable": true,
+          "retrievable": true,
+          "type": "devices.capabilities.mode",
+          "state_changed_at": 1723817433.0977888,
+          "last_updated": 1759385866.3983874,
+          "parameters": {
+            "instance": "work_speed",
+            "modes": [
+              {
+                "value": "quiet",
+                "name": "Тихий"
+              },
+              {
+                "value": "normal",
+                "name": "Нормальный"
+              },
+              {
+                "value": "fast",
+                "name": "Быстрый"
+              },
+              {
+                "value": "turbo",
+                "name": "Турбо"
+              }
+            ]
+          },
+          "state": {
+            "instance": "work_speed",
+            "value": "fast"
+          }
+        },
+        {
+          "reportable": true,
+          "retrievable": true,
+          "type": "devices.capabilities.on_off",
+          "state_changed_at": 1786635397.891522,
+          "last_updated": 1786773981.2585778,
+          "parameters": {
+            "split": false
+          },
+          "state": {
+            "instance": "on",
+            "value": false
+          }
+        },
+        {
+          "reportable": true,
+          "retrievable": true,
+          "type": "devices.capabilities.toggle",
+          "state_changed_at": 1786635394.9709852,
+          "last_updated": 1786773981.2585778,
+          "parameters": {
+            "instance": "pause"
+          },
+          "state": {
+            "instance": "pause",
+            "value": false
+          }
+        }
+      ],
+      "properties": [
+        {
+          "type": "devices.properties.float",
+          "reportable": true,
+          "retrievable": true,
+          "parameters": {
+            "instance": "battery_level",
+            "unit": "unit.percent"
+          },
+          "state": {
+            "instance": "battery_level",
+            "value": 100
+          },
+          "state_changed_at": 1786695442.6305037,
+          "last_updated": 1786773981.2894807
+        }
+      ],
+      "device_info": {
+        "manufacturer": "roborock",
+        "model": "roborock.vacuum.m1s"
+      }
+    },
+    {
+      "id": "tv-02",
+      "name": "Телевизор",
+      "aliases": [],
+      "type": "devices.types.media_device.tv",
+      "external_id": "ext-tv-02",
+      "skill_id": "skill-03",
+      "household_id": "household-3",
+      "room": "room-09",
+      "groups": [],
+      "capabilities": [
+        {
+          "reportable": false,
+          "retrievable": true,
+          "type": "devices.capabilities.on_off",
+          "state_changed_at": 0.0,
+          "last_updated": 1702802681.6084378,
+          "parameters": {
+            "split": false
+          },
+          "state": {
+            "instance": "on",
+            "value": true
+          }
+        },
+        {
+          "reportable": false,
+          "retrievable": false,
+          "type": "devices.capabilities.range",
+          "state_changed_at": 0.0,
+          "last_updated": 0.0,
+          "parameters": {
+            "instance": "channel",
+            "unit": "",
+            "random_access": true,
+            "looped": false
+          },
+          "state": null
+        },
+        {
+          "reportable": false,
+          "retrievable": true,
+          "type": "devices.capabilities.range",
+          "state_changed_at": 0.0,
+          "last_updated": 1702802681.6084378,
+          "parameters": {
+            "instance": "volume",
+            "unit": "",
+            "random_access": true,
+            "looped": false,
+            "range": {
+              "min": 0,
+              "max": 100,
+              "precision": 1
+            }
+          },
+          "state": {
+            "instance": "volume",
+            "value": 19
+          }
+        },
+        {
+          "reportable": false,
+          "retrievable": true,
+          "type": "devices.capabilities.toggle",
+          "state_changed_at": 0.0,
+          "last_updated": 1702802681.6084378,
+          "parameters": {
+            "instance": "mute"
+          },
+          "state": {
+            "instance": "mute",
+            "value": false
+          }
+        }
+      ],
+      "properties": [],
+      "device_info": {
+        "manufacturer": "Samsung Electronics",
+        "model": "QE55Q70RAUXRU"
+      }
+    },
+    {
+      "id": "light-04",
+      "name": "Споты в коридоре",
+      "aliases": [],
+      "type": "devices.types.light",
+      "external_id": "ext-light-04",
+      "skill_id": "skill-04",
+      "household_id": "household-flat",
+      "room": "room-02",
+      "groups": [],
+      "capabilities": [
+        {
+          "reportable": true,
+          "retrievable": true,
+          "type": "devices.capabilities.on_off",
+          "state_changed_at": 0.0,
+          "last_updated": 0.0,
+          "parameters": {
+            "split": false
+          },
+          "state": {
+            "instance": "on",
+            "value": true
+          }
+        },
+        {
+          "reportable": true,
+          "retrievable": false,
+          "type": "devices.capabilities.zigbee_node",
+          "state_changed_at": 1786785518.584515,
+          "last_updated": 1786785518.584515,
+          "parameters": {
+            "type": "router"
+          },
+          "state": {
+            "value": {
+              "signal_quality": {
+                "status": "ok",
+                "lqi": 72,
+                "rssi": -75
+              },
+              "channel": 11,
+              "is_active": true
+            }
+          }
+        }
+      ],
+      "properties": [
+        {
+          "type": "devices.properties.float",
+          "reportable": true,
+          "retrievable": false,
+          "parameters": {
+            "instance": "signal_level",
+            "unit": "unit.percent"
+          },
+          "state": null,
+          "last_updated": 0.0
+        }
+      ],
+      "device_info": {
+        "manufacturer": "_TZ3000_g92baclx",
+        "model": "TS0001"
+      }
+    },
+    {
+      "id": "ac-01",
+      "name": "Residential air conditioner",
+      "aliases": [],
+      "type": "devices.types.thermostat.ac",
+      "external_id": "ext-ac-01",
+      "skill_id": "skill-01",
+      "household_id": "household-flat",
+      "room": "room-17",
+      "groups": [],
+      "capabilities": [
+        {
+          "reportable": false,
+          "retrievable": true,
+          "type": "devices.capabilities.range",
+          "state_changed_at": 1778169164.792887,
+          "last_updated": 1778169164.792887,
+          "parameters": {
+            "instance": "temperature",
+            "unit": "unit.temperature.celsius",
+            "random_access": true,
+            "looped": false,
+            "range": {
+              "min": 16,
+              "max": 32,
+              "precision": 1
+            }
+          },
+          "state": {
+            "instance": "temperature",
+            "value": 18
+          }
+        },
+        {
+          "reportable": false,
+          "retrievable": true,
+          "type": "devices.capabilities.mode",
+          "state_changed_at": 0.0,
+          "last_updated": 0.0,
+          "parameters": {
+            "instance": "fan_speed",
+            "modes": [
+              {
+                "value": "turbo"
+              },
+              {
+                "value": "high"
+              },
+              {
+                "value": "medium"
+              },
+              {
+                "value": "low"
+              },
+              {
+                "value": "quiet"
+              },
+              {
+                "value": "auto"
+              }
+            ]
+          },
+          "state": null
+        },
+        {
+          "reportable": false,
+          "retrievable": true,
+          "type": "devices.capabilities.on_off",
+          "state_changed_at": 1785174334.3515072,
+          "last_updated": 1785174334.3515072,
+          "parameters": {
+            "split": false
+          },
+          "state": {
+            "instance": "on",
+            "value": false
+          }
+        },
+        {
+          "reportable": false,
+          "retrievable": true,
+          "type": "devices.capabilities.toggle",
+          "state_changed_at": 0.0,
+          "last_updated": 0.0,
+          "parameters": {
+            "instance": "ionization"
+          },
+          "state": null
+        },
+        {
+          "reportable": false,
+          "retrievable": true,
+          "type": "devices.capabilities.mode",
+          "state_changed_at": 0.0,
+          "last_updated": 0.0,
+          "parameters": {
+            "instance": "swing",
+            "modes": [
+              {
+                "value": "stationary"
+              },
+              {
+                "value": "vertical"
+              },
+              {
+                "value": "horizontal"
+              },
+              {
+                "value": "auto"
+              }
+            ]
+          },
+          "state": null
+        },
+        {
+          "reportable": true,
+          "retrievable": true,
+          "type": "devices.capabilities.toggle",
+          "state_changed_at": 0.0,
+          "last_updated": 0.0,
+          "parameters": {
+            "instance": "keep_warm"
+          },
+          "state": null
+        },
+        {
+          "reportable": true,
+          "retrievable": true,
+          "type": "devices.capabilities.toggle",
+          "state_changed_at": 0.0,
+          "last_updated": 0.0,
+          "parameters": {
+            "instance": "backlight"
+          },
+          "state": null
+        },
+        {
+          "reportable": false,
+          "retrievable": true,
+          "type": "devices.capabilities.mode",
+          "state_changed_at": 0.0,
+          "last_updated": 0.0,
+          "parameters": {
+            "instance": "thermostat",
+            "modes": [
+              {
+                "value": "fan_only"
+              },
+              {
+                "value": "heat"
+              },
+              {
+                "value": "cool"
+              },
+              {
+                "value": "dry"
+              },
+              {
+                "value": "auto"
+              }
+            ]
+          },
+          "state": null
+        }
+      ],
+      "properties": [
+        {
+          "type": "devices.properties.float",
+          "reportable": false,
+          "retrievable": true,
+          "parameters": {
+            "instance": "temperature",
+            "unit": "unit.temperature.celsius"
+          },
+          "state": null,
+          "last_updated": 0.0
+        }
+      ],
+      "device_info": {
+        "manufacturer": "Hisense",
+        "model": "AS-13UW4RXVQH01(B)"
+      }
+    },
+    {
+      "id": "speaker-02",
+      "name": "Дача",
+      "aliases": [],
+      "type": "devices.types.smart_speaker.yandex.station.cucumber",
+      "external_id": "ext-speaker-02",
+      "skill_id": "Q",
+      "household_id": "household-4",
+      "room": "room-15",
+      "groups": [],
+      "capabilities": [
+        {
+          "reportable": false,
+          "retrievable": false,
+          "type": "devices.capabilities.color_setting",
+          "state_changed_at": 0.0,
+          "last_updated": 0.0,
+          "parameters": {
+            "color_scene": {
+              "scenes": [
+                {
+                  "id": "lava_lamp",
+                  "name": "Лава лампа"
+                },
+                {
+                  "id": "inactive",
+                  "name": "Неактивный"
+                },
+                {
+                  "id": "night",
+                  "name": "Ночь"
+                },
+                {
+                  "id": "candle",
+                  "name": "Свеча"
+                }
+              ]
+            }
+          },
+          "state": null
+        }
+      ],
+      "properties": [
+        {
+          "type": "devices.properties.event",
+          "reportable": true,
+          "retrievable": false,
+          "parameters": {
+            "instance": "voice_activity",
+            "events": [
+              {
+                "value": "speech_finished"
+              }
+            ]
+          },
+          "state": null,
+          "last_updated": 0.0
+        },
+        {
+          "type": "devices.properties.event",
+          "reportable": true,
+          "retrievable": false,
+          "parameters": {
+            "instance": "motion",
+            "events": [
+              {
+                "value": "detected",
+                "name": "движение"
+              }
+            ]
+          },
+          "state": null,
+          "last_updated": 0.0
+        },
+        {
+          "type": "devices.properties.event",
+          "reportable": true,
+          "retrievable": false,
+          "parameters": {
+            "instance": "noise",
+            "events": [
+              {
+                "value": "clap",
+                "name": "хлопок"
+              },
+              {
+                "value": "snap",
+                "name": "щелчок пальцами"
+              },
+              {
+                "value": "fall",
+                "name": "падение"
+              },
+              {
+                "value": "stomp",
+                "name": "топот"
+              },
+              {
+                "value": "child_cry",
+                "name": "плач ребенка"
+              },
+              {
+                "value": "water_sound",
+                "name": "шум воды"
+              },
+              {
+                "value": "alarm",
+                "name": "вой сигнализации"
+              },
+              {
+                "value": "break_glass",
+                "name": "разбитое стекло"
+              },
+              {
+                "value": "dog_bark",
+                "name": "лай собаки"
+              },
+              {
+                "value": "meow",
+                "name": "мяуканье"
+              },
+              {
+                "value": "sneezing",
+                "name": "чихание"
+              },
+              {
+                "value": "custom_noise",
+                "name": "пользовательский звук"
+              }
+            ]
+          },
+          "state": null,
+          "last_updated": 0.0
+        }
+      ],
+      "quasar_info": {
+        "device_id": "quasar-03",
+        "platform": "cucumber",
+        "device_color": "G"
+      },
+      "device_info": {
+        "manufacturer": "Intertech Services AG",
+        "model": "YNDX-00054"
+      }
+    },
+    {
+      "id": "switch-02",
+      "name": "Люстра",
+      "aliases": [],
+      "type": "devices.types.switch",
+      "external_id": "ext-switch-02",
+      "skill_id": "skill-06",
+      "household_id": "household-2",
+      "room": "room-01",
+      "groups": [],
+      "capabilities": [
+        {
+          "reportable": true,
+          "retrievable": true,
+          "type": "devices.capabilities.on_off",
+          "state_changed_at": 1777667210.597,
+          "last_updated": 1779993878.867,
+          "parameters": {
+            "split": false
+          },
+          "state": {
+            "instance": "on",
+            "value": false
+          }
+        }
+      ],
+      "properties": [],
+      "device_info": {
+        "manufacturer": "Aqara",
+        "model": "WS-EUK01"
+      }
+    },
+    {
+      "id": "humidifier-01",
+      "name": "Увлажнитель",
+      "aliases": [],
+      "type": "devices.types.humidifier",
+      "external_id": "ext-humidifier-01",
+      "skill_id": "skill-05",
+      "household_id": "household-3",
+      "room": "room-05",
+      "groups": [],
+      "capabilities": [
+        {
+          "reportable": true,
+          "retrievable": true,
+          "type": "devices.capabilities.on_off",
+          "state_changed_at": 1774673095.541989,
+          "last_updated": 1774673095.541989,
+          "parameters": {
+            "split": false
+          },
+          "state": {
+            "instance": "on",
+            "value": false
+          }
+        },
+        {
+          "reportable": true,
+          "retrievable": true,
+          "type": "devices.capabilities.mode",
+          "state_changed_at": 1772515996.658928,
+          "last_updated": 1774673088.03131,
+          "parameters": {
+            "instance": "fan_speed",
+            "modes": [
+              {
+                "value": "low",
+                "name": "Низкая"
+              },
+              {
+                "value": "medium",
+                "name": "Средняя"
+              },
+              {
+                "value": "high",
+                "name": "Высокая"
+              }
+            ]
+          },
+          "state": {
+            "instance": "fan_speed",
+            "value": "medium"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "type": "devices.properties.float",
+          "reportable": true,
+          "retrievable": true,
+          "parameters": {
+            "instance": "humidity",
+            "unit": "unit.percent"
+          },
+          "state": {
+            "instance": "humidity",
+            "value": 30
+          },
+          "state_changed_at": 1774673095.5347214,
+          "last_updated": 1774673095.5347214
+        },
+        {
+          "type": "devices.properties.float",
+          "reportable": true,
+          "retrievable": true,
+          "parameters": {
+            "instance": "temperature",
+            "unit": "unit.temperature.celsius"
+          },
+          "state": {
+            "instance": "temperature",
+            "value": 24
+          },
+          "state_changed_at": 1774648715.0554397,
+          "last_updated": 1774673089.1430862
+        }
+      ],
+      "device_info": {
+        "manufacturer": "deerma",
+        "model": "deerma.humidifier.jsq5"
+      }
+    },
+    {
+      "id": "light-05",
+      "name": "Лампа 11",
+      "aliases": [],
+      "type": "devices.types.light",
+      "external_id": "ext-light-05",
+      "skill_id": "skill-02",
+      "household_id": "household-flat",
+      "room": "room-14",
+      "groups": [
+        "group-01"
+      ],
+      "capabilities": [
+        {
+          "reportable": true,
+          "retrievable": true,
+          "type": "devices.capabilities.color_setting",
+          "state_changed_at": 1756924973.2362926,
+          "last_updated": 1785086693.0,
+          "parameters": {
+            "temperature_k": {
+              "min": 2700,
+              "max": 6500
+            }
+          },
+          "state": {
+            "instance": "temperature_k",
+            "value": 2700,
+            "internal_state": {
+              "color_id": "soft_white"
+            }
+          }
+        },
+        {
+          "reportable": true,
+          "retrievable": true,
+          "type": "devices.capabilities.on_off",
+          "state_changed_at": 1784751758.0,
+          "last_updated": 1785086693.0,
+          "parameters": {
+            "split": false
+          },
+          "state": {
+            "instance": "on",
+            "value": true
+          }
+        },
+        {
+          "reportable": true,
+          "retrievable": true,
+          "type": "devices.capabilities.range",
+          "state_changed_at": 1763976981.8633332,
+          "last_updated": 1785086693.0,
+          "parameters": {
+            "instance": "brightness",
+            "unit": "unit.percent",
+            "random_access": true,
+            "looped": false,
+            "range": {
+              "min": 0,
+              "max": 100,
+              "precision": 1
+            }
+          },
+          "state": {
+            "instance": "brightness",
+            "value": 100
+          }
+        }
+      ],
+      "properties": [],
+      "device_info": {
+        "manufacturer": "SMART LIFE",
+        "model": "T-01"
+      }
+    },
+    {
+      "id": "light-06",
+      "name": "Трек в коридоре",
+      "aliases": [],
+      "type": "devices.types.light",
+      "external_id": "ext-light-06",
+      "skill_id": "skill-04",
+      "household_id": "household-flat",
+      "room": "room-02",
+      "groups": [],
+      "capabilities": [
+        {
+          "reportable": true,
+          "retrievable": true,
+          "type": "devices.capabilities.on_off",
+          "state_changed_at": 0.0,
+          "last_updated": 0.0,
+          "parameters": {
+            "split": false
+          },
+          "state": {
+            "instance": "on",
+            "value": true
+          }
+        },
+        {
+          "reportable": true,
+          "retrievable": true,
+          "type": "devices.capabilities.range",
+          "state_changed_at": 0.0,
+          "last_updated": 0.0,
+          "parameters": {
+            "instance": "brightness",
+            "unit": "unit.percent",
+            "random_access": true,
+            "looped": false,
+            "range": {
+              "min": 1,
+              "max": 100,
+              "precision": 1
+            }
+          },
+          "state": {
+            "instance": "brightness",
+            "value": 100
+          }
+        },
+        {
+          "reportable": true,
+          "retrievable": true,
+          "type": "devices.capabilities.color_setting",
+          "state_changed_at": 0.0,
+          "last_updated": 0.0,
+          "parameters": {
+            "temperature_k": {
+              "min": 1996,
+              "max": 6369
+            }
+          },
+          "state": null
+        },
+        {
+          "reportable": true,
+          "retrievable": false,
+          "type": "devices.capabilities.zigbee_node",
+          "state_changed_at": 0.0,
+          "last_updated": 0.0,
+          "parameters": {
+            "type": "router"
+          },
+          "state": {
+            "value": {
+              "signal_quality": {
+                "status": "unknown",
+                "lqi": 0,
+                "rssi": 0
+              },
+              "channel": 11,
+              "is_active": true
+            }
+          }
+        }
+      ],
+      "properties": [
+        {
+          "type": "devices.properties.float",
+          "reportable": true,
+          "retrievable": false,
+          "parameters": {
+            "instance": "signal_level",
+            "unit": "unit.percent"
+          },
+          "state": null,
+          "last_updated": 0.0
+        }
+      ],
+      "device_info": {
+        "manufacturer": "GLEDOPTO",
+        "model": "GL-C-009P"
+      }
+    },
+    {
+      "id": "light-07",
+      "name": "Лампа 8",
+      "aliases": [],
+      "type": "devices.types.light",
+      "external_id": "ext-light-07",
+      "skill_id": "skill-02",
+      "household_id": "household-flat",
+      "room": "room-14",
+      "groups": [
+        "group-01"
+      ],
+      "capabilities": [
+        {
+          "reportable": true,
+          "retrievable": true,
+          "type": "devices.capabilities.color_setting",
+          "state_changed_at": 1756924973.2362843,
+          "last_updated": 1785089647.0,
+          "parameters": {
+            "temperature_k": {
+              "min": 2700,
+              "max": 6500
+            }
+          },
+          "state": {
+            "instance": "temperature_k",
+            "value": 2700,
+            "internal_state": {
+              "color_id": "soft_white"
+            }
+          }
+        },
+        {
+          "reportable": true,
+          "retrievable": true,
+          "type": "devices.capabilities.on_off",
+          "state_changed_at": 1784751758.0,
+          "last_updated": 1785089647.0,
+          "parameters": {
+            "split": false
+          },
+          "state": {
+            "instance": "on",
+            "value": true
+          }
+        },
+        {
+          "reportable": true,
+          "retrievable": true,
+          "type": "devices.capabilities.range",
+          "state_changed_at": 1763976981.8633292,
+          "last_updated": 1785089647.0,
+          "parameters": {
+            "instance": "brightness",
+            "unit": "unit.percent",
+            "random_access": true,
+            "looped": false,
+            "range": {
+              "min": 0,
+              "max": 100,
+              "precision": 1
+            }
+          },
+          "state": {
+            "instance": "brightness",
+            "value": 100
+          }
+        }
+      ],
+      "properties": [],
+      "device_info": {
+        "manufacturer": "SMART LIFE",
+        "model": "T-01"
+      }
+    },
+    {
+      "id": "light-08",
+      "name": "Свет в ванной",
+      "aliases": [],
+      "type": "devices.types.light",
+      "external_id": "ext-light-08",
+      "skill_id": "skill-04",
+      "household_id": "household-flat",
+      "room": "room-04",
+      "groups": [],
+      "capabilities": [
+        {
+          "reportable": true,
+          "retrievable": true,
+          "type": "devices.capabilities.on_off",
+          "state_changed_at": 0.0,
+          "last_updated": 0.0,
+          "parameters": {
+            "split": false
+          },
+          "state": {
+            "instance": "on",
+            "value": true
+          }
+        },
+        {
+          "reportable": true,
+          "retrievable": false,
+          "type": "devices.capabilities.zigbee_node",
+          "state_changed_at": 1786772663.2636511,
+          "last_updated": 1786772663.2636511,
+          "parameters": {
+            "type": "router"
+          },
+          "state": {
+            "value": {
+              "signal_quality": {
+                "status": "good",
+                "lqi": 100,
+                "rssi": -66
+              },
+              "channel": 11,
+              "is_active": true
+            }
+          }
+        }
+      ],
+      "properties": [
+        {
+          "type": "devices.properties.float",
+          "reportable": true,
+          "retrievable": false,
+          "parameters": {
+            "instance": "signal_level",
+            "unit": "unit.percent"
+          },
+          "state": null,
+          "last_updated": 0.0
+        }
+      ],
+      "device_info": {
+        "manufacturer": "_TZ3000_g92baclx",
+        "model": "TS0001"
+      }
+    },
+    {
+      "id": "humidifier-02",
+      "name": "Увлажнитель",
+      "aliases": [],
+      "type": "devices.types.humidifier",
+      "external_id": "ext-humidifier-02",
+      "skill_id": "skill-05",
+      "household_id": "household-2",
+      "room": "room-01",
+      "groups": [],
+      "capabilities": [
+        {
+          "reportable": true,
+          "retrievable": true,
+          "type": "devices.capabilities.on_off",
+          "state_changed_at": 1777059041.7079124,
+          "last_updated": 1777061677.2629786,
+          "parameters": {
+            "split": false
+          },
+          "state": {
+            "instance": "on",
+            "value": false
+          }
+        },
+        {
+          "reportable": true,
+          "retrievable": true,
+          "type": "devices.capabilities.mode",
+          "state_changed_at": 1772084551.077598,
+          "last_updated": 1777061678.3962228,
+          "parameters": {
+            "instance": "fan_speed",
+            "modes": [
+              {
+                "value": "low",
+                "name": "Низкая"
+              },
+              {
+                "value": "medium",
+                "name": "Средняя"
+              },
+              {
+                "value": "high",
+                "name": "Высокая"
+              },
+              {
+                "value": "turbo",
+                "name": "Турбо"
+              }
+            ]
+          },
+          "state": {
+            "instance": "fan_speed",
+            "value": "turbo"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "type": "devices.properties.float",
+          "reportable": true,
+          "retrievable": true,
+          "parameters": {
+            "instance": "humidity",
+            "unit": "unit.percent"
+          },
+          "state": {
+            "instance": "humidity",
+            "value": 39
+          },
+          "state_changed_at": 1777061403.097497,
+          "last_updated": 1777061678.4173145
+        },
+        {
+          "type": "devices.properties.float",
+          "reportable": true,
+          "retrievable": true,
+          "parameters": {
+            "instance": "temperature",
+            "unit": "unit.temperature.celsius"
+          },
+          "state": {
+            "instance": "temperature",
+            "value": 25
+          },
+          "state_changed_at": 1777056509.3624294,
+          "last_updated": 1777061678.4050584
+        }
+      ],
+      "device_info": {
+        "manufacturer": "deerma",
+        "model": "deerma.humidifier.jsq5"
+      }
+    },
+    {
+      "id": "switch-03",
+      "name": "Верхняя кнопка",
+      "aliases": [],
+      "type": "devices.types.switch",
+      "external_id": "ext-switch-03",
+      "skill_id": "skill-04",
+      "household_id": "household-flat",
+      "room": "room-11",
+      "groups": [],
+      "capabilities": [],
+      "properties": [
+        {
+          "type": "devices.properties.event",
+          "reportable": true,
+          "retrievable": false,
+          "parameters": {
+            "instance": "button",
+            "events": [
+              {
+                "value": "click"
+              },
+              {
+                "value": "double_click"
+              },
+              {
+                "value": "long_press"
+              }
+            ]
+          },
+          "state": {
+            "instance": "button",
+            "value": "click"
+          },
+          "last_updated": 0.0
+        }
+      ],
+      "device_info": {
+        "manufacturer": "Yandex",
+        "model": "YNDX-00534"
+      }
+    },
+    {
+      "id": "light-09",
+      "name": "Ночник",
+      "aliases": [],
+      "type": "devices.types.light",
+      "external_id": "ext-light-09",
+      "skill_id": "skill-05",
+      "household_id": "household-2",
+      "room": "room-01",
+      "groups": [
+        "group-02"
+      ],
+      "capabilities": [
+        {
+          "reportable": true,
+          "retrievable": true,
+          "type": "devices.capabilities.on_off",
+          "state_changed_at": 1781384539.6147096,
+          "last_updated": 1786752111.0207834,
+          "parameters": {
+            "split": false
+          },
+          "state": {
+            "instance": "on",
+            "value": false
+          }
+        },
+        {
+          "reportable": true,
+          "retrievable": true,
+          "type": "devices.capabilities.range",
+          "state_changed_at": 1775148354.6186724,
+          "last_updated": 1786752111.0574787,
+          "parameters": {
+            "instance": "brightness",
+            "unit": "unit.percent",
+            "random_access": true,
+            "looped": false,
+            "range": {
+              "min": 1,
+              "max": 100,
+              "precision": 1
+            }
+          },
+          "state": {
+            "instance": "brightness",
+            "value": 100
+          }
+        },
+        {
+          "reportable": true,
+          "retrievable": true,
+          "type": "devices.capabilities.color_setting",
+          "state_changed_at": 1774892728.8841827,
+          "last_updated": 1786752111.0260534,
+          "parameters": {
+            "color_model": "rgb",
+            "temperature_k": {
+              "min": 1700,
+              "max": 6500
+            }
+          },
+          "state": {
+            "instance": "temperature_k",
+            "value": 2700
+          }
+        }
+      ],
+      "properties": [],
+      "device_info": {
+        "manufacturer": "yeelink",
+        "model": "yeelink.light.bslamp2"
+      }
+    },
+    {
+      "id": "fan-01",
+      "name": "Вентилятор",
+      "aliases": [],
+      "type": "devices.types.ventilation.fan",
+      "external_id": "ext-fan-01",
+      "skill_id": "skill-05",
+      "household_id": "household-2",
+      "room": "room-01",
+      "groups": [],
+      "capabilities": [
+        {
+          "reportable": true,
+          "retrievable": true,
+          "type": "devices.capabilities.on_off",
+          "state_changed_at": 1779551921.181927,
+          "last_updated": 1786752116.3773544,
+          "parameters": {
+            "split": false
+          },
+          "state": {
+            "instance": "on",
+            "value": false
+          }
+        },
+        {
+          "reportable": true,
+          "retrievable": true,
+          "type": "devices.capabilities.mode",
+          "state_changed_at": 1779549182.1654682,
+          "last_updated": 1786752116.3877583,
+          "parameters": {
+            "instance": "fan_speed",
+            "modes": [
+              {
+                "value": "low",
+                "name": "Низкая"
+              },
+              {
+                "value": "medium",
+                "name": "Средняя"
+              },
+              {
+                "value": "high",
+                "name": "Высокая"
+              },
+              {
+                "value": "turbo",
+                "name": "Турбо"
+              }
+            ]
+          },
+          "state": {
+            "instance": "fan_speed",
+            "value": "high"
+          }
+        },
+        {
+          "reportable": true,
+          "retrievable": true,
+          "type": "devices.capabilities.toggle",
+          "state_changed_at": 1752231806.1181886,
+          "last_updated": 1786752116.395125,
+          "parameters": {
+            "instance": "oscillation"
+          },
+          "state": {
+            "instance": "oscillation",
+            "value": true
+          }
+        }
+      ],
+      "properties": [],
+      "device_info": {
+        "manufacturer": "dmaker",
+        "model": "dmaker.fan.p45"
+      }
+    },
+    {
+      "id": "ac-02",
+      "name": "Кондиционер в спальне",
+      "aliases": [],
+      "type": "devices.types.thermostat.ac",
+      "external_id": "ext-ac-02",
+      "skill_id": "skill-01",
+      "household_id": "household-flat",
+      "room": "room-14",
+      "groups": [],
+      "capabilities": [
+        {
+          "reportable": false,
+          "retrievable": true,
+          "type": "devices.capabilities.range",
+          "state_changed_at": 1784463233.2571602,
+          "last_updated": 1784463233.2571602,
+          "parameters": {
+            "instance": "temperature",
+            "unit": "unit.temperature.celsius",
+            "random_access": true,
+            "looped": false,
+            "range": {
+              "min": 16,
+              "max": 32,
+              "precision": 1
+            }
+          },
+          "state": {
+            "instance": "temperature",
+            "value": 20
+          }
+        },
+        {
+          "reportable": false,
+          "retrievable": true,
+          "type": "devices.capabilities.mode",
+          "state_changed_at": 0.0,
+          "last_updated": 0.0,
+          "parameters": {
+            "instance": "fan_speed",
+            "modes": [
+              {
+                "value": "turbo"
+              },
+              {
+                "value": "high"
+              },
+              {
+                "value": "medium"
+              },
+              {
+                "value": "low"
+              },
+              {
+                "value": "quiet"
+              },
+              {
+                "value": "auto"
+              }
+            ]
+          },
+          "state": {
+            "instance": "fan_speed",
+            "value": "turbo"
+          }
+        },
+        {
+          "reportable": false,
+          "retrievable": true,
+          "type": "devices.capabilities.on_off",
+          "state_changed_at": 1786197705.2737858,
+          "last_updated": 1786197705.2737858,
+          "parameters": {
+            "split": false
+          },
+          "state": {
+            "instance": "on",
+            "value": false
+          }
+        },
+        {
+          "reportable": false,
+          "retrievable": true,
+          "type": "devices.capabilities.toggle",
+          "state_changed_at": 0.0,
+          "last_updated": 0.0,
+          "parameters": {
+            "instance": "ionization"
+          },
+          "state": {
+            "instance": "ionization",
+            "value": false
+          }
+        },
+        {
+          "reportable": false,
+          "retrievable": true,
+          "type": "devices.capabilities.mode",
+          "state_changed_at": 0.0,
+          "last_updated": 0.0,
+          "parameters": {
+            "instance": "swing",
+            "modes": [
+              {
+                "value": "stationary"
+              },
+              {
+                "value": "vertical"
+              },
+              {
+                "value": "horizontal"
+              },
+              {
+                "value": "auto"
+              }
+            ]
+          },
+          "state": {
+            "instance": "swing",
+            "value": "horizontal"
+          }
+        },
+        {
+          "reportable": true,
+          "retrievable": true,
+          "type": "devices.capabilities.toggle",
+          "state_changed_at": 0.0,
+          "last_updated": 0.0,
+          "parameters": {
+            "instance": "keep_warm"
+          },
+          "state": {
+            "instance": "keep_warm",
+            "value": false
+          }
+        },
+        {
+          "reportable": true,
+          "retrievable": true,
+          "type": "devices.capabilities.toggle",
+          "state_changed_at": 0.0,
+          "last_updated": 0.0,
+          "parameters": {
+            "instance": "backlight"
+          },
+          "state": null
+        },
+        {
+          "reportable": false,
+          "retrievable": true,
+          "type": "devices.capabilities.mode",
+          "state_changed_at": 0.0,
+          "last_updated": 0.0,
+          "parameters": {
+            "instance": "thermostat",
+            "modes": [
+              {
+                "value": "fan_only"
+              },
+              {
+                "value": "heat"
+              },
+              {
+                "value": "cool"
+              },
+              {
+                "value": "dry"
+              },
+              {
+                "value": "auto"
+              }
+            ]
+          },
+          "state": {
+            "instance": "thermostat",
+            "value": "cool"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "type": "devices.properties.float",
+          "reportable": false,
+          "retrievable": true,
+          "parameters": {
+            "instance": "temperature",
+            "unit": "unit.temperature.celsius"
+          },
+          "state": {
+            "instance": "temperature",
+            "value": 29
+          },
+          "last_updated": 0.0
+        }
+      ],
+      "device_info": {
+        "manufacturer": "Hisense",
+        "model": "AS-13UW4RXVQH01(B)"
+      }
+    },
+    {
+      "id": "socket-01",
+      "name": "Розетка",
+      "aliases": [],
+      "type": "devices.types.socket",
+      "external_id": "ext-socket-01",
+      "skill_id": "T",
+      "household_id": "household-3",
+      "room": "room-18",
+      "groups": [],
+      "capabilities": [
+        {
+          "reportable": true,
+          "retrievable": true,
+          "type": "devices.capabilities.on_off",
+          "state_changed_at": 1745829728.831,
+          "last_updated": 1756829034.791,
+          "parameters": {
+            "split": false
+          },
+          "state": {
+            "instance": "on",
+            "value": false
+          }
+        }
+      ],
+      "properties": [
+        {
+          "type": "devices.properties.float",
+          "reportable": true,
+          "retrievable": true,
+          "parameters": {
+            "instance": "voltage",
+            "unit": "unit.volt"
+          },
+          "state": {
+            "instance": "voltage",
+            "value": 229.70000000000002
+          },
+          "state_changed_at": 1757147278.789,
+          "last_updated": 1757147278.789
+        },
+        {
+          "type": "devices.properties.float",
+          "reportable": true,
+          "retrievable": true,
+          "parameters": {
+            "instance": "power",
+            "unit": "unit.watt"
+          },
+          "state": {
+            "instance": "power",
+            "value": 0
+          },
+          "state_changed_at": 1745829729.602,
+          "last_updated": 1756829039.888
+        },
+        {
+          "type": "devices.properties.float",
+          "reportable": true,
+          "retrievable": true,
+          "parameters": {
+            "instance": "amperage",
+            "unit": "unit.ampere"
+          },
+          "state": {
+            "instance": "amperage",
+            "value": 0
+          },
+          "state_changed_at": 1745829729.602,
+          "last_updated": 1756829039.888
+        }
+      ],
+      "device_info": {
+        "manufacturer": "Yandex",
+        "model": "YNDX-0007"
+      }
+    },
+    {
+      "id": "light-10",
+      "name": "Свет в гардеробе",
+      "aliases": [],
+      "type": "devices.types.light",
+      "external_id": "ext-light-10",
+      "skill_id": "skill-04",
+      "household_id": "household-flat",
+      "room": "room-11",
+      "groups": [],
+      "capabilities": [
+        {
+          "reportable": true,
+          "retrievable": true,
+          "type": "devices.capabilities.on_off",
+          "state_changed_at": 1786769712.270429,
+          "last_updated": 1786769712.270429,
+          "parameters": {
+            "split": false
+          },
+          "state": {
+            "instance": "on",
+            "value": false
+          }
+        },
+        {
+          "reportable": true,
+          "retrievable": false,
+          "type": "devices.capabilities.zigbee_node",
+          "state_changed_at": 1786775849.4904478,
+          "last_updated": 1786775849.4904478,
+          "parameters": {
+            "type": "router"
+          },
+          "state": {
+            "value": {
+              "signal_quality": {
+                "status": "ok",
+                "lqi": 88,
+                "rssi": -70
+              },
+              "channel": 11,
+              "is_active": true
+            }
+          }
+        }
+      ],
+      "properties": [
+        {
+          "type": "devices.properties.float",
+          "reportable": true,
+          "retrievable": false,
+          "parameters": {
+            "instance": "signal_level",
+            "unit": "unit.percent"
+          },
+          "state": null,
+          "last_updated": 0.0
+        }
+      ],
+      "device_info": {
+        "manufacturer": "_TZ3000_g92baclx",
+        "model": "TS0001"
+      }
+    },
+    {
+      "id": "light-11",
+      "name": "Свет в кабинете",
+      "aliases": [],
+      "type": "devices.types.light",
+      "external_id": "ext-light-11",
+      "skill_id": "skill-04",
+      "household_id": "household-flat",
+      "room": "room-12",
+      "groups": [],
+      "capabilities": [
+        {
+          "reportable": true,
+          "retrievable": true,
+          "type": "devices.capabilities.on_off",
+          "state_changed_at": 0.0,
+          "last_updated": 0.0,
+          "parameters": {
+            "split": false
+          },
+          "state": {
+            "instance": "on",
+            "value": false
+          }
+        },
+        {
+          "reportable": true,
+          "retrievable": false,
+          "type": "devices.capabilities.zigbee_node",
+          "state_changed_at": 1786461523.158138,
+          "last_updated": 1786461523.158138,
+          "parameters": {
+            "type": "router"
+          },
+          "state": {
+            "value": {
+              "signal_quality": {
+                "status": "bad",
+                "lqi": 6,
+                "rssi": -97
+              },
+              "channel": 11,
+              "is_active": true
+            }
+          }
+        }
+      ],
+      "properties": [
+        {
+          "type": "devices.properties.float",
+          "reportable": true,
+          "retrievable": false,
+          "parameters": {
+            "instance": "signal_level",
+            "unit": "unit.percent"
+          },
+          "state": null,
+          "last_updated": 0.0
+        }
+      ],
+      "device_info": {
+        "manufacturer": "_TZ3000_g92baclx",
+        "model": "TS0001"
+      }
+    },
+    {
+      "id": "light-12",
+      "name": "Лампа 7",
+      "aliases": [],
+      "type": "devices.types.light",
+      "external_id": "ext-light-12",
+      "skill_id": "skill-02",
+      "household_id": "household-flat",
+      "room": "room-14",
+      "groups": [
+        "group-01"
+      ],
+      "capabilities": [
+        {
+          "reportable": true,
+          "retrievable": true,
+          "type": "devices.capabilities.color_setting",
+          "state_changed_at": 1756924973.2362814,
+          "last_updated": 1785086692.0,
+          "parameters": {
+            "temperature_k": {
+              "min": 2700,
+              "max": 6500
+            }
+          },
+          "state": {
+            "instance": "temperature_k",
+            "value": 2700,
+            "internal_state": {
+              "color_id": "soft_white"
+            }
+          }
+        },
+        {
+          "reportable": true,
+          "retrievable": true,
+          "type": "devices.capabilities.on_off",
+          "state_changed_at": 1784751755.0,
+          "last_updated": 1785086692.0,
+          "parameters": {
+            "split": false
+          },
+          "state": {
+            "instance": "on",
+            "value": true
+          }
+        },
+        {
+          "reportable": true,
+          "retrievable": true,
+          "type": "devices.capabilities.range",
+          "state_changed_at": 1763976981.863328,
+          "last_updated": 1785086692.0,
+          "parameters": {
+            "instance": "brightness",
+            "unit": "unit.percent",
+            "random_access": true,
+            "looped": false,
+            "range": {
+              "min": 0,
+              "max": 100,
+              "precision": 1
+            }
+          },
+          "state": {
+            "instance": "brightness",
+            "value": 100
+          }
+        }
+      ],
+      "properties": [],
+      "device_info": {
+        "manufacturer": "SMART LIFE",
+        "model": "T-01"
+      }
+    },
+    {
+      "id": "light-13",
+      "name": "Хаб",
+      "aliases": [],
+      "type": "devices.types.light",
+      "external_id": "ext-light-13",
+      "skill_id": "skill-06",
+      "household_id": "household-2",
+      "room": "room-21",
+      "groups": [],
+      "capabilities": [
+        {
+          "reportable": true,
+          "retrievable": true,
+          "type": "devices.capabilities.range",
+          "state_changed_at": 0.0,
+          "last_updated": 1780099312.782,
+          "parameters": {
+            "instance": "brightness",
+            "unit": "unit.percent",
+            "random_access": true,
+            "looped": false,
+            "range": {
+              "min": 0,
+              "max": 100,
+              "precision": 1
+            }
+          },
+          "state": {
+            "instance": "brightness",
+            "value": 50
+          }
+        },
+        {
+          "reportable": true,
+          "retrievable": true,
+          "type": "devices.capabilities.on_off",
+          "state_changed_at": 0.0,
+          "last_updated": 0.0,
+          "parameters": {
+            "split": false
+          },
+          "state": {
+            "instance": "on",
+            "value": false
+          }
+        },
+        {
+          "reportable": true,
+          "retrievable": true,
+          "type": "devices.capabilities.color_setting",
+          "state_changed_at": 0.0,
+          "last_updated": 1780099312.782,
+          "parameters": {
+            "color_model": "rgb",
+            "color_scene": {
+              "scenes": [
+                {
+                  "id": "candle"
+                },
+                {
+                  "id": "rest"
+                },
+                {
+                  "id": "movie"
+                },
+                {
+                  "id": "sunrise"
+                }
+              ]
+            }
+          },
+          "state": {
+            "instance": "rgb",
+            "value": 16777215
+          }
+        }
+      ],
+      "properties": [],
+      "device_info": {
+        "manufacturer": "Aqara",
+        "model": "HM1S-G01"
+      }
+    },
+    {
+      "id": "light-14",
+      "name": "Настольная лампа",
+      "aliases": [],
+      "type": "devices.types.light",
+      "external_id": "ext-light-14",
+      "skill_id": "skill-05",
+      "household_id": "household-2",
+      "room": "room-01",
+      "groups": [
+        "group-02"
+      ],
+      "capabilities": [
+        {
+          "reportable": true,
+          "retrievable": true,
+          "type": "devices.capabilities.on_off",
+          "state_changed_at": 1778791021.6907225,
+          "last_updated": 1786752107.8733995,
+          "parameters": {
+            "split": false
+          },
+          "state": {
+            "instance": "on",
+            "value": false
+          }
+        },
+        {
+          "reportable": true,
+          "retrievable": true,
+          "type": "devices.capabilities.range",
+          "state_changed_at": 1775148354.6186702,
+          "last_updated": 1786752107.8867366,
+          "parameters": {
+            "instance": "brightness",
+            "unit": "unit.percent",
+            "random_access": true,
+            "looped": false,
+            "range": {
+              "min": 1,
+              "max": 100,
+              "precision": 1
+            }
+          },
+          "state": {
+            "instance": "brightness",
+            "value": 100
+          }
+        },
+        {
+          "reportable": true,
+          "retrievable": true,
+          "type": "devices.capabilities.color_setting",
+          "state_changed_at": 1776086178.6183836,
+          "last_updated": 1786752107.8200588,
+          "parameters": {
+            "temperature_k": {
+              "min": 2500,
+              "max": 4800
+            }
+          },
+          "state": {
+            "instance": "temperature_k",
+            "value": 3900
+          }
+        }
+      ],
+      "properties": [],
+      "device_info": {
+        "manufacturer": "yeelink",
+        "model": "yeelink.light.lamp2"
+      }
+    },
+    {
+      "id": "light-15",
+      "name": "Лампа 1",
+      "aliases": [],
+      "type": "devices.types.light",
+      "external_id": "ext-light-15",
+      "skill_id": "skill-02",
+      "household_id": "household-flat",
+      "room": "room-08",
+      "groups": [
+        "group-03"
+      ],
+      "capabilities": [
+        {
+          "reportable": true,
+          "retrievable": true,
+          "type": "devices.capabilities.color_setting",
+          "state_changed_at": 1781638848.0,
+          "last_updated": 1784883563.0,
+          "parameters": {
+            "temperature_k": {
+              "min": 2700,
+              "max": 6500
+            }
+          },
+          "state": {
+            "instance": "temperature_k",
+            "value": 2700
+          }
+        },
+        {
+          "reportable": true,
+          "retrievable": true,
+          "type": "devices.capabilities.on_off",
+          "state_changed_at": 1778228460.0,
+          "last_updated": 1784883563.0,
+          "parameters": {
+            "split": false
+          },
+          "state": {
+            "instance": "on",
+            "value": true
+          }
+        },
+        {
+          "reportable": true,
+          "retrievable": true,
+          "type": "devices.capabilities.range",
+          "state_changed_at": 1781815772.0,
+          "last_updated": 1784883563.0,
+          "parameters": {
+            "instance": "brightness",
+            "unit": "unit.percent",
+            "random_access": true,
+            "looped": false,
+            "range": {
+              "min": 0,
+              "max": 100,
+              "precision": 1
+            }
+          },
+          "state": {
+            "instance": "brightness",
+            "value": 90
+          }
+        }
+      ],
+      "properties": [],
+      "device_info": {
+        "manufacturer": "SMART LIFE",
+        "model": "T-01"
+      }
+    },
+    {
+      "id": "speaker-03",
+      "name": "Яндекс Станция",
+      "aliases": [],
+      "type": "devices.types.smart_speaker.yandex.station",
+      "external_id": "ext-speaker-03",
+      "skill_id": "Q",
+      "household_id": "household-2",
+      "room": "room-01",
+      "groups": [],
+      "capabilities": [],
+      "properties": [
+        {
+          "type": "devices.properties.event",
+          "reportable": true,
+          "retrievable": false,
+          "parameters": {
+            "instance": "voice_activity",
+            "events": [
+              {
+                "value": "speech_finished"
+              }
+            ]
+          },
+          "state": null,
+          "last_updated": 0.0
+        }
+      ],
+      "quasar_info": {
+        "device_id": "quasar-04",
+        "platform": "yandexstation",
+        "device_color": "A"
+      },
+      "device_info": {
+        "manufacturer": "Yandex Services AG",
+        "model": "YNDX-0001"
+      }
+    },
+    {
+      "id": "ac-03",
+      "name": "Кондиционер в зале",
+      "aliases": [],
+      "type": "devices.types.thermostat.ac",
+      "external_id": "ext-ac-03",
+      "skill_id": "skill-01",
+      "household_id": "household-flat",
+      "room": "room-08",
+      "groups": [],
+      "capabilities": [
+        {
+          "reportable": true,
+          "retrievable": true,
+          "type": "devices.capabilities.range",
+          "state_changed_at": 1785164202.8536537,
+          "last_updated": 1786755372.0,
+          "parameters": {
+            "instance": "temperature",
+            "unit": "unit.temperature.celsius",
+            "random_access": true,
+            "looped": false,
+            "range": {
+              "min": 16,
+              "max": 32,
+              "precision": 1
+            }
+          },
+          "state": {
+            "instance": "temperature",
+            "value": 16
+          }
+        },
+        {
+          "reportable": true,
+          "retrievable": true,
+          "type": "devices.capabilities.mode",
+          "state_changed_at": 1786207875.0,
+          "last_updated": 1786755372.0,
+          "parameters": {
+            "instance": "fan_speed",
+            "modes": [
+              {
+                "value": "turbo"
+              },
+              {
+                "value": "high"
+              },
+              {
+                "value": "medium"
+              },
+              {
+                "value": "low"
+              },
+              {
+                "value": "quiet"
+              },
+              {
+                "value": "auto"
+              }
+            ]
+          },
+          "state": {
+            "instance": "fan_speed",
+            "value": "auto"
+          }
+        },
+        {
+          "reportable": true,
+          "retrievable": true,
+          "type": "devices.capabilities.on_off",
+          "state_changed_at": 1786207845.3183248,
+          "last_updated": 1786755372.0,
+          "parameters": {
+            "split": false
+          },
+          "state": {
+            "instance": "on",
+            "value": false
+          }
+        },
+        {
+          "reportable": true,
+          "retrievable": true,
+          "type": "devices.capabilities.toggle",
+          "state_changed_at": 0.0,
+          "last_updated": 1786755372.0,
+          "parameters": {
+            "instance": "ionization"
+          },
+          "state": {
+            "instance": "ionization",
+            "value": false
+          }
+        },
+        {
+          "reportable": true,
+          "retrievable": true,
+          "type": "devices.capabilities.mode",
+          "state_changed_at": 0.0,
+          "last_updated": 1786755372.0,
+          "parameters": {
+            "instance": "swing",
+            "modes": [
+              {
+                "value": "stationary"
+              },
+              {
+                "value": "vertical"
+              },
+              {
+                "value": "horizontal"
+              },
+              {
+                "value": "auto"
+              }
+            ]
+          },
+          "state": {
+            "instance": "swing",
+            "value": "horizontal"
+          }
+        },
+        {
+          "reportable": true,
+          "retrievable": true,
+          "type": "devices.capabilities.toggle",
+          "state_changed_at": 0.0,
+          "last_updated": 1786755372.0,
+          "parameters": {
+            "instance": "keep_warm"
+          },
+          "state": {
+            "instance": "keep_warm",
+            "value": false
+          }
+        },
+        {
+          "reportable": true,
+          "retrievable": true,
+          "type": "devices.capabilities.mode",
+          "state_changed_at": 0.0,
+          "last_updated": 1786755372.0,
+          "parameters": {
+            "instance": "thermostat",
+            "modes": [
+              {
+                "value": "fan_only"
+              },
+              {
+                "value": "heat"
+              },
+              {
+                "value": "cool"
+              },
+              {
+                "value": "dry"
+              },
+              {
+                "value": "auto"
+              }
+            ]
+          },
+          "state": {
+            "instance": "thermostat",
+            "value": "cool"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "type": "devices.properties.float",
+          "reportable": true,
+          "retrievable": true,
+          "parameters": {
+            "instance": "temperature",
+            "unit": "unit.temperature.celsius"
+          },
+          "state": {
+            "instance": "temperature",
+            "value": 28
+          },
+          "state_changed_at": 1786755372.0,
+          "last_updated": 1786755372.0
+        }
+      ],
+      "device_info": {
+        "manufacturer": "Hisense",
+        "model": "AS-13UW4RXVQH01(B)"
+      }
+    },
+    {
+      "id": "light-16",
+      "name": "Лампа 9",
+      "aliases": [],
+      "type": "devices.types.light",
+      "external_id": "ext-light-16",
+      "skill_id": "skill-02",
+      "household_id": "household-flat",
+      "room": "room-14",
+      "groups": [
+        "group-01"
+      ],
+      "capabilities": [
+        {
+          "reportable": true,
+          "retrievable": true,
+          "type": "devices.capabilities.color_setting",
+          "state_changed_at": 1756924973.2362864,
+          "last_updated": 1785086692.0,
+          "parameters": {
+            "temperature_k": {
+              "min": 2700,
+              "max": 6500
+            }
+          },
+          "state": {
+            "instance": "temperature_k",
+            "value": 2700,
+            "internal_state": {
+              "color_id": "soft_white"
+            }
+          }
+        },
+        {
+          "reportable": true,
+          "retrievable": true,
+          "type": "devices.capabilities.on_off",
+          "state_changed_at": 1784751757.0,
+          "last_updated": 1785086692.0,
+          "parameters": {
+            "split": false
+          },
+          "state": {
+            "instance": "on",
+            "value": true
+          }
+        },
+        {
+          "reportable": true,
+          "retrievable": true,
+          "type": "devices.capabilities.range",
+          "state_changed_at": 1763976981.8633304,
+          "last_updated": 1785086692.0,
+          "parameters": {
+            "instance": "brightness",
+            "unit": "unit.percent",
+            "random_access": true,
+            "looped": false,
+            "range": {
+              "min": 0,
+              "max": 100,
+              "precision": 1
+            }
+          },
+          "state": {
+            "instance": "brightness",
+            "value": 100
+          }
+        }
+      ],
+      "properties": [],
+      "device_info": {
+        "manufacturer": "SMART LIFE",
+        "model": "T-01"
+      }
+    },
+    {
+      "id": "light-strip-02",
+      "name": "Подсветка в детской",
+      "aliases": [],
+      "type": "devices.types.light.strip",
+      "external_id": "ext-light-strip-02",
+      "skill_id": "skill-04",
+      "household_id": "household-flat",
+      "room": "room-17",
+      "groups": [],
+      "capabilities": [
+        {
+          "reportable": true,
+          "retrievable": true,
+          "type": "devices.capabilities.on_off",
+          "state_changed_at": 0.0,
+          "last_updated": 0.0,
+          "parameters": {
+            "split": false
+          },
+          "state": {
+            "instance": "on",
+            "value": true
+          }
+        },
+        {
+          "reportable": true,
+          "retrievable": true,
+          "type": "devices.capabilities.range",
+          "state_changed_at": 0.0,
+          "last_updated": 0.0,
+          "parameters": {
+            "instance": "brightness",
+            "unit": "unit.percent",
+            "random_access": true,
+            "looped": false,
+            "range": {
+              "min": 1,
+              "max": 100,
+              "precision": 1
+            }
+          },
+          "state": {
+            "instance": "brightness",
+            "value": 100
+          }
+        },
+        {
+          "reportable": true,
+          "retrievable": true,
+          "type": "devices.capabilities.color_setting",
+          "state_changed_at": 0.0,
+          "last_updated": 0.0,
+          "parameters": {
+            "temperature_k": {
+              "min": 1996,
+              "max": 6369
+            }
+          },
+          "state": null
+        },
+        {
+          "reportable": true,
+          "retrievable": false,
+          "type": "devices.capabilities.zigbee_node",
+          "state_changed_at": 0.0,
+          "last_updated": 0.0,
+          "parameters": {
+            "type": "router"
+          },
+          "state": {
+            "value": {
+              "signal_quality": {
+                "status": "unknown",
+                "lqi": 0,
+                "rssi": 0
+              },
+              "channel": 11,
+              "is_active": true
+            }
+          }
+        }
+      ],
+      "properties": [
+        {
+          "type": "devices.properties.float",
+          "reportable": true,
+          "retrievable": false,
+          "parameters": {
+            "instance": "signal_level",
+            "unit": "unit.percent"
+          },
+          "state": null,
+          "last_updated": 0.0
+        }
+      ],
+      "device_info": {
+        "manufacturer": "GLEDOPTO",
+        "model": "GL-C-009P"
+      }
+    },
+    {
+      "id": "light-17",
+      "name": "Лампа 6",
+      "aliases": [],
+      "type": "devices.types.light",
+      "external_id": "ext-light-17",
+      "skill_id": "skill-02",
+      "household_id": "household-flat",
+      "room": "room-14",
+      "groups": [
+        "group-01"
+      ],
+      "capabilities": [
+        {
+          "reportable": true,
+          "retrievable": true,
+          "type": "devices.capabilities.color_setting",
+          "state_changed_at": 1756924973.2362788,
+          "last_updated": 1785086694.0,
+          "parameters": {
+            "temperature_k": {
+              "min": 2700,
+              "max": 6500
+            }
+          },
+          "state": {
+            "instance": "temperature_k",
+            "value": 2700,
+            "internal_state": {
+              "color_id": "soft_white"
+            }
+          }
+        },
+        {
+          "reportable": true,
+          "retrievable": true,
+          "type": "devices.capabilities.on_off",
+          "state_changed_at": 1784751759.0,
+          "last_updated": 1785086694.0,
+          "parameters": {
+            "split": false
+          },
+          "state": {
+            "instance": "on",
+            "value": true
+          }
+        },
+        {
+          "reportable": true,
+          "retrievable": true,
+          "type": "devices.capabilities.range",
+          "state_changed_at": 1763976981.8633263,
+          "last_updated": 1785086694.0,
+          "parameters": {
+            "instance": "brightness",
+            "unit": "unit.percent",
+            "random_access": true,
+            "looped": false,
+            "range": {
+              "min": 0,
+              "max": 100,
+              "precision": 1
+            }
+          },
+          "state": {
+            "instance": "brightness",
+            "value": 100
+          }
+        }
+      ],
+      "properties": [],
+      "device_info": {
+        "manufacturer": "SMART LIFE",
+        "model": "T-01"
+      }
+    },
+    {
+      "id": "light-18",
+      "name": "Лампа 10",
+      "aliases": [],
+      "type": "devices.types.light",
+      "external_id": "ext-light-18",
+      "skill_id": "skill-02",
+      "household_id": "household-flat",
+      "room": "room-14",
+      "groups": [
+        "group-01"
+      ],
+      "capabilities": [
+        {
+          "reportable": true,
+          "retrievable": true,
+          "type": "devices.capabilities.color_setting",
+          "state_changed_at": 1756924973.236289,
+          "last_updated": 1785086695.0,
+          "parameters": {
+            "temperature_k": {
+              "min": 2700,
+              "max": 6500
+            }
+          },
+          "state": {
+            "instance": "temperature_k",
+            "value": 2700,
+            "internal_state": {
+              "color_id": "soft_white"
+            }
+          }
+        },
+        {
+          "reportable": true,
+          "retrievable": true,
+          "type": "devices.capabilities.on_off",
+          "state_changed_at": 1784751775.0,
+          "last_updated": 1785086695.0,
+          "parameters": {
+            "split": false
+          },
+          "state": {
+            "instance": "on",
+            "value": true
+          }
+        },
+        {
+          "reportable": true,
+          "retrievable": true,
+          "type": "devices.capabilities.range",
+          "state_changed_at": 1763976981.8633316,
+          "last_updated": 1785086695.0,
+          "parameters": {
+            "instance": "brightness",
+            "unit": "unit.percent",
+            "random_access": true,
+            "looped": false,
+            "range": {
+              "min": 0,
+              "max": 100,
+              "precision": 1
+            }
+          },
+          "state": {
+            "instance": "brightness",
+            "value": 100
+          }
+        }
+      ],
+      "properties": [],
+      "device_info": {
+        "manufacturer": "SMART LIFE",
+        "model": "T-01"
+      }
+    },
+    {
+      "id": "light-19",
+      "name": "Лампа 5",
+      "aliases": [],
+      "type": "devices.types.light",
+      "external_id": "ext-light-19",
+      "skill_id": "skill-02",
+      "household_id": "household-flat",
+      "room": "room-14",
+      "groups": [
+        "group-01"
+      ],
+      "capabilities": [
+        {
+          "reportable": true,
+          "retrievable": true,
+          "type": "devices.capabilities.color_setting",
+          "state_changed_at": 1756924973.2362955,
+          "last_updated": 1785086692.0,
+          "parameters": {
+            "temperature_k": {
+              "min": 2700,
+              "max": 6500
+            }
+          },
+          "state": {
+            "instance": "temperature_k",
+            "value": 2700,
+            "internal_state": {
+              "color_id": "soft_white"
+            }
+          }
+        },
+        {
+          "reportable": true,
+          "retrievable": true,
+          "type": "devices.capabilities.on_off",
+          "state_changed_at": 1784779416.0,
+          "last_updated": 1785086692.0,
+          "parameters": {
+            "split": false
+          },
+          "state": {
+            "instance": "on",
+            "value": true
+          }
+        },
+        {
+          "reportable": true,
+          "retrievable": true,
+          "type": "devices.capabilities.range",
+          "state_changed_at": 1763976981.8633342,
+          "last_updated": 1785086692.0,
+          "parameters": {
+            "instance": "brightness",
+            "unit": "unit.percent",
+            "random_access": true,
+            "looped": false,
+            "range": {
+              "min": 0,
+              "max": 100,
+              "precision": 1
+            }
+          },
+          "state": {
+            "instance": "brightness",
+            "value": 100
+          }
+        }
+      ],
+      "properties": [],
+      "device_info": {
+        "manufacturer": "SMART LIFE",
+        "model": "T-01"
+      }
+    },
+    {
+      "id": "light-20",
+      "name": "Свет в детской ванной",
+      "aliases": [],
+      "type": "devices.types.light",
+      "external_id": "ext-light-20",
+      "skill_id": "skill-04",
+      "household_id": "household-flat",
+      "room": "room-13",
+      "groups": [],
+      "capabilities": [
+        {
+          "reportable": true,
+          "retrievable": true,
+          "type": "devices.capabilities.on_off",
+          "state_changed_at": 0.0,
+          "last_updated": 0.0,
+          "parameters": {
+            "split": false
+          },
+          "state": {
+            "instance": "on",
+            "value": true
+          }
+        },
+        {
+          "reportable": true,
+          "retrievable": false,
+          "type": "devices.capabilities.zigbee_node",
+          "state_changed_at": 0.0,
+          "last_updated": 0.0,
+          "parameters": {
+            "type": "router"
+          },
+          "state": {
+            "value": {
+              "signal_quality": {
+                "status": "unknown",
+                "lqi": 0,
+                "rssi": 0
+              },
+              "channel": 11,
+              "is_active": true
+            }
+          }
+        }
+      ],
+      "properties": [
+        {
+          "type": "devices.properties.float",
+          "reportable": true,
+          "retrievable": false,
+          "parameters": {
+            "instance": "signal_level",
+            "unit": "unit.percent"
+          },
+          "state": null,
+          "last_updated": 0.0
+        }
+      ],
+      "device_info": {
+        "manufacturer": "_TZ3000_g92baclx",
+        "model": "TS0001"
+      }
+    },
+    {
+      "id": "light-21",
+      "name": "Акара в коридоре",
+      "aliases": [],
+      "type": "devices.types.light",
+      "external_id": "ext-light-21",
+      "skill_id": "skill-06",
+      "household_id": "household-flat",
+      "room": "room-02",
+      "groups": [],
+      "capabilities": [
+        {
+          "reportable": true,
+          "retrievable": true,
+          "type": "devices.capabilities.range",
+          "state_changed_at": 0.0,
+          "last_updated": 1764758287.9264781,
+          "parameters": {
+            "instance": "brightness",
+            "unit": "unit.percent",
+            "random_access": true,
+            "looped": false,
+            "range": {
+              "min": 0,
+              "max": 100,
+              "precision": 1
+            }
+          },
+          "state": {
+            "instance": "brightness",
+            "value": 1
+          }
+        },
+        {
+          "reportable": true,
+          "retrievable": true,
+          "type": "devices.capabilities.on_off",
+          "state_changed_at": 1778950284.9483416,
+          "last_updated": 1778950284.9483416,
+          "parameters": {
+            "split": false
+          },
+          "state": {
+            "instance": "on",
+            "value": true
+          }
+        },
+        {
+          "reportable": true,
+          "retrievable": true,
+          "type": "devices.capabilities.color_setting",
+          "state_changed_at": 0.0,
+          "last_updated": 1764758287.9264781,
+          "parameters": {
+            "color_model": "rgb",
+            "color_scene": {
+              "scenes": [
+                {
+                  "id": "candle"
+                },
+                {
+                  "id": "rest"
+                },
+                {
+                  "id": "movie"
+                },
+                {
+                  "id": "sunrise"
+                }
+              ]
+            }
+          },
+          "state": {
+            "instance": "rgb",
+            "value": 16777200
+          }
+        }
+      ],
+      "properties": [],
+      "device_info": {
+        "manufacturer": "Aqara",
+        "model": "HM1S-G02"
+      }
+    }
+  ],
+  "scenarios": [
+    {
+      "id": "scenario-01",
+      "name": "Переключить свет в гардеробе 2",
+      "is_active": true,
+      "steps": [
+        {
+          "type": "scenarios.steps.actions.v2",
+          "parameters": {
+            "items": [
+              {
+                "id": "light-10",
+                "type": "step.action.item.device",
+                "value": {
+                  "id": "light-10",
+                  "name": "Свет в гардеробе",
+                  "type": "devices.types.light",
+                  "archived": false,
+                  "capabilities": [
+                    {
+                      "reportable": true,
+                      "retrievable": true,
+                      "type": "devices.capabilities.on_off",
+                      "state_changed_at": 1762269483.4262369,
+                      "last_updated": 1762269483.4262369,
+                      "parameters": {
+                        "split": false
+                      },
+                      "state": {
+                        "instance": "on",
+                        "value": true,
+                        "relative": true
+                      }
+                    }
+                  ],
+                  "custom_data": {
+                    "endpoint_protocol": "zigbee",
+                    "parent_endpoint_id": "R10DCF500KXWJT"
+                  },
+                  "skill_id": "skill-04",
+                  "internal_config": {
+                    "role_config": {
+                      "role": "devices.roles.light.main"
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "triggers": [],
+      "notifications": null
+    },
+    {
+      "id": "scenario-02",
+      "name": "Переключить свет в гардеробе",
+      "is_active": true,
+      "steps": [
+        {
+          "type": "scenarios.steps.actions.v2",
+          "parameters": {
+            "items": [
+              {
+                "id": "light-10",
+                "type": "step.action.item.device",
+                "value": {
+                  "id": "light-10",
+                  "name": "Свет в гардеробе",
+                  "type": "devices.types.light",
+                  "archived": false,
+                  "capabilities": [
+                    {
+                      "reportable": true,
+                      "retrievable": true,
+                      "type": "devices.capabilities.on_off",
+                      "state_changed_at": 1762269049.6417215,
+                      "last_updated": 1762269049.7341921,
+                      "parameters": {
+                        "split": false
+                      },
+                      "state": {
+                        "instance": "on",
+                        "value": true,
+                        "relative": true
+                      }
+                    }
+                  ],
+                  "custom_data": {
+                    "endpoint_protocol": "zigbee",
+                    "parent_endpoint_id": "R10DCF500KXWJT"
+                  },
+                  "skill_id": "skill-04",
+                  "internal_config": {
+                    "role_config": {
+                      "role": "devices.roles.light.main"
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "triggers": [],
+      "notifications": null
+    },
+    {
+      "id": "scenario-03",
+      "name": "Счастливый фермер",
+      "is_active": false,
+      "steps": [
+        {
+          "type": "scenarios.steps.actions.v2",
+          "parameters": {
+            "items": [
+              {
+                "id": "light-14",
+                "type": "step.action.item.device",
+                "value": {
+                  "id": "light-14",
+                  "name": "Настольная лампа",
+                  "type": "devices.types.light",
+                  "archived": false,
+                  "capabilities": [
+                    {
+                      "reportable": true,
+                      "retrievable": true,
+                      "type": "devices.capabilities.on_off",
+                      "state_changed_at": 1740841409.4122005,
+                      "last_updated": 1740841410.2766593,
+                      "parameters": {
+                        "split": false
+                      },
+                      "state": {
+                        "instance": "on",
+                        "value": true
+                      }
+                    }
+                  ],
+                  "custom_data": {
+                    "cloudId": 10,
+                    "isSplit": false,
+                    "region": "russia",
+                    "type": "urn:miot-spec-v2:device:light:0000A001:yeelink-lamp2:2"
+                  },
+                  "skill_id": "skill-05",
+                  "internal_config": {}
+                }
+              },
+              {
+                "id": "socket-01",
+                "type": "step.action.item.device",
+                "value": {
+                  "id": "socket-01",
+                  "name": "Розетка",
+                  "type": "devices.types.socket",
+                  "archived": false,
+                  "capabilities": [
+                    {
+                      "reportable": true,
+                      "retrievable": true,
+                      "type": "devices.capabilities.on_off",
+                      "state_changed_at": 1740841408.701928,
+                      "last_updated": 1740851655.1925156,
+                      "parameters": {
+                        "split": false
+                      },
+                      "state": {
+                        "instance": "on",
+                        "value": true
+                      }
+                    }
+                  ],
+                  "custom_data": {
+                    "device_type": "devices.types.socket",
+                    "fw_version": "1.0.4",
+                    "product_id": "3nprwiontzyzpzng",
+                    "switch_command": "switch_1"
+                  },
+                  "skill_id": "T",
+                  "internal_config": {}
+                }
+              }
+            ]
+          }
+        },
+        {
+          "type": "scenarios.steps.delay",
+          "parameters": {
+            "delay_ms": 10800000
+          }
+        },
+        {
+          "type": "scenarios.steps.actions.v2",
+          "parameters": {
+            "items": [
+              {
+                "id": "light-14",
+                "type": "step.action.item.device",
+                "value": {
+                  "id": "light-14",
+                  "name": "Настольная лампа",
+                  "type": "devices.types.light",
+                  "archived": false,
+                  "capabilities": [
+                    {
+                      "reportable": true,
+                      "retrievable": true,
+                      "type": "devices.capabilities.on_off",
+                      "state_changed_at": 1740841409.4122005,
+                      "last_updated": 1740841410.2766593,
+                      "parameters": {
+                        "split": false
+                      },
+                      "state": {
+                        "instance": "on",
+                        "value": false
+                      }
+                    }
+                  ],
+                  "custom_data": {
+                    "cloudId": 10,
+                    "isSplit": false,
+                    "region": "russia",
+                    "type": "urn:miot-spec-v2:device:light:0000A001:yeelink-lamp2:2"
+                  },
+                  "skill_id": "skill-05",
+                  "internal_config": {}
+                }
+              },
+              {
+                "id": "socket-01",
+                "type": "step.action.item.device",
+                "value": {
+                  "id": "socket-01",
+                  "name": "Розетка",
+                  "type": "devices.types.socket",
+                  "archived": false,
+                  "capabilities": [
+                    {
+                      "reportable": true,
+                      "retrievable": true,
+                      "type": "devices.capabilities.on_off",
+                      "state_changed_at": 1740841408.701928,
+                      "last_updated": 1740851655.1925156,
+                      "parameters": {
+                        "split": false
+                      },
+                      "state": {
+                        "instance": "on",
+                        "value": false
+                      }
+                    }
+                  ],
+                  "custom_data": {
+                    "device_type": "devices.types.socket",
+                    "fw_version": "1.0.4",
+                    "product_id": "3nprwiontzyzpzng",
+                    "switch_command": "switch_1"
+                  },
+                  "skill_id": "T",
+                  "internal_config": {}
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "triggers": [
+        {
+          "trigger": {
+            "type": "scenario.trigger.timetable",
+            "value": {
+              "condition": {
+                "type": "solar",
+                "value": {
+                  "days_of_week": [
+                    "monday",
+                    "tuesday",
+                    "wednesday",
+                    "thursday",
+                    "friday",
+                    "saturday",
+                    "sunday"
+                  ],
+                  "solar": "sunset",
+                  "offset": 0,
+                  "household_id": "household-2"
+                }
+              },
+              "time_offset": 0,
+              "days_of_week": null
+            }
+          },
+          "filters": null
+        }
+      ],
+      "notifications": null
+    }
+  ],
+  "households": [
+    {
+      "id": "household-2",
+      "name": "Дом 2",
+      "aliases": [],
+      "type": ""
+    },
+    {
+      "id": "household-flat",
+      "name": "Квартира",
+      "aliases": [],
+      "type": "households.types.personal"
+    },
+    {
+      "id": "household-4",
+      "name": "Дом 4",
+      "aliases": [],
+      "type": "households.types.personal"
+    },
+    {
+      "id": "household-3",
+      "name": "Дом 3",
+      "aliases": [],
+      "type": ""
+    }
+  ]
+}
