@@ -1,0 +1,13 @@
+# Repo-local toolchain: JDK, Android SDK, Gradle home. Recreate with scripts/toolchain.sh
+.toolchain/
+
+# Gradle / Android build output
+.gradle/
+build/
+local.properties
+
+# IDE
+.idea/
+*.iml
+
+.DS_Store
