@@ -17,9 +17,11 @@ import androidx.compose.ui.Modifier
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
+import ru.domovoy.integrations.domonap.domonapCalls
 import ru.domovoy.integrations.yandex.YandexClient
 import ru.domovoy.panel.BulbTileList
 import ru.domovoy.panel.BulbTiles
+import ru.domovoy.panel.pollPausingForCalls
 import java.time.Instant
 import kotlin.time.Duration.Companion.seconds
 
@@ -60,10 +62,14 @@ private fun Panel() {
     val scope = rememberCoroutineScope()
 
     LaunchedEffect(tiles) {
+        pollPausingForCalls(domonapCalls.state, POLL_INTERVAL) { tiles.refresh() }
+    }
+
+    // The age on every tile has to keep climbing between polls, not freeze at the value the last
+    // read produced — and it has to keep climbing through an intercom call too, when polling is
+    // paused. A tile coming back from a call saying "just now" would be a lie.
+    LaunchedEffect(Unit) {
         while (true) {
-            tiles.refresh()
-            // The age on every tile has to keep climbing between polls, not freeze at the value
-            // the last read produced.
             now = Instant.now()
             delay(POLL_INTERVAL)
         }
