@@ -9,6 +9,7 @@ import ru.domovoy.core.Device
 import ru.domovoy.core.DeviceKind
 import ru.domovoy.core.Reading
 import ru.domovoy.integrations.yandex.YandexClient
+import java.time.Instant
 
 /** The instance of the strip's `range` capability: how bright it is, in percent. */
 private const val BRIGHTNESS = "brightness"
@@ -48,6 +49,12 @@ data class LightStripPanelState(
     val tiles: List<LightStripTileState> = emptyList(),
     /** Non-null when the last poll, toggle or set failed. [tiles] then hold the last known values. */
     val error: String? = null,
+    /**
+     * When the poll behind these tiles last succeeded; null until the first one lands. On the
+     * flat's two strips every capability carries `last_updated` 0.0, so this is the only thing
+     * either tile has that can say whether it is still being read.
+     */
+    val lastPolledAt: Instant? = null,
 )
 
 /**
@@ -68,11 +75,18 @@ class LightStripTiles(
     private val mutableState = MutableStateFlow(LightStripPanelState())
     val state: StateFlow<LightStripPanelState> = mutableState.asStateFlow()
 
-    /** What one poll read. Every device in the house arrives; the strips are picked out here. */
-    fun show(devices: List<Device>) {
+    /**
+     * What one poll read, and when it read it. Every device in the house arrives; the strips are
+     * picked out here.
+     */
+    fun show(
+        devices: List<Device>,
+        polledAt: Instant,
+    ) {
         mutableState.value =
             LightStripPanelState(
                 tiles = devices.filter { it.kind == DeviceKind.LightStrip }.map(Device::toTile),
+                lastPolledAt = polledAt,
             )
     }
 

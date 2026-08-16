@@ -8,6 +8,7 @@ import ru.domovoy.core.Device
 import ru.domovoy.core.DeviceKind
 import ru.domovoy.core.Reading
 import ru.domovoy.integrations.yandex.YandexClient
+import java.time.Instant
 
 /** The instance of the curtain's `range` capability: how far open it is, in percent. */
 private const val OPEN = "open"
@@ -35,6 +36,8 @@ data class CurtainPanelState(
     val tiles: List<CurtainTileState> = emptyList(),
     /** Non-null when the last poll or move failed. [tiles] then hold the last known values. */
     val error: String? = null,
+    /** When the poll behind these tiles last succeeded; null until the first one lands. */
+    val lastPolledAt: Instant? = null,
 )
 
 /**
@@ -51,11 +54,18 @@ class CurtainTiles(
     private val mutableState = MutableStateFlow(CurtainPanelState())
     val state: StateFlow<CurtainPanelState> = mutableState.asStateFlow()
 
-    /** What one poll read. Every device in the house arrives; the curtains are picked out here. */
-    fun show(devices: List<Device>) {
+    /**
+     * What one poll read, and when it read it. Every device in the house arrives; the curtains are
+     * picked out here.
+     */
+    fun show(
+        devices: List<Device>,
+        polledAt: Instant,
+    ) {
         mutableState.value =
             CurtainPanelState(
                 tiles = devices.filter { it.kind == DeviceKind.Curtain }.map(Device::toTile),
+                lastPolledAt = polledAt,
             )
     }
 

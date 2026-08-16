@@ -71,7 +71,19 @@ fun PanelRooms(
             recuperators = recuperators.error,
             bulbs = bulbs.error,
         )
-    val tabs = panelTabs(sections, errors, now, yandexInterval, tuyaInterval)
+    // When each group was last read, which is what says whether it is still being read at all. The
+    // four Yandex groups carry the same instant — one call feeds them — and the recuperators their
+    // own; they are passed separately anyway, because a group that stopped polling on its own is
+    // exactly what a shared "last read" would hide.
+    val polls =
+        GroupPolls(
+            acs = acs.lastPolledAt,
+            curtains = curtains.lastPolledAt,
+            strips = strips.lastPolledAt,
+            recuperators = recuperators.lastPolledAt,
+            bulbs = bulbs.lastPolledAt,
+        )
+    val tabs = panelTabs(sections, errors, polls, now, yandexInterval, tuyaInterval)
     // Rooms come and go with the polls — a vendor that answered with nothing takes its rooms with
     // it — so the index is clamped rather than trusted. Out of range lands on Главная, which is
     // where the panel was heading anyway.

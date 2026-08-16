@@ -1,6 +1,7 @@
 package ru.domovoy.panel
 
 import ru.domovoy.integrations.yandex.YandexClient
+import java.time.Instant
 
 /**
  * The panel's one read of the Yandex house.
@@ -19,6 +20,11 @@ import ru.domovoy.integrations.yandex.YandexClient
  */
 class YandexPoll(
     private val client: YandexClient,
+    /**
+     * The panel's clock, and the only reason this class has one: a group is stale when nothing has
+     * *read* it lately, and the read is what happens here. Injectable so a test can say when.
+     */
+    private val now: () -> Instant = Instant::now,
 ) {
     // Each group re-reads through this poller after an action, so a toggle costs one shared read
     // rather than one per group. The lambda is not evaluated until then, when `this` is built.
@@ -31,15 +37,20 @@ class YandexPoll(
      * Reads the house once and hands the same answer to every group. On failure every group goes
      * into its error state at once — one call failed, so nothing on the panel is being updated,
      * and a tile that kept quiet about it would be showing a stale value as a current one.
+     *
+     * A refresh that got through stamps every group with the moment it did. That is the panel's
+     * only record of when it last managed to read: the ages on the tiles are Yandex's
+     * `last_updated`, which say when a device reported and not whether anyone is still listening.
      */
     suspend fun refresh() {
         client
             .devices()
             .onSuccess { devices ->
-                bulbs.show(devices)
-                curtains.show(devices)
-                acs.show(devices)
-                strips.show(devices)
+                val polledAt = now()
+                bulbs.show(devices, polledAt)
+                curtains.show(devices, polledAt)
+                acs.show(devices, polledAt)
+                strips.show(devices, polledAt)
             }
             .onFailure { failure ->
                 val reason = failure.describe()
