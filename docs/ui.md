@@ -245,12 +245,33 @@ This is a pure function of the room sections. It gets a test.
 
 ## Theme
 
-- `MainActivity` passes `lightColorScheme()` / `darkColorScheme()` chosen by `isSystemInDarkTheme()`.
-  No dynamic colour: the wallpaper of a kiosk tablet is not a design input.
-- Every tile colour is a Material role — `primaryContainer` / `onPrimaryContainer` for a tile that is
-  on, `surfaceContainer` for everything else. **No hex literals in the panel package.** A hardcoded
-  colour is a tile that is unreadable in one of the two themes, and the theme that breaks is the one
-  nobody is looking at when they check. Done in commit 2 and grep-clean.
+- **The panel has its own palette, and `lightColorScheme()` on its own is not it.** Called with no
+  arguments those builders return Material's *baseline*, which is a violet — and a violet run through
+  the neutral surfaces of an unstyled panel is the grey-mauve wall this brief did not ask for. The
+  schemes are written out with explicit values. Seeds: a **cool blue** for climate and a **warm
+  amber** for light, tonal palettes generated from those two rather than picked stop by stop, so
+  light and dark stay related to each other. Everything else in the scheme is Material's neutral.
+- `MainActivity` picks between the two by `isSystemInDarkTheme()`. No dynamic colour: the wallpaper
+  of a kiosk tablet is not a design input, and on a wall that shows two rooms' worth of amber and
+  blue, a palette that changes when somebody changes the launcher background is a panel that stops
+  meaning what it meant yesterday.
+- **A tile's colour has two axes, not one: what kind of thing it is, and what state it is in.** One
+  colour for everything that is on makes a wall where the air conditioner and the bedroom lamp are
+  the same object. So:
+  - **Domain** picks the role — climate (air conditioners, recuperators) takes `primaryContainer`,
+    light (bulbs, strips) takes `tertiaryContainer`, everything else (curtains, launchers) takes
+    `secondaryContainer`. Three families and no more; a fourth hue on a wall read from four metres
+    is decoration rather than information.
+  - **State** picks whether the domain colour is used at all. `On` fills with the domain container;
+    `Off` and `Unknown` are `surfaceContainer` whatever the domain, because an unlit lamp is not
+    warm and a stopped recuperator is not cool.
+- `hue(...)` is the domain half and lives in `TileLayout.kt` beside `mood` and `span` — a pure
+  function per tile type, out where a test reaches it. The composable maps the `(hue, mood)` pair to
+  a role pair and does no thinking of its own, exactly as it already does for `mood` alone.
+- **No hex literals in the panel package.** A hardcoded colour is a tile that is unreadable in one of
+  the two themes, and the theme that breaks is the one nobody is looking at when they check. The
+  schemes are the one place values are written, and they are in the theme, not in `panel/`. Done in
+  commit 2 and grep-clean; it stays that way.
 - `Off`, `Unknown` and `Failing` all share `surfaceContainer`. There is no second and third neutral
   to give them, and the difference between the three is said in words on the status line, where it
   was always said — "off", "unknown", "not updating: <reason>". What must not happen is any of them
@@ -264,12 +285,49 @@ This is a pure function of the room sections. It gets a test.
   on the recuperators when the inventory call failed. It is now the only red on the panel, which is
   the point: five outlined tiles is one vendor, not five broken units.
 - **Confirmed: the tablet's dark theme is on a real schedule, 19:00–07:00** (`mNightMode=0 (auto)`,
-  `customStart=19:00 customEnd=07:00`). So `darkColorScheme()` is not dead code and commit 4 is worth
-  doing. Forcing night mode on today shows the panel staying light, which is the expected state
-  until commit 4 lands: `MainActivity` still wraps a bare `MaterialTheme {}`.
+  `customStart=19:00 customEnd=07:00`). So the dark scheme is not dead code and the theme commit is
+  worth doing. Forcing night mode on today shows the panel staying light, which is the expected state
+  until it lands: `MainActivity` still wraps a bare `MaterialTheme {}`.
 - **Samsung's blue light filter is on** (`settings get system blue_light_filter` → 1) and it tints
   screencaps too, system UI included. Anything warm-looking in a screenshot of this panel is that
   filter and not the palette. Judge colour with it in mind, or turn it off first.
+
+## Icons
+
+Every tile carries one. The panel today has none at all — no `Icon(` anywhere in `ru.domovoy`, and
+`app/src/main/res` holds only `themes.xml` and `strings.xml` — which is why a wall of it reads as
+paragraphs. A tile is recognised across a hallway by its shape and its glyph long before its name is
+legible, and on a panel that is looked at on the way past, that is most of the looking.
+
+**As vector drawables in `app/src/main/res/drawable/`, not as a dependency.**
+`androidx.compose.material:material-icons-extended` carries the glyphs this needs, and it is a large
+artifact to add for seven of them — and adding a dependency is an "ask first" in CLAUDE.md. Seven
+Material Symbols exported to vector XML cost nothing at build time and are `res/` files, which is
+neither a dependency nor a manifest change.
+
+| Tile | Glyph |
+| --- | --- |
+| Air conditioner | a snowflake — `ac_unit` |
+| Recuperator | a fan — `mode_fan`, falling back to `air` |
+| Curtain | `curtains` |
+| Light strip | `light` |
+| Bulb | `lightbulb` |
+| Домофон | `doorbell` |
+| Пылесос | `robot_2`, falling back to `cleaning_services` |
+
+_Those names are from the Material Symbols set and are not all verified._ Pick the nearest glyph that
+exists, and record in this table which one was actually used — a name asserted here that turns out
+not to exist is how the next person spends an afternoon.
+
+- **Outlined, 24 dp**, tinted with the tile's content colour so the glyph and the text agree by
+  construction and cannot drift apart in one theme.
+- On a half tile the icon sits on the first line beside the name; on a third tile it sits above it,
+  which is what the mockups showed and what stops a 251 dp tile from spending its width on a glyph.
+- **In the bulb circles the glyph is the whole tile.** 72 dp of circle, the lamp centred in it, no
+  text — the count and the age are on the group's one line underneath. That is the whole reason
+  28 lamps can be a row rather than fourteen rows.
+- `contentDescription = null` on every one of them. They are decorative: the name is right there, and
+  a screen reader announcing "lightbulb Лампа в коридоре" says the noun twice.
 
 ## Compose APIs
 
@@ -555,21 +613,51 @@ Expect this to be almost all of them in a circle. On today's data the split is t
 never reported against the twenty-odd it has, which is the reduction the commit is for — and the
 opposite of what the stale rule would have done.
 
-### 5 · `feat(panel): follow the system theme`
+### 5 · `feat(panel): the panel's own colours`
 
-Changed: `MainActivity.kt` picks `lightColorScheme()` / `darkColorScheme()` off
-`isSystemInDarkTheme()`. No dynamic colour, and no theme file — one caller does not earn a wrapper.
+The commit that stops the wall being grey. Two things, and they are one concern because they are the
+same file and neither works without the other: the panel gets a palette instead of Material's
+baseline, and a tile's colour starts saying what kind of device it is.
 
-No unit test is possible without a Compose test dependency, which is an "ask first" and is not being
-asked for here. Checked on the tablet in both themes, and by grepping `panel/` for hex literals,
-of which there should be none.
+New: `PanelTheme.kt` — the light and dark schemes, written out, generated from a cool blue and a warm
+amber. This is the one file in the app allowed to hold colour values. It is not a wrapper with one
+caller: it is data, and the alternative is 40 arguments inline in `MainActivity`.
 
-### 6 · `fix(panel): the tab strip's touch height`
+Changed: `MainActivity.kt` picks between the two by `isSystemInDarkTheme()`. `TileLayout.kt` gains
+`hue(...)`; the five tile composables map `(hue, mood)` to a role pair instead of `mood` alone.
+
+Tests, written first — `TileLayoutTest` amended: an air conditioner and a recuperator are `Climate`;
+a bulb and a strip are `Light`; a curtain and a launcher are `Neutral`. `hue` is a function of the
+tile's type and nothing else — it does not consult `isOn`, because a lamp that is off is still a
+lamp, and it is `mood` that decides whether the hue is used.
+
+The scheme itself has no unit test — there is no Compose test dependency and adding one is an "ask
+first". Checked on the tablet in both themes, and by grepping `panel/` for hex literals, of which
+there should still be none. **Turn the blue light filter off before judging any of it**; it is on,
+and it tints screencaps too.
+
+### 6 · `feat(panel): an icon per tile`
+
+The other half of what makes the wall read as a panel rather than as paragraphs. See "Icons" for the
+glyph per tile, the sizes, and why they are `res/drawable` files rather than a dependency.
+
+New: seven vector drawables in `app/src/main/res/drawable/`. Changed: the five tile composables and
+the bulb circles.
+
+No test — a drawable is not logic and there is nothing here a pure function could hold. What this
+commit must not do is add a dependency: if `material-icons-extended` starts to look necessary, stop
+and ask rather than adding it.
+
+After 5, deliberately. Icons take the tile's content colour, so drawing them before the palette
+exists means placing every glyph against the baseline violet and re-judging all seven once it
+changes.
+
+### 7 · `fix(panel): the tab strip's touch height`
 
 `PrimaryScrollableTabRow` sizes its tabs at Material's default 48 dp while this doc asks for 64 dp on
 everything a finger goes near, and the tab strip is the one control on the wall a finger can miss.
-One override, no new logic, no test to write — it is a dp. Independent of 3, 4 and 5 and can go
-whenever; last only because it is the smallest thing here.
+One override, no new logic, no test to write — it is a dp. Independent of everything else here and
+can go whenever; last only because it is the smallest thing on the list.
 
 ### Order, and what it buys
 
@@ -582,9 +670,18 @@ top of a signal known to be wrong means doing it twice. 3 is also the only commi
 rather than a feature, and it stays its own commit for that reason — a correction folded into a
 feature is a correction nobody can find again.
 
-5 last because it touches every colour the commits before it introduced, and doing it earlier means
-doing it twice.
+5 and 6 last because they touch every colour and every tile the commits before them introduced, and
+doing either earlier means doing it twice — 6 after 5 in particular, since a glyph takes its tile's
+content colour and drawing seven of them against a palette about to be replaced is drawing them
+twice.
 
 The order held. What it did not buy, and nothing in it could have: 2 was still wrong about the grid
 until the grid was on the wall, because the number it was wrong about was a measurement and not a
 decision.
+
+The same caught up with the look. Commits 1 to 4 were specified entirely in behaviour — spans,
+splits, staleness, what a tile *says* — and every one of them was right about that and silent about
+whether the result was worth looking at. What went up was a correct grey panel of text: no glyph
+anywhere, one colour for everything that is on, and a scheme nobody had chosen, because
+`lightColorScheme()` with no arguments is a decision that reads like a default. 5 and 6 exist
+because a brief can be complete about behaviour and still not have described the thing on the wall.
