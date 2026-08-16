@@ -107,9 +107,12 @@ internal fun groupFailureBorder(groupError: String?): BorderStroke? = groupError
  * third neutral to give the second one, and the difference between them is said in words on the
  * status line, which is where it was always said. What must not happen is [TileMood.Unknown]
  * borrowing the *on* colour and claiming a reading nobody has taken.
+ *
+ * Reachable outside [TileCard] for the one thing on the wall that is a tile without being a card:
+ * a bulb circle, which wears a shape of its own and these same four colours — see [BulbCircles].
  */
 @Composable
-private fun tileColors(mood: TileMood): CardColors = when (mood) {
+internal fun tileColors(mood: TileMood): CardColors = when (mood) {
     TileMood.On ->
         CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.primaryContainer,

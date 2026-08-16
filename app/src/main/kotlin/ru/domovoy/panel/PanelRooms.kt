@@ -97,6 +97,9 @@ fun PanelRooms(
     // reboot showing the last two tiles of the list. Counting the tiles catches both, and it only
     // fires again if a device appears or disappears — which is a poll's news, and worth the top.
     val scroll = remember(index, section.tiles()) { LazyGridState() }
+    // Who is a circle and who is a tile of their own. Decided out here rather than in the grid so
+    // that the row and the tiles it did not take are drawn from one answer to the question.
+    val lights = bulbGroup(section.bulbs)
     Column(modifier = modifier) {
         // No edge padding. The default is 52 dp at each end, which on a wall panel reads as a gap
         // in front of Главная and nothing after Без комнаты until the strip is scrolled to it —
@@ -170,10 +173,26 @@ fun PanelRooms(
                     onToggle = onToggleRecuperator,
                 )
             }
-            // A third of the panel each until the lights group lands and they become 72 dp circles —
-            // see docs/ui.md, "The lights group", which is the commit after this one.
-            items(section.bulbs, key = { "bulb:${it.id}" }, span = { GridItemSpan(THIRD_SPAN) }) { tile ->
+            // The lights group. The bulbs the panel has a value for are the many and are on/off
+            // only, so they are one wrapping row of 72 dp circles under one line instead of 28
+            // cards — see docs/ui.md, "The lights group". The few it has no value for come first,
+            // as named third-width tiles: those are the ones worth reading.
+            items(lights.brokenOut, key = { "bulb:${it.id}" }, span = { GridItemSpan(THIRD_SPAN) }) { tile ->
                 BulbTile(tile = tile, now = now, error = bulbs.error, onToggle = onToggleBulb)
+            }
+            // A room whose bulbs all broke out has no row, and neither has a room with no bulbs.
+            if (lights.circles.isNotEmpty()) {
+                item(key = "bulbs", span = { GridItemSpan(maxLineSpan) }) {
+                    BulbCircles(
+                        group = lights,
+                        now = now,
+                        error = bulbs.error,
+                        // Said once for the row rather than 28 times: one call is behind all of
+                        // them, so a poll that stopped landing stopped for the whole group.
+                        notUpdating = notUpdating(bulbs.error, bulbs.lastPolledAt, now, yandexInterval),
+                        onToggle = onToggleBulb,
+                    )
+                }
             }
             // Last in the room, and the only tiles here taking no `now`: they open another app
             // rather than showing anything the panel read, so there is no age on them to keep.
