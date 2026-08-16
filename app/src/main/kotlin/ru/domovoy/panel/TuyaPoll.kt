@@ -1,5 +1,6 @@
 package ru.domovoy.panel
 
+import ru.domovoy.core.KnownRecuperators
 import ru.domovoy.integrations.tuya.TuyaClient
 import java.time.Instant
 
@@ -29,8 +30,14 @@ class TuyaPoll(
      * lately, and this is where the reading happens. Injectable so a test can say when.
      */
     private val now: () -> Instant = Instant::now,
+    /**
+     * Who the recuperators were on the last run, so the wall is not blank while the first refresh
+     * after a reboot is still failing. Nothing remembered by default, which is the panel as it was
+     * before this existed; on the tablet [MainActivity] hands over the encrypted store.
+     */
+    known: KnownRecuperators = KnownRecuperators(null),
 ) {
-    val recuperators = RecuperatorTiles(client)
+    val recuperators = RecuperatorTiles(client, known)
 
     /**
      * The inventory getting through is what stamps the group, whatever the five reads after it

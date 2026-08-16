@@ -103,13 +103,19 @@ internal fun groupFailureBorder(groupError: String?): BorderStroke? = groupError
  * tile that is unreadable in one of the two themes, and the theme that breaks is the one nobody is
  * looking at when they check.
  *
- * [TileMood.Off] and [TileMood.Unknown] share `surfaceContainer` deliberately — the panel has no
- * third neutral to give the second one, and the difference between them is said in words on the
- * status line, which is where it was always said. What must not happen is [TileMood.Unknown]
- * borrowing the *on* colour and claiming a reading nobody has taken.
+ * Only *on* has a colour of its own. [TileMood.Off], [TileMood.Unknown] and [TileMood.Failing] all
+ * wear the neutral, and the difference between the three is said in words on the status line, which
+ * is where it was always said — "off", "unknown", "not updating: <reason>". What must not happen is
+ * any of them borrowing the *on* colour and claiming a reading nobody has taken.
+ *
+ * [TileMood.Failing] was `errorContainer` until the wall had a few of them on it at once. A red tile
+ * per failing device turns a flat with one unreachable vendor into a panel that reads as an
+ * emergency, and it is loudest exactly when it is least useful — at boot, when nothing has been read
+ * yet and every tile is failing at once. The one thing still painted rather than written is the
+ * *group's* failure, which outlines its tiles rather than filling them — see [groupFailureBorder].
  *
  * Reachable outside [TileCard] for the one thing on the wall that is a tile without being a card:
- * a bulb circle, which wears a shape of its own and these same four colours — see [BulbCircles].
+ * a bulb circle, which wears a shape of its own and these same colours — see [BulbCircles].
  */
 @Composable
 internal fun tileColors(mood: TileMood): CardColors = when (mood) {
@@ -118,15 +124,10 @@ internal fun tileColors(mood: TileMood): CardColors = when (mood) {
             containerColor = MaterialTheme.colorScheme.primaryContainer,
             contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
         )
-    TileMood.Off, TileMood.Unknown ->
+    TileMood.Off, TileMood.Unknown, TileMood.Failing ->
         CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainer,
             contentColor = MaterialTheme.colorScheme.onSurface,
-        )
-    TileMood.Failing ->
-        CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.errorContainer,
-            contentColor = MaterialTheme.colorScheme.onErrorContainer,
         )
 }
 

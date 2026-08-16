@@ -14,6 +14,8 @@ import okhttp3.OkHttpClient
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import ru.domovoy.core.FakeSharedPreferences
+import ru.domovoy.core.KnownRecuperators
 import ru.domovoy.integrations.tuya.TuyaClient
 import ru.domovoy.integrations.tuya.TuyaCredentials
 import java.time.Instant
@@ -451,6 +453,63 @@ class RecuperatorTilesTest {
         poll.recuperators.toggle("xfj-01")
 
         assertEquals("Спальня", poll.recuperators.state.value.tiles.single { it.id == "xfj-01" }.room)
+    }
+
+    @Test
+    fun `the recuperators the panel read last time are on the wall before the first poll`() = runTest {
+        // A Tuya refresh is five calls and runs every 6 minutes, so a tablet that reboots while the
+        // Wi-Fi is still coming up has no recuperators at all until the second attempt. The panel
+        // puts up who it read last time instead, with no values on them and every age "never read".
+        val prefs = FakeSharedPreferences()
+        enqueueRefresh()
+        TuyaPoll(client(), rooms = recuperatorRooms("xfj-01=Спальня"), known = KnownRecuperators(prefs)).refresh()
+
+        val restarted = TuyaPoll(client(), known = KnownRecuperators(prefs))
+
+        val tile = restarted.recuperators.state.value.tiles.single { it.id == "xfj-01" }
+        assertEquals("Бризер данина комната", tile.name)
+        assertEquals("Спальня", tile.room, "the room it was placed in is remembered with it")
+        assertNull(tile.isOn, "a switch position from before the reboot is not a reading")
+        assertEquals("unknown · never read · unknown · never read", statusLine(tile, now(minutes = 0)))
+        assertNull(restarted.recuperators.state.value.lastPolledAt, "nothing has been read yet")
+    }
+
+    @Test
+    fun `a first poll that never got through leaves the remembered tiles up and says why`() = runTest {
+        // The whole point: five tiles saying "not updating" beat one line of error where five tiles
+        // should be, because the wall still shows what is in the flat and where.
+        val prefs = FakeSharedPreferences()
+        enqueueRefresh()
+        TuyaPoll(client(), known = KnownRecuperators(prefs)).refresh()
+        // A fresh client after the restart, so it asks for a token before the inventory it fails on.
+        enqueueToken()
+        server.enqueue(MockResponse(code = 500, body = "boom"))
+
+        val restarted = TuyaPoll(client(), known = KnownRecuperators(prefs))
+        restarted.refresh()
+
+        val state = restarted.recuperators.state.value
+        assertEquals(5, state.tiles.size)
+        val reason = requireNotNull(state.error)
+        val line = statusLine(state.tiles.first(), now(minutes = 0), reason)
+        assertTrue(line.endsWith("not updating: $reason"), "the tile has to carry the group's reason: $line")
+    }
+
+    @Test
+    fun `a remembered recuperator can still be switched, and is not a tile that swallows the tap`() = runTest {
+        // The tile is on the wall before any poll, so the tap has to work from the memory alone:
+        // the command needs the id and the re-read needs the device, and both are remembered.
+        val prefs = FakeSharedPreferences()
+        enqueueRefresh()
+        TuyaPoll(client(), known = KnownRecuperators(prefs)).refresh()
+        enqueueToken()
+        server.enqueue(MockResponse(body = """{"result":true,"success":true,"t":1,"tid":"test-tid"}"""))
+        server.enqueue(MockResponse(body = shadowWith("switch", true)))
+
+        val restarted = TuyaPoll(client(), known = KnownRecuperators(prefs))
+        restarted.recuperators.toggle("xfj-03")
+
+        assertEquals(true, restarted.recuperators.state.value.tiles.single { it.id == "xfj-03" }.isOn)
     }
 
     @Test

@@ -168,6 +168,45 @@ should say so. It is simply not a health signal, and the two must not be the sam
 The AC has two readings and the light strip has two; both still print both ages, because on `ac-01`
 they are 81 days apart and one number for the pair would have to lie about the older.
 
+### The recuperators before the first poll
+
+Every other group heals in seconds. Yandex is one call every 15 s, so a poll that missed the Wi-Fi
+coming up is retried before anybody reaches the hallway. Tuya is five calls every **6 minutes**, and
+the recuperator tiles exist only once the inventory call has answered — so a tablet that rebooted
+into a network that was not up yet shows **one line of error where five tiles belong, for six
+minutes**. Seen on the wall on 2026-08-16: `Бризеры: not updating: Unable to resolve host
+"openapi.tuyaeu.com"`, with the Yandex tiles already back.
+
+So the panel remembers who they are. `KnownRecuperators` keeps the last successful inventory — **id,
+name, room, and nothing else** — in the same encrypted store as the credentials, because device ids
+identify the flat. On a cold start those become tiles with no values on them: "unknown · never read",
+no climate line, third-width, and the group stale until a refresh lands, which is what marks the tab
+and pulls them onto Главная.
+
+What is deliberately *not* remembered is any value. A switch position from before the reboot is not
+something the panel has read, and a tile printing it would be claiming a poll that never happened —
+the same rule as "Stale", one layer down: the panel may remember what exists, never what it said.
+
+A remembered tile is still tappable. The command needs an id and the re-read needs the device, and
+both survive the restart; a tile on the wall that swallowed the tap would be worse than no tile.
+
+A tablet with no usable keystore — restored backup, wiped key — remembers nothing and runs anyway.
+
+**Seen on the wall, 2026-08-16.** The six-minute hole was real and reproduced twice: a cold start at
+21:20 stood on `Бризеры: not updating: Unable to resolve host "openapi.tuyaeu.com"` with every
+Yandex tile already up, and cleared by itself at the next poll — the host resolved fine from the
+shell throughout, so it is the poll's cadence and not the network. After one successful inventory,
+a restart shows all five recuperators inside a second: named, in their rooms, third-width,
+"unknown · never read · unknown · never read", every room tab marked, and the whole set replaced by
+real values 0.4 s later when the poll landed. `Бризер зал` then goes back to half-width with its
+climate line, and the marks clear.
+
+Two things that fall out of it, neither fixed: a placeholder has no climate line, so it is
+third-width and its status line *wraps* onto two lines there — and "Бризер данина комната" wraps its
+name too, so that one tile stands taller than the four beside it for the second it is up. And on a
+tablet whose first read of the day fails, the tabs of five rooms are marked at once, which is the
+tab mark doing its job and looks alarming anyway.
+
 ## The tab shell
 
 **Главная** first, then the rooms. Rules, each of which exists because a wall panel is not a phone:
@@ -209,13 +248,21 @@ This is a pure function of the room sections. It gets a test.
 - `MainActivity` passes `lightColorScheme()` / `darkColorScheme()` chosen by `isSystemInDarkTheme()`.
   No dynamic colour: the wallpaper of a kiosk tablet is not a design input.
 - Every tile colour is a Material role — `primaryContainer` / `onPrimaryContainer` for a tile that is
-  on, `surfaceContainer` for off, `errorContainer` / `onErrorContainer` for not-updating. **No hex
-  literals in the panel package.** A hardcoded colour is a tile that is unreadable in one of the two
-  themes, and the theme that breaks is the one nobody is looking at when they check. Done in commit
-  2 and grep-clean.
-- `Off` and `Unknown` share `surfaceContainer`. There is no third neutral to give the second one, and
-  the difference between them is said in words on the status line, where it was always said. What
-  must not happen is `Unknown` borrowing the *on* colour and claiming a reading nobody has taken.
+  on, `surfaceContainer` for everything else. **No hex literals in the panel package.** A hardcoded
+  colour is a tile that is unreadable in one of the two themes, and the theme that breaks is the one
+  nobody is looking at when they check. Done in commit 2 and grep-clean.
+- `Off`, `Unknown` and `Failing` all share `surfaceContainer`. There is no second and third neutral
+  to give them, and the difference between the three is said in words on the status line, where it
+  was always said — "off", "unknown", "not updating: <reason>". What must not happen is any of them
+  borrowing the *on* colour and claiming a reading nobody has taken.
+- **`Failing` was `errorContainer` until the wall had several at once.** Commit 2 painted a failing
+  tile red on the reasoning that it is showing a value nobody has confirmed — true, and still the
+  reason `mood` ranks `Failing` above `isOn`. But one unreachable vendor makes a panel that reads as
+  an emergency, and the paint is loudest exactly when it is least useful: at boot, before anything
+  has been read, every tile is failing at once. The reason is on the tile in words either way.
+- The one failure still *painted* is the group's, and it outlines rather than fills — the red border
+  on the recuperators when the inventory call failed. It is now the only red on the panel, which is
+  the point: five outlined tiles is one vendor, not five broken units.
 - **Confirmed: the tablet's dark theme is on a real schedule, 19:00–07:00** (`mNightMode=0 (auto)`,
   `customStart=19:00 customEnd=07:00`). So `darkColorScheme()` is not dead code and commit 4 is worth
   doing. Forcing night mode on today shows the panel staying light, which is the expected state
