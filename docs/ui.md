@@ -116,12 +116,20 @@ that stopped answering a week ago.
 
 The rule, which is a pure function and gets a test:
 
-- A bulb whose reading is stale — see "Stale" below — **leaves the group** and renders as its own
-  named third-width tile with its own age.
-- The remaining bulbs stay in the group, and the group line quotes the **oldest** age among them.
+- A bulb the panel **has no state for** — `isOn` null, which is `Reading.Never` on the capability —
+  leaves the group and renders as its own named third-width tile.
+- Every other bulb stays in the group, and the group line quotes the **oldest** `last_updated` among
+  those that stayed, plus how many there are and how many are on.
 
-So the group is only ever a group of bulbs that agree about being fresh, and a stale one is a tile
-with a name on it.
+Staleness is deliberately not the split, and that was the first draft of this. Poll freshness is a
+group fact — one call feeds every bulb, so either all of them are stale or none are (see "Stale"),
+and a rule that fires on all 28 at once is not a split. What genuinely varies bulb by bulb is
+whether Yandex has any state for it at all, and that is the thing worth pulling out of a row of
+circles: a circle is a claim that the panel knows whether that lamp is on, and for a `Never` bulb it
+does not. It says "unknown" on a named tile instead, which is what the status line has always said.
+
+A stale *group* is still visible — the tab is marked and the group's error reaches every tile in it,
+including the circles. It is just not what decides who is a circle.
 
 ## Stale
 
@@ -129,20 +137,36 @@ Three things in this doc ask the same question — which bulbs leave the lights 
 a mark on their tab, which tiles Главная pulls in — so it is answered once, in one function, and
 that function is where the number lives.
 
-**Stale is relative to the group's own poll interval, not a flat duration.** A flat 2 minutes was the
-first draft of this and it is wrong: Yandex is polled every 15 s and Tuya every 6 minutes
-(`POLL_INTERVAL` and `TUYA_POLL_INTERVAL` in `MainActivity`), so any constant short enough to catch a
-dead bulb marks **every recuperator permanently stale**, and the panel would hang a warning on five
-tiles that are working exactly as designed.
+**Stale means the panel has stopped reading, not that the flat has stopped changing.** Commit 1
+shipped it the other way round and it was wrong. The rest of this section is why, because the
+mistake is easy to make twice.
 
-So: a reading is stale when it is older than **eight times the interval of the poll that produced
-it** — 2 minutes for the Yandex tiles, 48 minutes for the recuperators — and `Reading.Never` is
-always stale. Eight is a guess. The interval is not: it comes from the constant the poll loop
-actually runs on, so if either cadence is retuned the staleness follows it rather than silently
-falling out of step.
+`BulbTileState.lastUpdated` comes from Yandex's `last_updated` on the capability — **when the device
+last reported a value, not when we last read it.** A bulb switched on three weeks ago and untouched
+since carries a three-week-old timestamp while every poll since has read it successfully. 33 of the
+116 recorded capabilities are `0.0`, which is `Never`, and `ac-01`'s two capabilities are 81 days
+apart. So judging health on that timestamp calls a steady device broken: it asks *has this changed
+lately*, and the panel needs *have we been able to read this lately*. That is why Коридор's tab is
+marked while both strips inside it are working.
 
-The AC has two readings and the light strip has two; a tile is stale when **either** is, because
-either one going quiet is the panel showing a value nobody has confirmed.
+The reading a poll produced is a group fact, not a tile fact. One `/v1.0/user/info` call feeds every
+Yandex tile — it succeeded or it did not, and there is no per-bulb answer hiding inside it. So:
+
+- Each `*PanelState` carries **`lastPolledAt: Instant?`**, stamped by `YandexPoll` / `TuyaPoll` when
+  a refresh succeeds. Null until the first one lands.
+- A group is stale when `lastPolledAt` is null, or older than **eight times its own poll interval** —
+  2 minutes for the Yandex groups, 48 minutes for the recuperators (`POLL_INTERVAL` and
+  `TUYA_POLL_INTERVAL` in `MainActivity`). Eight is a guess; the interval is not, and tying staleness
+  to it means retuning either cadence carries staleness along instead of quietly falling out of step.
+- The recuperators keep their per-tile exception. Tuya state costs one call per device, so
+  `RecuperatorTileState.error` already says which one failed, and that stays a tile fact.
+
+What survives from the first version: the vendor's `last_updated` is still what every tile *prints*.
+"20 d ago" is an honest answer to how old a value is, and a bulb nobody has touched in three weeks
+should say so. It is simply not a health signal, and the two must not be the same number.
+
+The AC has two readings and the light strip has two; both still print both ages, because on `ac-01`
+they are 81 days apart and one number for the pair would have to lie about the older.
 
 ## The tab shell
 
@@ -299,13 +323,14 @@ minutes and locks behind a PIN; `adb shell input keyevent KEYCODE_WAKEUP` immedi
   well, so today the two fire together; that is a coincidence of settings, not a design.
 - The ×8 in "Stale". Tying it to each poll's own interval is right; eight of them is a guess, and the
   number that matters is how long a device can be quiet before somebody would want to know.
-- **The tab strip's 48 dp tabs**, against the 64 dp this doc asks for everywhere else. Overriding
-  `PrimaryScrollableTabRow`'s tab height is the fix; it was not done in commit 2 because the tab
-  strip is commit 1's.
-- **A tile that is `on · never read` paints as confidently on.** `mood` is a function of `isOn` and
-  the error and nothing else, so staleness reaches the tab mark but not the tile's colour: Коридор's
-  tab is marked while both strips inside it look perfectly healthy. Whether staleness should reach
-  the paint is a real question and a spec change, not a bug in what was built.
+- Whether a **stale group** should reach the tile's paint, or only the tab mark. `mood` is a function
+  of `isOn` and the error and nothing else, so a group that has stopped polling still paints every
+  tile in it as confidently on. Commit 3 makes the signal trustworthy enough to be worth asking; it
+  does not answer it, and wiring it in is a spec change rather than a bug fix.
+- What a tile should look like when `isOn` is null. Today `Unknown` and `Off` share
+  `surfaceContainer`, so a lamp the panel knows nothing about is indistinguishable from one it knows
+  is off — the strings tell them apart and the colours do not. Commit 4 pulls the null-state bulbs
+  out of the circles, which is the same problem answered for one tile type only.
 - The tablet is locked with a PIN and locks itself on screen-off. Nothing in the panel handles that
   — the wall goes to a lock screen rather than to the panel, and the Domonap takeover's behaviour
   over a locked screen is unverified. See `docs/domonap.md`.
@@ -417,27 +442,73 @@ The four-column pass is worth recording rather than quietly fixing, because the 
 number: it was writing a span table against a width nobody had measured and calling the result
 decided.
 
-### 3 · `feat(panel): group the bulbs`
+### 3 · `fix(panel): stale means the poll stopped` — done, #14
 
-New: `BulbGroup.kt` — `bulbGroup(bulbs: List<BulbTileState>, now: Instant): BulbGroup`, returning the
-circles, the ones that broke out, and the oldest reading among those that stayed.
+Found while planning the bulb grouping, and it came first because commit 4's group line and commit
+1's tab marks both rest on it. The full reasoning is in "Stale"; the short version is that commit 1
+judged health on the vendor's `last_updated` and so calls a lamp nobody has touched in three weeks
+broken.
+
+Changed, and this is the one place the plan's fence around the poll classes comes down — knowingly,
+because the fact being added is the poll's own and nowhere else can honestly hold it:
+
+- Each `*PanelState` gains `lastPolledAt: Instant?`; `YandexPoll` and `TuyaPoll` stamp it on a
+  refresh that succeeded. Null until the first one lands.
+- `Staleness.kt` — `isStale` takes the group's `lastPolledAt` and its interval, not a `Reading`. The
+  `readings(...)` helpers that fed the old rule go with it; nothing else reads them.
+- `PanelTabs.kt`, `Favourites.kt` — a room is marked, and a tile is pulled onto Главная, when its
+  group errored **or** its group is stale. Same rules, corrected input.
+
+Not changed: what the tiles print. `ageLabel(tile.lastUpdated, now)` stays exactly as it is on every
+tile. "20 d ago" is an honest answer to how old a value is and always was; it is only its use as a
+health signal that was wrong.
+
+Tests, written first — `StalenessTest` rewritten, `PanelTabsTest` and `FavouritesTest` amended:
+
+- A group polled 90 s ago is fresh and one polled 3 min ago is stale, at the Yandex interval; a group
+  polled 7 min ago is **fresh** at the Tuya interval and one polled an hour ago is stale.
+- A `lastPolledAt` of null is stale at every interval — the panel has read nothing yet.
+- A room of bulbs whose every `last_updated` is `Never` is **not** marked while its group is polling
+  fine. This is the regression the commit exists for; it fails before the fix.
+- A recuperator with its own error still marks its room while the other four do not.
+
+### 4 · `feat(panel): group the bulbs`
+
+New: `BulbGroup.kt` — `bulbGroup(bulbs: List<BulbTileState>): BulbGroup`, returning the circles, the
+ones that broke out, how many are on, and the oldest `last_updated` among those that stayed.
+
+**No `now`.** Finding the oldest of a set of readings needs no clock; formatting one does, and that
+is `ageLabel`'s job at the point of drawing, as on every other tile. A `now` parameter this function
+does not use is a clock in a pure function nobody can see is unused.
+
+`Reading.Never` is the oldest of all, and it can appear inside the group: `isOn` and `lastUpdated`
+come from different fields of the same capability, so a bulb whose value is known while its
+`last_updated` is `0.0` stays a circle and carries a `Never` the group line has to be able to quote.
+The split is on `isOn`, not on the reading — those are two different questions and the fixture
+answers them separately.
+
+Reuse rather than reinvent, both already there:
+
+- `notUpdating(error, lastPolledAt, now, interval)` in `Staleness.kt` — whether the group behind the
+  circles has stopped being read. The group line says it once for the row instead of 28 times.
+- `mood(isOn, error)` in `TileLayout.kt` — what colours a circle. A circle is a tile and takes the
+  same four moods as one; nothing new is needed to paint it.
 
 Changed: `PanelRooms.kt` renders the group as a `FlowRow` of 72 dp circles under one line, and each
-broken-out bulb as a named third-width tile. Until then the bulbs are third-width tiles, one per
-cell, three to a row — which is what commit 2 left them as and is why Главная is still fourteen rows
-of lamps.
+broken-out bulb as a named third-width tile. Until this lands the bulbs are third-width tiles, one
+per cell, three to a row — which is what commit 2 left them as and is why Главная is still fourteen
+rows of lamps.
 
-Tests, written first — `BulbGroupTest`: `Never` leaves the group; a bulb 3 min old leaves; one 90 s
-old stays; the group line quotes the **oldest** of those that stayed and not the freshest; a room
-with no bulbs yields no group rather than an empty row.
+Tests, written first — `BulbGroupTest`: a bulb with `isOn` null leaves the group; one that is on and
+one that is off both stay, however old their readings are; the group line quotes the **oldest**
+`last_updated` of those that stayed and not the freshest; the count of "how many on" excludes the
+ones that broke out; a room with no bulbs yields no group rather than an empty row.
 
-Note before starting: nearly every bulb in the flat reads `on · never read` or `on · 20+ d ago`, so
-on today's data almost all of them are stale and would break out of the group into named tiles —
-which is the mile of scrolling this commit exists to remove. Check what the split actually does to
-Коридор before trusting the rule; the ×8 in "Stale" may be the thing that needs revisiting, not the
-split.
+Expect this to be almost all of them in a circle. On today's data the split is the handful Yandex has
+never reported against the twenty-odd it has, which is the reduction the commit is for — and the
+opposite of what the stale rule would have done.
 
-### 4 · `feat(panel): follow the system theme`
+### 5 · `feat(panel): follow the system theme`
 
 Changed: `MainActivity.kt` picks `lightColorScheme()` / `darkColorScheme()` off
 `isSystemInDarkTheme()`. No dynamic colour, and no theme file — one caller does not earn a wrapper.
@@ -446,12 +517,26 @@ No unit test is possible without a Compose test dependency, which is an "ask fir
 asked for here. Checked on the tablet in both themes, and by grepping `panel/` for hex literals,
 of which there should be none.
 
+### 6 · `fix(panel): the tab strip's touch height`
+
+`PrimaryScrollableTabRow` sizes its tabs at Material's default 48 dp while this doc asks for 64 dp on
+everything a finger goes near, and the tab strip is the one control on the wall a finger can miss.
+One override, no new logic, no test to write — it is a dp. Independent of 3, 4 and 5 and can go
+whenever; last only because it is the smallest thing here.
+
 ### Order, and what it buys
 
 1 before 2 because the shell is the only part with behaviour to get wrong, and it is worth having it
-green before anything visual moves. 3 after 2 because the lights group is a mosaic idea — it has
-nowhere to live until the grid exists. 4 last because it touches every colour the three commits
-before it introduced, and doing it earlier means doing it twice.
+green before anything visual moves. 2 before the rest because the lights group is a mosaic idea and
+has nowhere to live until the grid exists.
+
+3 before 4 because the group line and the tab marks both read staleness, and grouping the bulbs on
+top of a signal known to be wrong means doing it twice. 3 is also the only commit here that is a fix
+rather than a feature, and it stays its own commit for that reason — a correction folded into a
+feature is a correction nobody can find again.
+
+5 last because it touches every colour the commits before it introduced, and doing it earlier means
+doing it twice.
 
 The order held. What it did not buy, and nothing in it could have: 2 was still wrong about the grid
 until the grid was on the wall, because the number it was wrong about was a measurement and not a
