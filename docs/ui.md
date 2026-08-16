@@ -233,13 +233,21 @@ This is a pure function of the room sections. It gets a test.
 - `MainActivity` passes `lightColorScheme()` / `darkColorScheme()` chosen by `isSystemInDarkTheme()`.
   No dynamic colour: the wallpaper of a kiosk tablet is not a design input.
 - Every tile colour is a Material role — `primaryContainer` / `onPrimaryContainer` for a tile that is
-  on, `surfaceContainer` for off, `errorContainer` / `onErrorContainer` for not-updating. **No hex
-  literals in the panel package.** A hardcoded colour is a tile that is unreadable in one of the two
-  themes, and the theme that breaks is the one nobody is looking at when they check. Done in commit
-  2 and grep-clean.
-- `Off` and `Unknown` share `surfaceContainer`. There is no third neutral to give the second one, and
-  the difference between them is said in words on the status line, where it was always said. What
-  must not happen is `Unknown` borrowing the *on* colour and claiming a reading nobody has taken.
+  on, `surfaceContainer` for everything else. **No hex literals in the panel package.** A hardcoded
+  colour is a tile that is unreadable in one of the two themes, and the theme that breaks is the one
+  nobody is looking at when they check. Done in commit 2 and grep-clean.
+- `Off`, `Unknown` and `Failing` all share `surfaceContainer`. There is no second and third neutral
+  to give them, and the difference between the three is said in words on the status line, where it
+  was always said — "off", "unknown", "not updating: <reason>". What must not happen is any of them
+  borrowing the *on* colour and claiming a reading nobody has taken.
+- **`Failing` was `errorContainer` until the wall had several at once.** Commit 2 painted a failing
+  tile red on the reasoning that it is showing a value nobody has confirmed — true, and still the
+  reason `mood` ranks `Failing` above `isOn`. But one unreachable vendor makes a panel that reads as
+  an emergency, and the paint is loudest exactly when it is least useful: at boot, before anything
+  has been read, every tile is failing at once. The reason is on the tile in words either way.
+- The one failure still *painted* is the group's, and it outlines rather than fills — the red border
+  on the recuperators when the inventory call failed. It is now the only red on the panel, which is
+  the point: five outlined tiles is one vendor, not five broken units.
 - **Confirmed: the tablet's dark theme is on a real schedule, 19:00–07:00** (`mNightMode=0 (auto)`,
   `customStart=19:00 customEnd=07:00`). So `darkColorScheme()` is not dead code and commit 4 is worth
   doing. Forcing night mode on today shows the panel staying light, which is the expected state
