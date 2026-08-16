@@ -2,16 +2,20 @@
 
 **Scope:** how the panel is laid out and drawn. Not what it reads — that is one doc per vendor.
 
-**Status: decided 2026-08-15, nothing built.** This is the brief for the work, not a record of it.
-Everything below marked _measure on the tablet_ is a number nobody has taken yet; do not treat it
-as settled just because it is written down.
+**Status: commits 1 and 2 built and merged (#11, #12); 3 and 4 not started.** What was a brief is
+now half a record. Numbers that were guesses when this was written and have since been measured on
+the tablet say so and give the measurement; the ones still marked _measure on the tablet_ are numbers
+nobody has taken, and are not settled just because they are written down.
+
+The tablet is a Samsung Galaxy Tab S7 (SM-T875, Android 13). Everything measured below was measured
+on it, on 2026-08-16.
 
 ## What is decided
 
 1. **A tab shell.** One "Главная" tab holding the favourites, then one tab per room in the existing
    room order. Replaces the single scroll of 29 tiles.
 2. **Material 3 Expressive mosaic tiles.** Mixed tile sizes and shapes instead of one full-width
-   card per device: a hero tile for the air conditioners, medium tiles for the things with a slider,
+   card per device: half-width tiles for the things with a slider, third-width ones for the rest,
    small circles for the bulbs.
 3. **Both themes, following the system.** The panel is light by day and dark by night, driven by
    `isSystemInDarkTheme()`.
@@ -22,45 +26,82 @@ against 3 ACs, 2 light strips and 1 curtain, and all 5 recuperators are on/off �
 tiles, six have a continuous value and the rest have nothing to fill with. On those a fill bar is a
 coloured rectangle that means "on", which the tile's colour already says.
 
-## What the panel does today
+## What the panel did before this work
 
-The baseline this replaces, so the diff is legible:
+The baseline commits 1 and 2 replaced, kept so the diff stays legible:
 
-- [`PanelRooms`](../app/src/main/kotlin/ru/domovoy/panel/PanelRooms.kt) is one `LazyColumn`. Group
+- [`PanelRooms`](../app/src/main/kotlin/ru/domovoy/panel/PanelRooms.kt) was one `LazyColumn`. Group
   failures at the top, then a `Text` heading per room, then every tile in that room as a full-width
-  `Card`, in the fixed order ac → curtain → strip → recuperator → bulb → launcher.
+  `Card`, in the fixed order ac → curtain → strip → recuperator → bulb → launcher. It is now a tab
+  strip over a `LazyVerticalGrid`; the tile order within a room is unchanged.
 - [`roomSections`](../app/src/main/kotlin/ru/domovoy/panel/RoomSections.kt) decides which room a tile
-  lands in and in what order the rooms come. **It does not change.** The tab shell consumes exactly
-  what it returns — one tab per `RoomSection`, in the order that function already produces, with the
-  roomless section last under "Без комнаты".
+  lands in and in what order the rooms come. **It did not change, and has not.** The tab shell
+  consumes exactly what it returns — one tab per `RoomSection`, in the order that function already
+  produces, with the roomless section last under "Без комнаты".
 - Every tile prints a status line ending in `ageLabel(...)`, and appends `not updating: <error>` when
-  its group's poll failed.
+  its group's poll failed. Still true: commit 2 was a re-skin and changed no string.
 - `MainActivity` wraps everything in a bare `MaterialTheme {}` — no colour scheme is passed, so the
-  panel is on the Material baseline light palette in both system themes today.
+  panel is on the Material baseline light palette in both system themes. **Still true**, and it is
+  what commit 4 is for.
 
 ## Tile sizes
 
-A four-column grid. The span is a property of the tile type, not of the room:
+A **six-column** grid, laid out in halves and thirds. The span is a property of the tile type, not
+of the room:
 
-| Tile | Count | Span | What it shows |
-| --- | --- | --- | --- |
-| Air conditioner | 3 | 4 (hero) | Name, target temperature at display size, on/off, temperature slider, both ages |
-| Curtain | 1 | 2 | Name, open percent, slider, age |
-| Light strip | 2 | 2 | Name, on/off, brightness slider, both ages |
-| Recuperator | 5 | 2 | Name, on/off, age |
-| Bulb | many | — | Not a grid cell. See "The lights group" below |
-| Launcher | 2 | 1 | Name and one line. No age — there is no reading to age |
+| Tile | Count | Span | Width | What it shows |
+| --- | --- | --- | --- | --- |
+| Air conditioner | 3 | 3 (half) | 376 dp | Name, target temperature at display size, on/off, temperature slider, both ages |
+| Curtain | 1 | 3 (half) | 376 dp | Name, open percent, slider, age |
+| Light strip | 2 | 3 (half) | 376 dp | Name, on/off, brightness slider, colour, both ages |
+| Recuperator | 5 | 3 or 2 | 376 / 251 dp | Name, on/off, fan speeds, and — when it reports them — temperature and humidity. Up to four ages |
+| Bulb | many | 2 (third) | 251 dp | Not a grid cell once commit 3 lands. See "The lights group" below |
+| Launcher | 2 | 2 (third) | 251 dp | Name and one line. No age — there is no reading to age |
+
+**Four columns was the first draft of this and the tablet threw it out.** Four came from a 10"
+tablet nobody had measured; the panel is 753 dp, so a full-width hero was 753 dp holding a name, a
+temperature and a slider, with the switch stranded 700 dp from the value it switches. The launcher
+at one column was 188 dp and wrapped its one line onto two.
+
+**Halves and thirds, because both divide six.** This is the rule that matters, and it was learned
+rather than designed: a row fills instead of trailing dead cells, and — the part that is not
+obvious — two tiles of the same kind beside each other come out the same height. At a third of the
+panel the two light strips wrapped differently, one onto two lines and the other onto three, and
+stood side by side at visibly different sizes. Widths that do not divide the grid produce that, and
+it reads as breakage rather than as variety.
+
+The recuperator is the densest tile the flat has and the only one whose span is decided by its
+content: **half when `climateLine` returns a line, a third when it returns null.** A device
+reporting neither temperature nor humidity has a second line that does not exist, and a half-width
+tile holding one line of "on · 2 min ago" is a hole in the wall. _Unexercised on this wall:_ all
+five recuperators report both values, so the third-width branch is covered by `TileLayoutTest` and
+has never been seen.
+
+It is also the only tile with **an error of its own**. Every other group shares one — a failed
+`/v1.0/user/info` failed for all of them — but recuperator state costs one Tuya call per device, so
+`RecuperatorTileState.error` is per-tile and four working units must not be labelled "not updating"
+because the fifth timed out. The mosaic keeps that distinction: the tile's own error colours the
+tile, the group's error colours all five.
 
 The AC keeps both of its ages: on `ac-01` the power and temperature capabilities were read 81 days
 apart, and collapsing them to one number would print a lie on the bigger of the two.
 
 Sizes to hold to, since this is read and touched at arm's length from a wall:
 
-- Minimum hit area **64 dp** on anything tappable, not the platform's 48 dp.
+- Minimum hit area **64 dp** on anything tappable, not the platform's 48 dp. _Measured:_ every
+  switch in the panel dumps as exactly 64.0 × 64.0 dp. **The tab strip does not hold to this** — its
+  tabs are 48 dp tall, Material's default, because `PrimaryScrollableTabRow` sizes them and nothing
+  overrides it. Known, not fixed, and it is the one thing on the wall a finger can miss.
 - Bulb circles **72 dp**.
-- Grid gutter 8 dp, tile corner radius 22 dp on the hero, 18 dp on medium, full round on bulbs.
-- _Measure on the tablet:_ the panel's width in dp, which is what decides whether four columns is
-  right. Four is a guess from a 10" portrait tablet and nothing more.
+- Grid gutter 8 dp, tile corner radius 22 dp on a half tile, 18 dp on a third, full round on bulbs.
+  The corner is derived from the span rather than passed beside it, so a tile's shape and its width
+  cannot disagree. On the wall the two radii are a real but subtle difference; nobody standing back
+  from it is going to name which is which.
+- **The panel is 753 dp wide.** 1600 px at 340 dpi, portrait, which is the orientation it hangs in.
+  This is what six columns is sized from. Landscape would be 1204 dp and the panel is not laid out
+  for it: **auto-rotate is off on the tablet** (`accelerometer_rotation` 0) rather than
+  `screenOrientation` being set in the manifest, so a settings reset puts landscape back and the
+  mosaic will be wrong until it is turned off again.
 
 ### The lights group
 
@@ -76,7 +117,7 @@ that stopped answering a week ago.
 The rule, which is a pure function and gets a test:
 
 - A bulb whose reading is stale — see "Stale" below — **leaves the group** and renders as its own
-  named medium tile with its own age.
+  named third-width tile with its own age.
 - The remaining bulbs stay in the group, and the group line quotes the **oldest** age among them.
 
 So the group is only ever a group of bulbs that agree about being fresh, and a stale one is a tile
@@ -146,10 +187,18 @@ This is a pure function of the room sections. It gets a test.
 - Every tile colour is a Material role — `primaryContainer` / `onPrimaryContainer` for a tile that is
   on, `surfaceContainer` for off, `errorContainer` / `onErrorContainer` for not-updating. **No hex
   literals in the panel package.** A hardcoded colour is a tile that is unreadable in one of the two
-  themes, and the theme that breaks is the one nobody is looking at when they check.
-- _Confirm on the tablet:_ "follow the system" only ever changes if Android's dark theme is on a
-  sunrise/sunset schedule. If the tablet has it set to always-on or always-off, this choice is a
-  fixed theme picked once, and the other one is dead code nobody sees.
+  themes, and the theme that breaks is the one nobody is looking at when they check. Done in commit
+  2 and grep-clean.
+- `Off` and `Unknown` share `surfaceContainer`. There is no third neutral to give the second one, and
+  the difference between them is said in words on the status line, where it was always said. What
+  must not happen is `Unknown` borrowing the *on* colour and claiming a reading nobody has taken.
+- **Confirmed: the tablet's dark theme is on a real schedule, 19:00–07:00** (`mNightMode=0 (auto)`,
+  `customStart=19:00 customEnd=07:00`). So `darkColorScheme()` is not dead code and commit 4 is worth
+  doing. Forcing night mode on today shows the panel staying light, which is the expected state
+  until commit 4 lands: `MainActivity` still wraps a bare `MaterialTheme {}`.
+- **Samsung's blue light filter is on** (`settings get system blue_light_filter` → 1) and it tints
+  screencaps too, system UI included. Anything warm-looking in a screenshot of this panel is that
+  filter and not the palette. Judge colour with it in mind, or turn it off first.
 
 ## Compose APIs
 
@@ -157,28 +206,34 @@ The Compose BOM is already `2026.08.00`, so Material 3 Expressive is on the clas
 dependency is needed** — which is the reason this direction was picked over anything needing a card
 library.
 
-- `PrimaryScrollableTabRow` for the tab strip.
-- `LazyVerticalGrid` with `GridCells.Fixed(4)` and `GridItemSpan` for the mosaic; `FlowRow` for the
-  lights group.
-- `MaterialShapes` + shape morph on press for the bulb circles. This is polish and it is optional:
-  it must not sit between the finger and `onToggle`, and if it costs a frame on this tablet it comes
-  out.
+- `PrimaryScrollableTabRow` for the tab strip. Done, commit 1.
+- `LazyVerticalGrid` with `GridCells.Fixed(6)` and `GridItemSpan` for the mosaic. Done, commit 2.
+  `FlowRow` for the lights group is commit 3.
+- ~~`MaterialShapes` + shape morph on press for the bulb circles.~~ **Not available.**
+  `MaterialShapes` is not in material3's `classes.jar` on the 2026.08.00 BOM — it lives in a
+  separate artifact, which would be a new dependency and therefore an "ask first". Shapes are
+  `RoundedCornerShape` at the two documented radii instead, which is what the corner rule asked for
+  anyway. The open question about whether morphing costs a frame on this tablet is therefore moot,
+  not answered.
 - Motion is the expressive spring specs, not a duration and an easing curve.
 
-Expressive components are opt-in annotated and `app/build.gradle.kts` sets no `optIn` today, so the
-`compilerOptions` block gains one. **Confirm the exact annotation name against the BOM when it first
-fails to compile rather than trusting this line** — it is written from the release notes, not from a
-build.
+Expressive components are opt-in annotated, so `app/build.gradle.kts` gained one in its
+`compilerOptions` block. **The annotation is `androidx.compose.material3.ExperimentalMaterial3ExpressiveApi`**
+— confirmed by reading the class out of material3's `classes.jar` on this BOM, not taken from the
+release notes.
 
 ## What changes, and what does not
 
 Changes:
 
-- `PanelRooms.kt` — becomes the tab shell. Loses the `LazyColumn`.
-- Every tile composable — new shape, new span, colour roles instead of a bare `Card`.
-- `MainActivity.kt` — the colour schemes, and the idle timer that returns to Главная.
-- New: the favourites function, the tab-mark function, the stale-bulb split. All three are pure and
-  live next to `roomSections`.
+- `PanelRooms.kt` — becomes the tab shell. Loses the `LazyColumn`. ✅ commits 1 and 2.
+- Every tile composable — new shape, new span, colour roles instead of a bare `Card`. ✅ commit 2.
+- `MainActivity.kt` — the idle timer that returns to Главная ✅ commit 1; the colour schemes are
+  commit 4 and not done.
+- New: the favourites function ✅, the tab-mark function ✅, the stale-bulb split (commit 3, not
+  done). All three are pure and live next to `roomSections`.
+- New in commit 2, not foreseen when this was written: `TileLayout.kt` for the two decisions a
+  composable cannot be tested through, and `TileCard.kt` for the one card all five tiles draw.
 
 Does not change, and a diff touching these is out of scope:
 
@@ -210,35 +265,70 @@ What gets a test, each asserting the value returned and not which composable was
   90 seconds old stays; the group line quotes the oldest of those that stayed.
 - The tab list: Главная first, rooms in `roomSections` order, Без комнаты last and present even when
   every other section is empty.
+- The tile layout: the recuperator's span from whether it reports climate, and `mood` from `isOn`
+  and the error. Added in commit 2 — see section 2 for why a re-skin turned out to have things to
+  assert after all.
 
 What does not get a unit test, and is checked on the tablet instead: the grid spans, the shapes, the
 dark palette, the touch targets, and the idle reset actually firing.
+
+**Do the tablet check before calling a layout commit done, not after.** Commit 2 shipped its span
+table twice: once from a guessed panel width, and again from the measured one after the wall showed
+what the guess looked like. Two of the five checks above came back negative the first time. The
+tablet is the only thing that can fail them, and it takes about ten minutes:
+
+```bash
+source scripts/env.sh && ./gradlew installDebug
+```
+
+Then `adb shell uiautomator dump` for the hit areas — it reports Compose semantics as accessibility
+nodes, so switch bounds come out in px and divide by 2.125 for dp on this tablet. `adb shell cmd
+uimode night yes` forces the dark palette, and `auto` puts it back. The screen sleeps after 2
+minutes and locks behind a PIN; `adb shell input keyevent KEYCODE_WAKEUP` immediately before a
+`screencap` avoids capturing a black frame.
 
 `./gradlew test` and `ktlintCheck` green before push, as everywhere else.
 
 ## Open
 
-- The panel width in dp, and therefore whether four columns is right. Nobody has measured it.
-- Whether the tablet's dark theme is on a schedule at all — see "Theme".
 - Status strings are English today (`on`, `just now`, `not updating`) while room names arrive in
   Russian from the vendors. The mosaic does not change that, and it should not be changed quietly as
   part of this work; if the panel is to speak one language it is its own commit.
 - Whether the 2-minute idle reset is right, or whether it should be the screen's own dim timeout.
-  Two minutes is a guess and is a single constant.
+  Two minutes is a guess and is a single constant. The tablet's own screen timeout is 2 minutes as
+  well, so today the two fire together; that is a coincidence of settings, not a design.
 - The ×8 in "Stale". Tying it to each poll's own interval is right; eight of them is a guess, and the
   number that matters is how long a device can be quiet before somebody would want to know.
-- Whether shape morphing on press is affordable on this tablet.
+- **The tab strip's 48 dp tabs**, against the 64 dp this doc asks for everywhere else. Overriding
+  `PrimaryScrollableTabRow`'s tab height is the fix; it was not done in commit 2 because the tab
+  strip is commit 1's.
+- **A tile that is `on · never read` paints as confidently on.** `mood` is a function of `isOn` and
+  the error and nothing else, so staleness reaches the tab mark but not the tile's colour: Коридор's
+  tab is marked while both strips inside it look perfectly healthy. Whether staleness should reach
+  the paint is a real question and a spec change, not a bug in what was built.
+- The tablet is locked with a PIN and locks itself on screen-off. Nothing in the panel handles that
+  — the wall goes to a lock screen rather than to the panel, and the Domonap takeover's behaviour
+  over a locked screen is unverified. See `docs/domonap.md`.
+
+Answered since this was written, kept here so they are not re-asked: the panel width (753 dp, see
+"Tile sizes"), whether the dark theme is on a schedule (it is, 19:00–07:00, see "Theme"), and
+whether shape morphing is affordable (moot — `MaterialShapes` is not on this BOM, see "Compose
+APIs").
 
 ## The plan
 
-One branch, `feat/panel-mosaic-tabs`. Four commits, each a concern, each green on `./gradlew test`
-and `ktlintCheck` before the next one starts. The shell first because it is the part that can be
-wrong about *behaviour*; the skin after it, because a skin that is wrong is visible from the hallway.
+Four commits, each a concern, each green on `./gradlew test` and `ktlintCheck` before the next one
+starts. The shell first because it is the part that can be wrong about *behaviour*; the skin after
+it, because a skin that is wrong is visible from the hallway.
 
-No `AndroidManifest.xml` change, no new dependency, no new permission anywhere in this work. If one
+One branch per commit rather than the one branch this originally named: 1 shipped as
+`feat/panel-mosaic-tabs` (#11) and 2 as `feat/panel-expressive-tiles` (#12).
+
+No `AndroidManifest.xml` change, no new dependency, no new permission anywhere in this work. Held so
+far, including for the portrait lock — that is a device setting, not `screenOrientation`. If one
 turns out to be needed, that is an "ask first" and the branch stops until it is asked.
 
-### 1 · `feat(panel): tab shell`
+### 1 · `feat(panel): tab shell` — done, #11
 
 Navigation only. The tiles stay exactly as they are — full-width cards — so anything that breaks in
 this commit is the shell and not the drawing.
@@ -271,22 +361,61 @@ Tests, written first — `StalenessTest`, `PanelTabsTest`, `FavouritesTest`, `Id
 - The reset fires after the timeout, does not fire while touched, and restarts its clock on each
   touch.
 
-### 2 · `feat(panel): expressive tiles`
+### 2 · `feat(panel): expressive tiles` — done, #12
 
-Changed: `PanelRooms.kt` swaps the `LazyColumn` for `LazyVerticalGrid(GridCells.Fixed(4))` with the
+Changed: `PanelRooms.kt` swaps the `LazyColumn` for `LazyVerticalGrid(GridCells.Fixed(6))` with the
 spans from "Tile sizes"; all five tile composables get shapes, spans and colour roles in place of a
 bare `Card`; `app/build.gradle.kts` gains the Expressive opt-in in its existing `compilerOptions`
-block.
+block. `TileCard.kt` holds the one card every tile draws — five callers, which is what earns it —
+and maps `TileMood` to the colour roles.
 
-**This commit adds no test, and that is a statement rather than an omission.** It changes no
-behaviour — every `statusLine` still returns the same string, every callback still fires on the same
-gesture — so there is nothing to assert that is not a screenshot. The check that it stayed a re-skin
-is that the existing tile tests pass **untouched**: if one of them needs editing, the commit did more
-than it claimed and the edit is the bug, not the test.
+"A re-skin has nothing to test" was the first draft of this section and it is wrong. Two of the
+rules above are decisions with a right and a wrong answer, and a decision that only exists inside a
+`@Composable` is a decision no test can reach. So they come out of the composables the same way
+`statusLine` and `ageLabel` already have — pure, `internal`, tested first — and the composable is
+left doing nothing but drawing what they returned.
 
-Verified on the tablet instead: the four columns against the real width, the 64 dp hit areas, both
-palettes, and whether shape morphing on press costs a frame. If it does, it comes out here rather
-than being carried.
+New, in `TileLayout.kt`:
+
+- `fun span(tile: RecuperatorTileState): Int` — half the panel when it reports climate, a third when
+  it does not. The one span in the panel that is not a constant per type. It asks `climateLine`
+  rather than re-testing `temperature != null || humidity != null`, so the span and the line it
+  exists to hold cannot drift apart.
+- `fun mood(isOn: Boolean?, error: String?): TileMood` — `On`, `Off`, `Unknown`, `Failing`. The
+  composable maps a `TileMood` to a Material colour role and does no thinking of its own. Five
+  callers, so it is not an abstraction invented for one.
+
+`Failing` outranks everything: a tile whose poll failed is showing a value nobody has confirmed, and
+painting it as merely "on" is the panel asserting something it does not know. `Unknown` is not `Off`
+— 33 of the 116 recorded capabilities have never reported, and the tiles have always said "unknown"
+rather than "off" for them; the colours must not undo in paint what the strings were careful about.
+
+Tests, written first — `TileLayoutTest`, 6 cases:
+
+- A recuperator with a temperature is a half tile; with a humidity and no temperature, half; with
+  neither, a third.
+- `mood` is `Failing` whenever there is an error, whatever `isOn` says — including when `isOn` is
+  null and including when it is true.
+- `mood` is `Unknown` for a null `isOn` with no error, and never `Off`.
+
+Beyond those, the commit changes no behaviour, so **every existing test must pass untouched.** If one
+needs editing to go green, the production change did more than it claimed and the edit is the bug.
+It held: 203 tests, none edited.
+
+What stayed untestable was checked on the tablet, and the checks are the reason this section's
+numbers changed:
+
+| Check | Result |
+| --- | --- |
+| Columns against the real width | **Failed at four**, and the span table was rewritten. 753 dp, six columns, halves and thirds |
+| 64 dp hit areas | Every switch dumps as exactly 64.0 × 64.0 dp. The tab strip's tabs are 48 dp — see "Open" |
+| The shapes | 22 dp and 18 dp both applied; the difference is real but subtle from across a hallway |
+| Both palettes | Light only. The panel stays light under forced night mode, as expected until commit 4 |
+| Shape morph on press | Moot — `MaterialShapes` is not on this BOM |
+
+The four-column pass is worth recording rather than quietly fixing, because the mistake was not the
+number: it was writing a span table against a width nobody had measured and calling the result
+decided.
 
 ### 3 · `feat(panel): group the bulbs`
 
@@ -294,11 +423,19 @@ New: `BulbGroup.kt` — `bulbGroup(bulbs: List<BulbTileState>, now: Instant): Bu
 circles, the ones that broke out, and the oldest reading among those that stayed.
 
 Changed: `PanelRooms.kt` renders the group as a `FlowRow` of 72 dp circles under one line, and each
-broken-out bulb as a named medium tile.
+broken-out bulb as a named third-width tile. Until then the bulbs are third-width tiles, one per
+cell, three to a row — which is what commit 2 left them as and is why Главная is still fourteen rows
+of lamps.
 
 Tests, written first — `BulbGroupTest`: `Never` leaves the group; a bulb 3 min old leaves; one 90 s
 old stays; the group line quotes the **oldest** of those that stayed and not the freshest; a room
 with no bulbs yields no group rather than an empty row.
+
+Note before starting: nearly every bulb in the flat reads `on · never read` or `on · 20+ d ago`, so
+on today's data almost all of them are stale and would break out of the group into named tiles —
+which is the mile of scrolling this commit exists to remove. Check what the split actually does to
+Коридор before trusting the rule; the ×8 in "Stale" may be the thing that needs revisiting, not the
+split.
 
 ### 4 · `feat(panel): follow the system theme`
 
@@ -315,3 +452,7 @@ of which there should be none.
 green before anything visual moves. 3 after 2 because the lights group is a mosaic idea — it has
 nowhere to live until the grid exists. 4 last because it touches every colour the three commits
 before it introduced, and doing it earlier means doing it twice.
+
+The order held. What it did not buy, and nothing in it could have: 2 was still wrong about the grid
+until the grid was on the wall, because the number it was wrong about was a measurement and not a
+decision.
