@@ -168,6 +168,30 @@ should say so. It is simply not a health signal, and the two must not be the sam
 The AC has two readings and the light strip has two; both still print both ages, because on `ac-01`
 they are 81 days apart and one number for the pair would have to lie about the older.
 
+### The recuperators before the first poll
+
+Every other group heals in seconds. Yandex is one call every 15 s, so a poll that missed the Wi-Fi
+coming up is retried before anybody reaches the hallway. Tuya is five calls every **6 minutes**, and
+the recuperator tiles exist only once the inventory call has answered — so a tablet that rebooted
+into a network that was not up yet shows **one line of error where five tiles belong, for six
+minutes**. Seen on the wall on 2026-08-16: `Бризеры: not updating: Unable to resolve host
+"openapi.tuyaeu.com"`, with the Yandex tiles already back.
+
+So the panel remembers who they are. `KnownRecuperators` keeps the last successful inventory — **id,
+name, room, and nothing else** — in the same encrypted store as the credentials, because device ids
+identify the flat. On a cold start those become tiles with no values on them: "unknown · never read",
+no climate line, third-width, and the group stale until a refresh lands, which is what marks the tab
+and pulls them onto Главная.
+
+What is deliberately *not* remembered is any value. A switch position from before the reboot is not
+something the panel has read, and a tile printing it would be claiming a poll that never happened —
+the same rule as "Stale", one layer down: the panel may remember what exists, never what it said.
+
+A remembered tile is still tappable. The command needs an id and the re-read needs the device, and
+both survive the restart; a tile on the wall that swallowed the tap would be worse than no tile.
+
+A tablet with no usable keystore — restored backup, wiped key — remembers nothing and runs anyway.
+
 ## The tab shell
 
 **Главная** first, then the rooms. Rules, each of which exists because a wall panel is not a phone:

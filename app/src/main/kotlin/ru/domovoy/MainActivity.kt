@@ -28,6 +28,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
+import ru.domovoy.core.KnownRecuperators
 import ru.domovoy.core.TokenStore
 import ru.domovoy.integrations.domonap.domonapCalls
 import ru.domovoy.integrations.tuya.TuyaClient
@@ -88,6 +89,11 @@ class MainActivity : ComponentActivity() {
 private class PanelSecrets(
     val yandexToken: () -> String,
     val tuya: () -> TuyaCredentials,
+    /**
+     * Who the recuperators were on the last run. Out of the same store, and for the same reason it
+     * is encrypted: device ids identify the flat. See [KnownRecuperators].
+     */
+    val recuperators: KnownRecuperators,
 )
 
 /**
@@ -100,13 +106,15 @@ private class PanelSecrets(
  * written there later is not undone by the stale copy in the APK.
  */
 private fun secrets(context: Context): PanelSecrets {
-    val store =
-        runCatching { TokenStore(encryptedPrefs(context)) }.getOrElse { failure ->
+    val prefs =
+        runCatching { encryptedPrefs(context) }.getOrElse { failure ->
             // A keystore the tablet lost — a restored backup, a wiped key — must not take the
-            // panel down on a wall no-one is watching. Every tile group says this instead.
+            // panel down on a wall no-one is watching. Every tile group says this instead, and the
+            // panel comes up remembering nothing rather than not coming up.
             val reason = { error("secure storage unavailable: ${failure.message}") }
-            return PanelSecrets(yandexToken = reason, tuya = reason)
+            return PanelSecrets(yandexToken = reason, tuya = reason, recuperators = KnownRecuperators(null))
         }
+    val store = TokenStore(prefs)
     store.seedYandexToken(BuildConfig.YANDEX_OAUTH_TOKEN)
     store.seedTuyaCredentials(
         clientId = BuildConfig.TUYA_CLIENT_ID,
@@ -116,6 +124,7 @@ private fun secrets(context: Context): PanelSecrets {
     return PanelSecrets(
         yandexToken = store::yandexToken,
         tuya = { TuyaCredentials(store.tuyaClientId(), store.tuyaClientSecret(), store.tuyaUid()) },
+        recuperators = KnownRecuperators(prefs),
     )
 }
 
@@ -154,6 +163,10 @@ private fun Panel(secrets: PanelSecrets) {
                 // local.properties because device ids are apartment-identifying. Unset is a
                 // working panel — the recuperators simply show up unplaced.
                 rooms = recuperatorRooms(BuildConfig.TUYA_ROOMS),
+                // A Tuya refresh is five calls every 6 minutes, so a tablet that rebooted into a
+                // Wi-Fi that was not up yet would stand there with one line of error where five
+                // tiles belong. It puts up who it read last time instead, values blank.
+                known = secrets.recuperators,
             )
         }
     val tiles = poll.bulbs

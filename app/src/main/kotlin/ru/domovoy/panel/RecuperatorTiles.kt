@@ -4,6 +4,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import ru.domovoy.core.Device
+import ru.domovoy.core.KnownRecuperators
 import ru.domovoy.core.Reading
 import ru.domovoy.integrations.tuya.TuyaClient
 import java.time.Instant
@@ -87,16 +88,30 @@ data class RecuperatorPanelState(
  * Nothing here schedules: [TuyaPoll] does the five-call refresh and hands the results to [show].
  * A tap re-reads only the device it touched — a refresh is five calls against a metered allowance,
  * and repainting one tile has no business spending all five.
+ *
+ * It starts with the recuperators [remembered] from the last run rather than with nothing. Their
+ * tiles carry no values — every age is "never read" — and the first successful refresh replaces
+ * them. See [KnownRecuperators] for why this group, alone of the five, needs a memory.
  */
 class RecuperatorTiles(
     private val client: TuyaClient,
+    private val remembered: KnownRecuperators = KnownRecuperators(null),
 ) {
     private val mutableState = MutableStateFlow(RecuperatorPanelState())
     val state: StateFlow<RecuperatorPanelState> = mutableState.asStateFlow()
 
     // The last inventory, kept so a tap knows which device it is commanding and re-reading without
-    // the tile state having to carry a vendor model around.
+    // the tile state having to carry a vendor model around. Seeded from the memory, so a tile that
+    // is on the wall before the first poll is one a finger can still switch.
     private var known: Map<String, Device> = emptyMap()
+
+    init {
+        val last = remembered.remembered()
+        known = last.associateBy { it.id }
+        // No stamp: nothing has been read. The group is stale until a refresh lands, which is what
+        // marks the tab and pulls these tiles onto Главная — see docs/ui.md, "Stale".
+        mutableState.value = RecuperatorPanelState(tiles = last.map { it.toTile(error = null) })
+    }
 
     /**
      * What one refresh read, and when it read it. [failures] holds the devices whose own read
@@ -108,6 +123,9 @@ class RecuperatorTiles(
         polledAt: Instant,
     ) {
         known = devices.associateBy { it.id }
+        // Kept for the next cold start, so the wall is not empty while the first refresh of the day
+        // is still failing on a Wi-Fi that has not come up.
+        remembered.remember(devices)
         val previous = mutableState.value.tiles.associateBy { it.id }
         mutableState.value =
             RecuperatorPanelState(
