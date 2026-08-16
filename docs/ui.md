@@ -305,19 +305,35 @@ artifact to add for seven of them — and adding a dependency is an "ask first" 
 Material Symbols exported to vector XML cost nothing at build time and are `res/` files, which is
 neither a dependency nor a manifest change.
 
-| Tile | Glyph |
-| --- | --- |
-| Air conditioner | a snowflake — `ac_unit` |
-| Recuperator | a fan — `mode_fan`, falling back to `air` |
-| Curtain | `curtains` |
-| Light strip | `light` |
-| Bulb | `lightbulb` |
-| Домофон | `doorbell` |
-| Пылесос | `robot_2`, falling back to `cleaning_services` |
+| Tile | Glyph | Chosen over |
+| --- | --- | --- |
+| Air conditioner | `ac_unit` | `air`, `thermostat`, `hvac` |
+| Recuperator | `mode_fan` | `swap_vert`, `filter_alt`, `vent` |
+| Light strip | `wb_iridescent` | `horizontal_rule`, `linear_scale`, `light` |
+| Curtain | `vertical_shades` / `vertical_shades_closed` | `curtains`, `roller_shades`, `blinds`, `shade` |
+| Bulb | `lightbulb` | `light_mode`, `emoji_objects` |
+| Домофон | `doorbell` | — |
+| Пылесос | `robot_2`, falling back to `cleaning_services` | — |
 
-_Those names are from the Material Symbols set and are not all verified._ Pick the nearest glyph that
-exists, and record in this table which one was actually used — a name asserted here that turns out
-not to exist is how the next person spends an afternoon.
+**The first five were rendered from the live Material Symbols webfont before being chosen**, so those
+names exist and are the right artwork. The last two were not — they are still names off a list, and
+if either renders as its own spelled-out text that is the set saying it has no such glyph. Record
+here what was actually used.
+
+`wb_iridescent` over `horizontal_rule` because the plain rule is a minus sign: correct as a shape,
+carrying no light, and indistinguishable from a divider on a panel that has dividers.
+
+**The curtain's glyph follows its value.** It is the only tile whose icon carries state rather than
+labelling a type, and it can because Material Symbols ships the covering icons as open/closed pairs.
+The one curtain in the flat then says what it is doing from across the room instead of only in the
+status line.
+
+- `vertical_shades_closed` when the open percent is **0**, `vertical_shades` above it. A curtain 40 %
+  open is open; only a shut one is shut. _The threshold is a guess and is one constant_ — if a
+  curtain that has crept to 2 % reads as open on the wall and should not, this is the number.
+- **A null open percent takes the open glyph, not the closed one.** The closed glyph is a positive
+  claim that the curtain is shut, and the panel does not know. Same rule the strings have always
+  followed: unknown is not off, and the paint must not undo what the words were careful about.
 
 - **Outlined, 24 dp**, tinted with the tile's content colour so the glyph and the text agree by
   construction and cannot drift apart in one theme.
@@ -328,6 +344,33 @@ not to exist is how the next person spends an afternoon.
   28 lamps can be a row rather than fourteen rows.
 - `contentDescription = null` on every one of them. They are decorative: the name is right there, and
   a screen reader announcing "lightbulb Лампа в коридоре" says the noun twice.
+
+## Sliders
+
+Three tiles have one: the air conditioner's temperature, the curtain's position, the light strip's
+brightness. All three are Material's `Slider` today, at its default weight — a 16 dp track and a tall
+handle — and on a 376 dp tile that control is the loudest thing on it, louder than the value it sets.
+
+**Slim: a 6 dp fully rounded track and no visible handle.** The filled portion is the value. It reads
+as a reading with a range behind it rather than as a control demanding to be operated, which is what
+a wall panel wants — the number is the point and the slider is how it is changed, not the other way
+round.
+
+- Built with Material 3's `Slider` and its slot overrides — a custom `track` at 6 dp and a `thumb`
+  that renders nothing. Not a hand-rolled draggable: the slot version keeps the drag behaviour, the
+  value semantics and the accessibility that a `Box` with a `pointerInput` would silently drop.
+- **The touch area stays 64 dp tall** whatever the track looks like. A 6 dp visual is not a 6 dp
+  target, and this is the wall panel's rule that overrides the aesthetic one.
+- The filled portion takes the tile's domain colour, the rest a low-emphasis neutral. Same two axes
+  as everything else, so a climate slider and a light slider do not come out the same colour.
+- The dragged value stays local and commits on `onValueChangeFinished`, exactly as `AcTile` and
+  `CurtainTile` already do — the tile behind it only changes on the next poll, and binding straight
+  to it drags the handle back out from under the finger.
+
+_Accepted with its cost:_ a slider with no handle does not announce that it can be dragged, and
+nobody standing at a wall gets a tooltip. The three tiles that have one are the three whose status
+line already prints a number and a unit, which is the hint there is; whether that is enough is a
+thing to watch on the wall rather than to argue about here.
 
 ## Compose APIs
 
@@ -636,17 +679,26 @@ first". Checked on the tablet in both themes, and by grepping `panel/` for hex l
 there should still be none. **Turn the blue light filter off before judging any of it**; it is on,
 and it tints screencaps too.
 
-### 6 · `feat(panel): an icon per tile`
+### 6 · `feat(panel): an icon per tile, and a slimmer slider`
 
 The other half of what makes the wall read as a panel rather than as paragraphs. See "Icons" for the
-glyph per tile, the sizes, and why they are `res/drawable` files rather than a dependency.
+glyph per tile, the sizes, and why they are `res/drawable` files rather than a dependency, and
+"Sliders" for the 6 dp track.
 
-New: seven vector drawables in `app/src/main/res/drawable/`. Changed: the five tile composables and
-the bulb circles.
+New: eight vector drawables in `app/src/main/res/drawable/` — seven tiles and the curtain's second
+state. Changed: the five tile composables and the bulb circles.
 
-No test — a drawable is not logic and there is nothing here a pure function could hold. What this
-commit must not do is add a dependency: if `material-icons-extended` starts to look necessary, stop
-and ask rather than adding it.
+One test, because one of the eight is a decision rather than a picture: `curtainGlyph(openPercent:
+Double?)` in `TileLayout.kt`, returning open or closed. Written first — 0 is closed, 40 is open, 100
+is open, and **null is open**, because the closed glyph is a claim the panel cannot make. The other
+seven are a lookup from tile type to drawable and hold nothing a test could catch.
+
+The slim slider lands here too — the three tiles with one, per "Sliders". It is the same pass over
+the same five composables, and splitting the glyph off from the control on the same tile would mean
+opening each of them twice.
+
+What this commit must not do is add a dependency: if `material-icons-extended` starts to look
+necessary, stop and ask rather than adding it.
 
 After 5, deliberately. Icons take the tile's content colour, so drawing them before the palette
 exists means placing every glyph against the baseline violet and re-judging all seven once it
