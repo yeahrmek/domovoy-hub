@@ -5,20 +5,27 @@ import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
+import kotlinx.coroutines.channels.BufferOverflow.DROP_OLDEST
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
 import ru.domovoy.core.TokenStore
@@ -32,6 +39,7 @@ import ru.domovoy.panel.YandexPoll
 import ru.domovoy.panel.launcherTiles
 import ru.domovoy.panel.pollPausingForCalls
 import ru.domovoy.panel.recuperatorRooms
+import ru.domovoy.panel.resetAfterIdle
 import java.time.Instant
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
@@ -51,6 +59,13 @@ private val POLL_INTERVAL = 15.seconds
  * and a re-read. See docs/tuya.md.
  */
 private val TUYA_POLL_INTERVAL = 6.minutes
+
+/**
+ * How long the panel stays on the tab it was left on. A wall panel is walked up to by someone who
+ * did not leave it there, so after this much quiet it goes back to Главная. Two minutes is a guess
+ * and is a single constant; see docs/ui.md, "Open".
+ */
+private val IDLE_RESET = 2.minutes
 
 /** One store for the panel, not one per vendor: every vendor's credentials land in this file. */
 private const val SECRETS_FILE = "domovoy-secrets"
@@ -154,6 +169,16 @@ private fun Panel(secrets: PanelSecrets) {
     var now by remember { mutableStateOf(Instant.now()) }
     val scope = rememberCoroutineScope()
 
+    // Which tab is showing, and every touch that says somebody is still standing there. The flow
+    // is what the idle reset watches; DROP_OLDEST because a touch arriving while one is still
+    // queued says nothing new — both mean a hand is on the panel — and the pointer handler must
+    // not suspend to say it.
+    var selectedTab by remember { mutableIntStateOf(0) }
+    val touches = remember { MutableSharedFlow<Unit>(extraBufferCapacity = 1, onBufferOverflow = DROP_OLDEST) }
+    LaunchedEffect(Unit) {
+        resetAfterIdle(touches, IDLE_RESET) { selectedTab = 0 }
+    }
+
     // The launcher tiles hold no vendor state, so there is nothing here to poll — but whether an
     // app is installed *can* change under the panel, and a tablet that has to be restarted before
     // a freshly installed Mi Home stops reading "not installed" is a wall that lies. Keyed on
@@ -195,6 +220,26 @@ private fun Panel(secrets: PanelSecrets) {
         bulbs = state,
         launchers = launchers,
         now = now,
+        // Both intervals, because staleness is judged against the poll that produced the reading:
+        // 15 s for the Yandex groups and 6 minutes for the recuperators. One number for both would
+        // either call every recuperator stale or never call a bulb stale.
+        yandexInterval = POLL_INTERVAL,
+        tuyaInterval = TUYA_POLL_INTERVAL,
+        selected = selectedTab,
+        // Every touch on the panel, seen on the way down and not consumed: this watches the
+        // gestures, it does not take them. A tap that reached a switch must still flip it. Over the
+        // whole screen rather than the tiles, so a touch on the empty half of a short room still
+        // says somebody is standing there.
+        modifier =
+        Modifier.fillMaxSize().pointerInput(Unit) {
+            awaitPointerEventScope {
+                while (true) {
+                    awaitPointerEvent(PointerEventPass.Initial)
+                    touches.tryEmit(Unit)
+                }
+            }
+        },
+        onSelectTab = { tab -> selectedTab = tab },
         onToggleAc = { id -> scope.launch { acs.toggle(id) } },
         onSetTemperature = { id, celsius -> scope.launch { acs.setTemperature(id, celsius) } },
         onSetOpen = { id, percent -> scope.launch { curtains.setOpen(id, percent) } },
