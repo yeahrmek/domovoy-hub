@@ -4,7 +4,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
@@ -42,7 +41,7 @@ fun LightStripTile(
     onToggle: (String) -> Unit = {},
     onSetBrightness: (String, Double) -> Unit = { _, _ -> },
 ) {
-    Card(modifier = modifier.fillMaxWidth().padding(4.dp)) {
+    TileCard(mood = mood(tile.isOn, error), span = HALF_SPAN, modifier = modifier) {
         Column(modifier = Modifier.fillMaxWidth().padding(12.dp)) {
             Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Column(modifier = Modifier.weight(1f)) {
@@ -60,6 +59,7 @@ fun LightStripTile(
                 Switch(
                     checked = tile.isOn == true,
                     onCheckedChange = { onToggle(tile.id) },
+                    modifier = Modifier.touchable(),
                 )
             }
             val bounds = tile.bounds
@@ -73,6 +73,7 @@ fun LightStripTile(
                     onValueChange = { dragged = it },
                     valueRange = bounds.min.toFloat()..bounds.max.toFloat(),
                     onValueChangeFinished = { onSetBrightness(tile.id, dragged.toDouble()) },
+                    modifier = Modifier.touchable(),
                 )
             }
         }

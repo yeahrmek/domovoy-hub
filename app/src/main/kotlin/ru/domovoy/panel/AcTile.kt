@@ -4,7 +4,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
@@ -37,11 +36,18 @@ fun AcTile(
     onToggle: (String) -> Unit = {},
     onSetTemperature: (String, Double) -> Unit = { _, _ -> },
 ) {
-    Card(modifier = modifier.fillMaxWidth().padding(4.dp)) {
+    TileCard(mood = mood(tile.isOn, error), span = HALF_SPAN, modifier = modifier) {
         Column(modifier = Modifier.fillMaxWidth().padding(12.dp)) {
             Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(tile.name, style = MaterialTheme.typography.titleMedium)
+                    // The hero tile, and the target is the reason: it is what somebody walking past
+                    // reads without stopping, so it is set at display size rather than buried in
+                    // the status line, which keeps saying how old it is.
+                    Text(
+                        text = temperatureLabel(tile),
+                        style = MaterialTheme.typography.displaySmall,
+                    )
                     Text(
                         text = statusLine(tile, now, error),
                         style = MaterialTheme.typography.bodySmall,
@@ -50,6 +56,7 @@ fun AcTile(
                 Switch(
                     checked = tile.isOn == true,
                     onCheckedChange = { onToggle(tile.id) },
+                    modifier = Modifier.touchable(),
                 )
             }
             val bounds = tile.bounds
@@ -63,6 +70,7 @@ fun AcTile(
                     onValueChange = { dragged = it },
                     valueRange = bounds.min.toFloat()..bounds.max.toFloat(),
                     onValueChangeFinished = { onSetTemperature(tile.id, dragged.toDouble()) },
+                    modifier = Modifier.touchable(),
                 )
             }
         }

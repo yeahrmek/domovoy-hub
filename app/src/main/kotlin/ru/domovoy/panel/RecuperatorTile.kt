@@ -4,7 +4,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -23,6 +22,13 @@ import java.util.Locale
  * The error lives on the tile rather than on the group, because state costs one call per device —
  * a tile that says "not updating" here means *this* recuperator, and the one next to it may be
  * perfectly current.
+ *
+ * This is the only tile with both kinds of bad news, and the two are drawn differently on purpose:
+ * [RecuperatorTileState.error] is one device's and *fills* that tile, [groupError] is the inventory
+ * call and *outlines* all five. Filling all five for a group failure would say five recuperators
+ * broke; outlining the one that timed out would bury it among four that are fine.
+ *
+ * Its width is the one span in the panel decided by content — see [span].
  */
 @Composable
 fun RecuperatorTile(
@@ -32,7 +38,12 @@ fun RecuperatorTile(
     groupError: String? = null,
     onToggle: (String) -> Unit = {},
 ) {
-    Card(modifier = modifier.fillMaxWidth().padding(4.dp)) {
+    TileCard(
+        mood = mood(tile.isOn, tile.error),
+        span = span(tile),
+        modifier = modifier,
+        border = groupFailureBorder(groupError),
+    ) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(12.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -52,6 +63,7 @@ fun RecuperatorTile(
             Switch(
                 checked = tile.isOn == true,
                 onCheckedChange = { onToggle(tile.id) },
+                modifier = Modifier.touchable(),
             )
         }
     }

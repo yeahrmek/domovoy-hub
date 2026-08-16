@@ -2,9 +2,11 @@ package ru.domovoy.panel
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyListState
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyGridState
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.PrimaryScrollableTabRow
 import androidx.compose.material3.Tab
@@ -75,14 +77,14 @@ fun PanelRooms(
     // where the panel was heading anyway.
     val index = selected.coerceIn(0, tabs.lastIndex)
     val section = tabs[index].section
-    // Every tab shares the one list, so its scroll position has to be dropped when what is in the
-    // list changes — twice over, and both were seen on the tablet. Switching rooms without this
+    // Every tab shares the one grid, so its scroll position has to be dropped when what is in the
+    // grid changes — twice over, and both were seen on the tablet. Switching rooms without this
     // opens Спальня wherever Главная happened to be left, halfway down. And a panel that booted
     // with only its launcher tiles on Главная has 20 tiles inserted *above* them when the first
-    // poll lands; a keyed LazyColumn holds the launcher in view, so the wall comes up from a
+    // poll lands; a keyed grid holds the launcher in view, so the wall comes up from a
     // reboot showing the last two tiles of the list. Counting the tiles catches both, and it only
     // fires again if a device appears or disappears — which is a poll's news, and worth the top.
-    val scroll = remember(index, section.tiles()) { LazyListState() }
+    val scroll = remember(index, section.tiles()) { LazyGridState() }
     Column(modifier = modifier) {
         // No edge padding. The default is 52 dp at each end, which on a wall panel reads as a gap
         // in front of Главная and nothing after Без комнаты until the strip is scrolled to it —
@@ -100,11 +102,24 @@ fun PanelRooms(
                 )
             }
         }
-        LazyColumn(state = scroll) {
+        // The mosaic. Six columns against the 753 dp the wall tablet measured in portrait, which is
+        // the orientation it is mounted in; the number lives in one place, [COLUMNS].
+        // The span of a tile is a property of its type and not of the room it is in: anything with
+        // a slider takes half the panel, anything that is a name and one line takes a third, and
+        // the recuperator is the only one that asks its own content — see [span]. Halves and thirds
+        // rather than a spread of widths because both divide six: a row fills, and two tiles of the
+        // same kind beside each other come out the same size instead of one wrapping and the other
+        // not, which is what the first pass on the tablet looked like.
+        LazyVerticalGrid(columns = GridCells.Fixed(COLUMNS), state = scroll) {
             // Above everything, and only on Главная: the groups that failed before they ever had a
-            // tile, which have no tile of their own to say it on and no room to be marked in.
+            // tile, which have no tile of their own to say it on and no room to be marked in. Full
+            // width, because it is a sentence and not a tile.
             if (index == 0) {
-                items(groupFailures(acs, curtains, strips, recuperators, bulbs), key = { it }) { failure ->
+                items(
+                    groupFailures(acs, curtains, strips, recuperators, bulbs),
+                    key = { it },
+                    span = { GridItemSpan(maxLineSpan) },
+                ) { failure ->
                     Text(
                         text = failure,
                         style = MaterialTheme.typography.bodyMedium,
@@ -112,7 +127,7 @@ fun PanelRooms(
                     )
                 }
             }
-            items(section.acs, key = { "ac:${it.id}" }) { tile ->
+            items(section.acs, key = { "ac:${it.id}" }, span = { GridItemSpan(HALF_SPAN) }) { tile ->
                 AcTile(
                     tile = tile,
                     now = now,
@@ -121,10 +136,10 @@ fun PanelRooms(
                     onSetTemperature = onSetTemperature,
                 )
             }
-            items(section.curtains, key = { "curtain:${it.id}" }) { tile ->
+            items(section.curtains, key = { "curtain:${it.id}" }, span = { GridItemSpan(HALF_SPAN) }) { tile ->
                 CurtainTile(tile = tile, now = now, error = curtains.error, onSetOpen = onSetOpen)
             }
-            items(section.strips, key = { "strip:${it.id}" }) { tile ->
+            items(section.strips, key = { "strip:${it.id}" }, span = { GridItemSpan(HALF_SPAN) }) { tile ->
                 LightStripTile(
                     tile = tile,
                     now = now,
@@ -133,7 +148,9 @@ fun PanelRooms(
                     onSetBrightness = onSetBrightness,
                 )
             }
-            items(section.recuperators, key = { "recuperator:${it.id}" }) { tile ->
+            // The one span decided by content rather than by type: four columns when the device
+            // reports climate and has a second line to put there, two when it does not.
+            items(section.recuperators, key = { "recuperator:${it.id}" }, span = { GridItemSpan(span(it)) }) { tile ->
                 RecuperatorTile(
                     tile = tile,
                     now = now,
@@ -141,12 +158,18 @@ fun PanelRooms(
                     onToggle = onToggleRecuperator,
                 )
             }
-            items(section.bulbs, key = { "bulb:${it.id}" }) { tile ->
+            // A third of the panel each until the lights group lands and they become 72 dp circles —
+            // see docs/ui.md, "The lights group", which is the commit after this one.
+            items(section.bulbs, key = { "bulb:${it.id}" }, span = { GridItemSpan(THIRD_SPAN) }) { tile ->
                 BulbTile(tile = tile, now = now, error = bulbs.error, onToggle = onToggleBulb)
             }
             // Last in the room, and the only tiles here taking no `now`: they open another app
             // rather than showing anything the panel read, so there is no age on them to keep.
-            items(section.launchers, key = { "launcher:${it.packageName}" }) { tile ->
+            items(
+                section.launchers,
+                key = { "launcher:${it.packageName}" },
+                span = { GridItemSpan(THIRD_SPAN) },
+            ) { tile ->
                 LauncherTile(tile = tile, onOpen = onOpenApp)
             }
         }
