@@ -345,6 +345,34 @@ status line.
 - `contentDescription = null` on every one of them. They are decorative: the name is right there, and
   a screen reader announcing "lightbulb Лампа в коридоре" says the noun twice.
 
+### Adding or drawing a glyph
+
+A glyph here is an Android vector drawable — XML with path data, not an image file — in
+`app/src/main/res/drawable/`, read by `painterResource` and tinted at the call site.
+
+```xml
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp" android:height="24dp"
+    android:viewportWidth="24" android:viewportHeight="24">
+    <path android:fillColor="#FF000000" android:pathData="…"/>
+</vector>
+```
+
+Three ways to get the path data, in order of how much they fight back:
+
+1. **Take the Material Symbol and modify it.** Download the SVG from fonts.google.com, edit the
+   shape, convert. This is the route to prefer: the grid, the stroke weight and the terminals come
+   with it.
+2. **Draw it and export SVG**, then convert — Android Studio's `File > New > Vector Asset > Local
+   file`, or `npx svg2vectordrawable in.svg -o out.xml` without it.
+3. **Hand-write the path.** Fine for rods and rectangles, painful for curves.
+
+The constraint that matters is not technical. **One hand-drawn glyph among the others looks wrong**,
+in a way that is hard to name and easy to see: Material Symbols outlined at weight 400 sits on a 24
+grid with a ~2 dp stroke and consistent terminals, and a glyph that misses any of those is the one
+tile on the wall that looks like it came from somewhere else. Match the set or replace all of it —
+not one.
+
 ## Sliders
 
 Three tiles have one: the air conditioner's temperature, the curtain's position, the light strip's
