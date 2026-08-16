@@ -192,6 +192,21 @@ both survive the restart; a tile on the wall that swallowed the tap would be wor
 
 A tablet with no usable keystore — restored backup, wiped key — remembers nothing and runs anyway.
 
+**Seen on the wall, 2026-08-16.** The six-minute hole was real and reproduced twice: a cold start at
+21:20 stood on `Бризеры: not updating: Unable to resolve host "openapi.tuyaeu.com"` with every
+Yandex tile already up, and cleared by itself at the next poll — the host resolved fine from the
+shell throughout, so it is the poll's cadence and not the network. After one successful inventory,
+a restart shows all five recuperators inside a second: named, in their rooms, third-width,
+"unknown · never read · unknown · never read", every room tab marked, and the whole set replaced by
+real values 0.4 s later when the poll landed. `Бризер зал` then goes back to half-width with its
+climate line, and the marks clear.
+
+Two things that fall out of it, neither fixed: a placeholder has no climate line, so it is
+third-width and its status line *wraps* onto two lines there — and "Бризер данина комната" wraps its
+name too, so that one tile stands taller than the four beside it for the second it is up. And on a
+tablet whose first read of the day fails, the tabs of five rooms are marked at once, which is the
+tab mark doing its job and looks alarming anyway.
+
 ## The tab shell
 
 **Главная** first, then the rooms. Rules, each of which exists because a wall panel is not a phone:
