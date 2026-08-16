@@ -85,6 +85,13 @@ android {
 kotlin {
     compilerOptions {
         jvmTarget.set(JvmTarget.JVM_17)
+        // Material 3 Expressive is annotated experimental on the 2026.08.00 BOM, and the mosaic is
+        // built on it. Opted in here rather than with an annotation per composable: the panel is
+        // the only Compose in the module and every tile in it is expressive, so the alternative is
+        // the same annotation on every file. The name is off the artifact — the class is
+        // androidx/compose/material3/ExperimentalMaterial3ExpressiveApi in material3's classes.jar
+        // — and not off the release notes.
+        optIn.add("androidx.compose.material3.ExperimentalMaterial3ExpressiveApi")
     }
 }
 

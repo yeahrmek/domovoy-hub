@@ -1,10 +1,8 @@
 package ru.domovoy.panel
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -30,12 +28,14 @@ fun LauncherTile(
     modifier: Modifier = Modifier,
     onOpen: (String) -> Unit = {},
 ) {
-    Card(
-        modifier =
-        modifier
-            .fillMaxWidth()
-            .padding(4.dp)
-            .clickable(enabled = tile.openable) { onOpen(tile.packageName) },
+    // Nothing is read here, so there is no on/off to be in a mood about: the tile is the neutral
+    // one unless it cannot do its single job, and a missing app is the only bad news it has. The
+    // package name is the reason, which is what the line under the name prints too.
+    TileCard(
+        mood = mood(isOn = null, error = tile.packageName.takeUnless { tile.openable }),
+        span = THIRD_SPAN,
+        modifier = modifier.touchable(),
+        onClick = if (tile.openable) ({ onOpen(tile.packageName) }) else null,
     ) {
         Column(modifier = Modifier.fillMaxWidth().padding(12.dp)) {
             Text(tile.name, style = MaterialTheme.typography.titleMedium)

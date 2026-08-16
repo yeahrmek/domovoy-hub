@@ -3,7 +3,6 @@ package ru.domovoy.panel
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
@@ -30,7 +29,14 @@ fun CurtainTile(
     error: String? = null,
     onSetOpen: (String, Double) -> Unit = { _, _ -> },
 ) {
-    Card(modifier = modifier.fillMaxWidth().padding(4.dp)) {
+    // The curtain has no switch to read a mood off, so its position is the mood: open at all is on,
+    // fully shut is off, and never reported is unknown — which is the same three answers the
+    // status line above it already gives, in the same order.
+    TileCard(
+        mood = mood(tile.openPercent?.let { it > 0 }, error),
+        span = HALF_SPAN,
+        modifier = modifier,
+    ) {
         Column(modifier = Modifier.fillMaxWidth().padding(12.dp)) {
             Text(tile.name, style = MaterialTheme.typography.titleMedium)
             Text(
@@ -47,6 +53,7 @@ fun CurtainTile(
                     onValueChange = { dragged = it },
                     valueRange = bounds.min.toFloat()..bounds.max.toFloat(),
                     onValueChangeFinished = { onSetOpen(tile.id, dragged.toDouble()) },
+                    modifier = Modifier.touchable(),
                 )
             }
         }

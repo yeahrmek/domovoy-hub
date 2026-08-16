@@ -4,7 +4,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -27,7 +26,7 @@ fun BulbTile(
     error: String? = null,
     onToggle: (String) -> Unit = {},
 ) {
-    Card(modifier = modifier.fillMaxWidth().padding(4.dp)) {
+    TileCard(mood = mood(tile.isOn, error), span = THIRD_SPAN, modifier = modifier) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(12.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -42,6 +41,7 @@ fun BulbTile(
             Switch(
                 checked = tile.isOn == true,
                 onCheckedChange = { onToggle(tile.id) },
+                modifier = Modifier.touchable(),
             )
         }
     }
