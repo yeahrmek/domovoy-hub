@@ -32,6 +32,12 @@ data class BulbPanelState(
     val tiles: List<BulbTileState> = emptyList(),
     /** Non-null when the last poll or toggle failed. [tiles] then hold the last known values. */
     val error: String? = null,
+    /**
+     * When the poll behind these tiles last succeeded, which is what makes the group stale — not
+     * [BulbTileState.lastUpdated], which is when the *bulb* last reported. Null until the first
+     * refresh lands. See [isStale] and docs/ui.md, "Stale".
+     */
+    val lastPolledAt: Instant? = null,
 )
 
 /**
@@ -48,11 +54,18 @@ class BulbTiles(
     private val mutableState = MutableStateFlow(BulbPanelState())
     val state: StateFlow<BulbPanelState> = mutableState.asStateFlow()
 
-    /** What one poll read. Every device in the house arrives; the bulbs are picked out here. */
-    fun show(devices: List<Device>) {
+    /**
+     * What one poll read, and when it read it. Every device in the house arrives; the bulbs are
+     * picked out here.
+     */
+    fun show(
+        devices: List<Device>,
+        polledAt: Instant,
+    ) {
         mutableState.value =
             BulbPanelState(
                 tiles = devices.filter { it.kind == DeviceKind.Bulb }.map(Device::toTile),
+                lastPolledAt = polledAt,
             )
     }
 

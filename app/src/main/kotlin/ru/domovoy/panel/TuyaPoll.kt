@@ -1,6 +1,7 @@
 package ru.domovoy.panel
 
 import ru.domovoy.integrations.tuya.TuyaClient
+import java.time.Instant
 
 /**
  * The panel's one read of the flat's recuperators, and the most expensive thing it does.
@@ -23,9 +24,19 @@ class TuyaPoll(
      * keeps the `room = null` Tuya gave it and shows up in the panel's unplaced section.
      */
     private val rooms: Map<String, String> = emptyMap(),
+    /**
+     * The panel's clock, as on [YandexPoll]: the recuperators go stale when nothing has read them
+     * lately, and this is where the reading happens. Injectable so a test can say when.
+     */
+    private val now: () -> Instant = Instant::now,
 ) {
     val recuperators = RecuperatorTiles(client)
 
+    /**
+     * The inventory getting through is what stamps the group, whatever the five reads after it
+     * did: a device whose own call failed says so on its own tile, and the poll behind all five
+     * plainly ran. A failed inventory read nothing and stamps nothing.
+     */
     suspend fun refresh() {
         client
             .devices()
@@ -48,6 +59,7 @@ class TuyaPoll(
                         .mapNotNull { (device, result) ->
                             result.exceptionOrNull()?.let { device.id to it.describe() }
                         }.toMap(),
+                    polledAt = now(),
                 )
             }
     }

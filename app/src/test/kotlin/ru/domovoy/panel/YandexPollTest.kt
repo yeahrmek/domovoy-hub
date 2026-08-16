@@ -17,6 +17,7 @@ import org.junit.jupiter.api.Test
 import ru.domovoy.integrations.yandex.YandexClient
 import java.time.Instant
 import kotlin.test.assertEquals
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
@@ -110,6 +111,35 @@ class YandexPollTest {
         assertEquals(
             "on · never read · 26% · never read · not updating: ${strips.error}",
             statusLine(strips.tiles.single { it.id == "light-strip-01" }, now, strips.error),
+        )
+    }
+
+    @Test
+    fun `a refresh that succeeded stamps when the panel last read the house, and a failed one does not`() = runTest {
+        // The one fact the panel has no other way of holding: not when a device last reported —
+        // that is on every tile already — but when *we* last managed to read it. It is the poll's
+        // own, so the poll is what stamps it.
+        server.enqueue(MockResponse(body = fixture()))
+        server.enqueue(MockResponse(code = 500, body = "boom"))
+        var clock = Instant.ofEpochSecond(1_786_700_000)
+        val poll = YandexPoll(client(), now = { clock })
+
+        assertNull(poll.bulbs.state.value.lastPolledAt, "nothing has been read yet")
+        poll.refresh()
+        val read = clock
+        clock = clock.plusSeconds(60)
+        poll.refresh()
+
+        // One call is the whole house, so one stamp reaches all four groups — and the failure a
+        // minute later moves none of them: a refresh that failed read nothing.
+        assertEquals(
+            listOf(read, read, read, read),
+            listOf(
+                poll.bulbs.state.value.lastPolledAt,
+                poll.curtains.state.value.lastPolledAt,
+                poll.acs.state.value.lastPolledAt,
+                poll.strips.state.value.lastPolledAt,
+            ),
         )
     }
 

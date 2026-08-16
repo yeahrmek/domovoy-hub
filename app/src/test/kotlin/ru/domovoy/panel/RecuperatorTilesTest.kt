@@ -315,6 +315,41 @@ class RecuperatorTilesTest {
     }
 
     @Test
+    fun `a refresh that read the inventory stamps when the panel last read, and a failed one does not`() = runTest {
+        // The recuperators are on their own poll and their own timer, so they carry their own
+        // stamp: 6 minutes between reads is healthy here and long dead on the Yandex groups.
+        enqueueRefresh()
+        server.enqueue(MockResponse(code = 500, body = "boom"))
+        var clock = Instant.ofEpochSecond(1_786_818_000)
+        val poll = TuyaPoll(client(), now = { clock })
+
+        assertNull(poll.recuperators.state.value.lastPolledAt, "nothing has been read yet")
+        poll.refresh()
+        val read = clock
+        clock = clock.plusSeconds(600)
+        poll.refresh()
+
+        assertEquals(read, poll.recuperators.state.value.lastPolledAt)
+    }
+
+    @Test
+    fun `one device's read failing still stamps the group, because the poll itself ran`() = runTest {
+        // The inventory answered and four devices read fine. What failed is one tile's own call,
+        // which is on that tile — the group has not stopped being polled and must not say it has.
+        enqueueToken()
+        server.enqueue(MockResponse(body = fixture("devices.json")))
+        server.enqueue(MockResponse(code = 500, body = "boom"))
+        repeat(4) { server.enqueue(MockResponse(body = fixture("shadow_properties.json"))) }
+        val polledAt = Instant.ofEpochSecond(1_786_818_000)
+        val poll = TuyaPoll(client(), now = { polledAt })
+
+        poll.refresh()
+
+        assertEquals(polledAt, poll.recuperators.state.value.lastPolledAt)
+        assertNotNull(poll.recuperators.state.value.tiles.single { it.id == "xfj-01" }.error)
+    }
+
+    @Test
     fun `a panel with no credentials stored says so instead of standing there empty`() = runTest {
         val poll = TuyaPoll(client(credentials = { TuyaCredentials("", "", "") }))
 

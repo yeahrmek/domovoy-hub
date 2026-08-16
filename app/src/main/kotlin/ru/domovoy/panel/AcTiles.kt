@@ -8,6 +8,7 @@ import ru.domovoy.core.Device
 import ru.domovoy.core.DeviceKind
 import ru.domovoy.core.Reading
 import ru.domovoy.integrations.yandex.YandexClient
+import java.time.Instant
 
 /** The instance of the air conditioner's `range` capability: the temperature it is set to. */
 private const val TEMPERATURE = "temperature"
@@ -40,6 +41,8 @@ data class AcPanelState(
     val tiles: List<AcTileState> = emptyList(),
     /** Non-null when the last poll, toggle or set failed. [tiles] then hold the last known values. */
     val error: String? = null,
+    /** When the poll behind these tiles last succeeded; null until the first one lands. */
+    val lastPolledAt: Instant? = null,
 )
 
 /**
@@ -60,11 +63,18 @@ class AcTiles(
     private val mutableState = MutableStateFlow(AcPanelState())
     val state: StateFlow<AcPanelState> = mutableState.asStateFlow()
 
-    /** What one poll read. Every device in the house arrives; the acs are picked out here. */
-    fun show(devices: List<Device>) {
+    /**
+     * What one poll read, and when it read it. Every device in the house arrives; the acs are
+     * picked out here.
+     */
+    fun show(
+        devices: List<Device>,
+        polledAt: Instant,
+    ) {
         mutableState.value =
             AcPanelState(
                 tiles = devices.filter { it.kind == DeviceKind.AirConditioner }.map(Device::toTile),
+                lastPolledAt = polledAt,
             )
     }
 

@@ -42,6 +42,24 @@ data class GroupErrors(
 )
 
 /**
+ * When each polled group's refresh last succeeded, `null` until the first one lands.
+ *
+ * Named per group for the same reason [GroupErrors] is, and it is the same five groups: what a
+ * lookup by name would allow is a group quietly missing from the map, which reads as "polled just
+ * now" and is a room that never says it has gone quiet.
+ *
+ * The four Yandex groups are fed by one `/v1.0/user/info` call and so carry the same instant; the
+ * recuperators are their own call on their own timer and do not.
+ */
+data class GroupPolls(
+    val acs: Instant?,
+    val curtains: Instant?,
+    val strips: Instant?,
+    val recuperators: Instant?,
+    val bulbs: Instant?,
+)
+
+/**
  * The tab strip: Главная, then one tab per section exactly as [roomSections] ordered them, then the
  * roomless one last.
  *
@@ -54,6 +72,7 @@ data class GroupErrors(
 fun panelTabs(
     sections: List<RoomSection>,
     errors: GroupErrors,
+    polls: GroupPolls,
     now: Instant,
     yandex: Duration,
     tuya: Duration,
@@ -61,39 +80,36 @@ fun panelTabs(
     val unplaced = sections.firstOrNull { it.room == null } ?: RoomSection(room = null)
     return buildList {
         // Главная carries no mark of its own: what a mark would point at is already on it.
-        add(PanelTab(HOME, favourites(sections, errors, now, yandex, tuya), marked = false))
+        add(PanelTab(HOME, favourites(sections, errors, polls, now, yandex, tuya), marked = false))
         sections.filter { it.room != null }.forEach { section ->
-            add(PanelTab(checkNotNull(section.room), section, marked(section, errors, now, yandex, tuya)))
+            add(PanelTab(checkNotNull(section.room), section, marked(section, errors, polls, now, yandex, tuya)))
         }
-        add(PanelTab(UNPLACED, unplaced, marked(unplaced, errors, now, yandex, tuya)))
+        add(PanelTab(UNPLACED, unplaced, marked(unplaced, errors, polls, now, yandex, tuya)))
     }
 }
 
 /**
- * When a room's tab carries bad news: its group's poll failed, or every reading in it is stale.
+ * When a room's tab carries bad news: a group it holds tiles of has stopped updating — the call
+ * failed, or nothing has read it in eight intervals — or one of its recuperators failed on its own.
  *
- * Every reading rather than any one of them, because one bulb that stopped answering is that
- * bulb's news — it is pulled onto Главная by [favourites] and says so on its own tile. The mark is
- * for a room that has gone quiet as a whole.
+ * Any of its groups rather than all of them, because a room holding a bulb and a recuperator is
+ * fed by two different calls on two different timers: either one going quiet is a room showing
+ * values nobody is confirming, and the tab is the only place that says so from Главная.
  *
- * A room with nothing to age is never marked: the коридор holding only the интерком's launcher tile
- * would otherwise satisfy "every reading is stale" with no readings at all.
+ * A room with nothing polled in it is never marked, and the check is which tiles it holds: the
+ * коридор with only the интерком's launcher tile has no group behind it to have stopped, and
+ * marking it would put a warning on every panel — including before the first refresh lands.
  */
 private fun marked(
     section: RoomSection,
     errors: GroupErrors,
+    polls: GroupPolls,
     now: Instant,
     yandex: Duration,
     tuya: Duration,
-): Boolean {
-    val failed =
-        (section.acs.isNotEmpty() && errors.acs != null) ||
-            (section.curtains.isNotEmpty() && errors.curtains != null) ||
-            (section.strips.isNotEmpty() && errors.strips != null) ||
-            (section.bulbs.isNotEmpty() && errors.bulbs != null) ||
-            (section.recuperators.isNotEmpty() && errors.recuperators != null) ||
-            section.recuperators.any { it.error != null }
-    if (failed) return true
-    val ages = readings(section, yandex, tuya)
-    return ages.isNotEmpty() && ages.all { (reading, interval) -> isStale(reading, now, interval) }
-}
+): Boolean = (section.acs.isNotEmpty() && notUpdating(errors.acs, polls.acs, now, yandex)) ||
+    (section.curtains.isNotEmpty() && notUpdating(errors.curtains, polls.curtains, now, yandex)) ||
+    (section.strips.isNotEmpty() && notUpdating(errors.strips, polls.strips, now, yandex)) ||
+    (section.bulbs.isNotEmpty() && notUpdating(errors.bulbs, polls.bulbs, now, yandex)) ||
+    (section.recuperators.isNotEmpty() && notUpdating(errors.recuperators, polls.recuperators, now, tuya)) ||
+    section.recuperators.any { it.error != null }

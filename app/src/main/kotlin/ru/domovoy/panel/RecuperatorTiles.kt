@@ -6,6 +6,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import ru.domovoy.core.Device
 import ru.domovoy.core.Reading
 import ru.domovoy.integrations.tuya.TuyaClient
+import java.time.Instant
 
 /**
  * A fan speed as the recuperator reports it — three separate booleans, `speed_one` / `speed_two` /
@@ -72,6 +73,12 @@ data class RecuperatorPanelState(
     val tiles: List<RecuperatorTileState> = emptyList(),
     /** Non-null when the inventory call failed. [tiles] then hold the last known values. */
     val error: String? = null,
+    /**
+     * When the refresh behind these tiles last got through, which is what makes the group stale.
+     * Null until the first one lands. A single device's read failing does not move it — that is
+     * [RecuperatorTileState.error]'s news, and the poll itself ran. See docs/ui.md, "Stale".
+     */
+    val lastPolledAt: Instant? = null,
 )
 
 /**
@@ -92,12 +99,13 @@ class RecuperatorTiles(
     private var known: Map<String, Device> = emptyMap()
 
     /**
-     * What one refresh read. [failures] holds the devices whose own read failed, by id: those
-     * tiles keep the values they last had and say why they are not moving.
+     * What one refresh read, and when it read it. [failures] holds the devices whose own read
+     * failed, by id: those tiles keep the values they last had and say why they are not moving.
      */
     fun show(
         devices: List<Device>,
         failures: Map<String, String>,
+        polledAt: Instant,
     ) {
         known = devices.associateBy { it.id }
         val previous = mutableState.value.tiles.associateBy { it.id }
@@ -115,6 +123,7 @@ class RecuperatorTiles(
                         device.toTile(error = null)
                     }
                 },
+                lastPolledAt = polledAt,
             )
     }
 
