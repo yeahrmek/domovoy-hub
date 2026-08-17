@@ -4,7 +4,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -39,7 +38,9 @@ fun CurtainTile(
         modifier = modifier,
     ) {
         Column(modifier = Modifier.fillMaxWidth().padding(12.dp)) {
-            Text(tile.name, style = MaterialTheme.typography.titleMedium)
+            // The one glyph on the wall that carries state rather than labelling a type: the flat's
+            // curtain says what it is doing from across the room. See [curtainGlyph].
+            TileHeading(glyph = glyph(tile), name = tile.name, span = HALF_SPAN)
             Text(
                 text = statusLine(tile, now, error),
                 style = MaterialTheme.typography.bodySmall,
@@ -49,12 +50,12 @@ fun CurtainTile(
                 // The dragged position is local: the tile behind it only changes on the next poll,
                 // so binding the slider straight to it would drag the handle back under the finger.
                 var dragged by remember(tile.id) { mutableFloatStateOf(sliderStart(tile, bounds.min)) }
-                Slider(
+                SlimSlider(
                     value = dragged,
                     onValueChange = { dragged = it },
                     valueRange = bounds.min.toFloat()..bounds.max.toFloat(),
                     onValueChangeFinished = { onSetOpen(tile.id, dragged.toDouble()) },
-                    modifier = Modifier.touchable(),
+                    hue = hue(tile),
                 )
             }
         }

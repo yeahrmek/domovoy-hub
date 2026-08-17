@@ -2,7 +2,8 @@
 
 **Scope:** how the panel is laid out and drawn. Not what it reads — that is one doc per vendor.
 
-**Status: commits 1 and 2 built and merged (#11, #12); 3 and 4 not started.** What was a brief is
+**Status: commits 1 to 5 built and merged (#11, #12, #14, #15, #17); 6 built and on its branch;
+7 — the tab strip's touch height — is all that is left.** What was a brief is
 now half a record. Numbers that were guesses when this was written and have since been measured on
 the tablet say so and give the measurement; the ones still marked _measure on the tablet_ are numbers
 nobody has taken, and are not settled just because they are written down.
@@ -317,24 +318,31 @@ legible, and on a panel that is looked at on the way past, that is most of the l
 
 **As vector drawables in `app/src/main/res/drawable/`, not as a dependency.**
 `androidx.compose.material:material-icons-extended` carries the glyphs this needs, and it is a large
-artifact to add for seven of them — and adding a dependency is an "ask first" in CLAUDE.md. Seven
+artifact to add for eight of them — and adding a dependency is an "ask first" in CLAUDE.md. Eight
 Material Symbols exported to vector XML cost nothing at build time and are `res/` files, which is
-neither a dependency nor a manifest change.
+neither a dependency nor a manifest change. Held: commit 6 added no dependency, and `res/drawable/`
+is the whole of what it added outside `panel/`.
 
-| Tile | Glyph | Chosen over |
-| --- | --- | --- |
-| Air conditioner | `ac_unit` | `air`, `thermostat`, `hvac` |
-| Recuperator | `mode_fan` | `swap_vert`, `filter_alt`, `vent` |
-| Light strip | `wb_iridescent` | `horizontal_rule`, `linear_scale`, `light` |
-| Curtain | `vertical_shades` / `vertical_shades_closed` | `curtains`, `roller_shades`, `blinds`, `shade` |
-| Bulb | `lightbulb` | `light_mode`, `emoji_objects` |
-| Домофон | `doorbell` | — |
-| Пылесос | `robot_2`, falling back to `cleaning_services` | — |
+| Tile | Glyph | File | Chosen over |
+| --- | --- | --- | --- |
+| Air conditioner | `ac_unit` | `ic_ac_unit.xml` | `air`, `thermostat`, `hvac` |
+| Recuperator | `mode_fan` | `ic_mode_fan.xml` | `swap_vert`, `filter_alt`, `vent` |
+| Light strip | `wb_iridescent` | `ic_wb_iridescent.xml` | `horizontal_rule`, `linear_scale`, `light` |
+| Curtain | `vertical_shades` / `vertical_shades_closed` | `ic_vertical_shades.xml`, `ic_vertical_shades_closed.xml` | `curtains`, `roller_shades`, `blinds`, `shade` |
+| Bulb | `lightbulb` | `ic_lightbulb.xml` | `light_mode`, `emoji_objects` |
+| Домофон | `doorbell` | `ic_doorbell.xml` | — |
+| Пылесос | `robot_2` | `ic_robot_2.xml` | `cleaning_services`, which was the fallback and was not needed |
 
-**The first five were rendered from the live Material Symbols webfont before being chosen**, so those
-names exist and are the right artwork. The last two were not — they are still names off a list, and
-if either renders as its own spelled-out text that is the set saying it has no such glyph. Record
-here what was actually used.
+**All eight are Material Symbols that exist**, and the last two — the ones this doc had down as names
+off a list — were confirmed rather than assumed: `fonts.gstatic.com/s/i/short-term/release/`
+`materialsymbolsoutlined/<name>/default/24px.svg` answers **404 for a name the set does not have**
+(checked against a made-up one), and all nine candidates answered 200. So `robot_2` is real and
+`cleaning_services` was never needed. Every one of the eight was then seen on the wall — see commit 6.
+
+The path data is Google's, unmodified. The set draws on a 960 grid with a `viewBox` of
+`"0 -960 960 960"`, so each file carries the negative y offset as `<group android:translateY="960">`
+rather than as a rewritten path: the same numbers, moved into the viewport, and nothing to get wrong
+by hand.
 
 `wb_iridescent` over `horizontal_rule` because the plain rule is a minus sign: correct as a shape,
 carrying no light, and indistinguishable from a divider on a panel that has dividers.
@@ -346,7 +354,8 @@ status line.
 
 - `vertical_shades_closed` when the open percent is **0**, `vertical_shades` above it. A curtain 40 %
   open is open; only a shut one is shut. _The threshold is a guess and is one constant_ — if a
-  curtain that has crept to 2 % reads as open on the wall and should not, this is the number.
+  curtain that has crept to 2 % reads as open on the wall and should not, this is the number. It is
+  `curtainGlyph` in `TileLayout.kt`, and it is the one glyph of the eight with a test.
 - **A null open percent takes the open glyph, not the closed one.** The closed glyph is a positive
   claim that the curtain is shut, and the panel does not know. Same rule the strings have always
   followed: unknown is not off, and the paint must not undo what the words were careful about.
@@ -402,11 +411,28 @@ round.
 
 - Built with Material 3's `Slider` and its slot overrides — a custom `track` at 6 dp and a `thumb`
   that renders nothing. Not a hand-rolled draggable: the slot version keeps the drag behaviour, the
-  value semantics and the accessibility that a `Box` with a `pointerInput` would silently drop.
+  value semantics and the accessibility that a `Box` with a `pointerInput` would silently drop. An
+  empty thumb is safe rather than clever: the slider wraps each slot in a `Box` of its own and
+  measures that, so an empty one is a zero-size box and not a missing child. Both slots are annotated
+  `ExperimentalMaterial3Api` on this BOM, opted in on the one function rather than module-wide —
+  `build.gradle.kts` keeps the Expressive opt-in it already had and gained nothing.
 - **The touch area stays 64 dp tall** whatever the track looks like. A 6 dp visual is not a 6 dp
-  target, and this is the wall panel's rule that overrides the aesthetic one.
+  target, and this is the wall panel's rule that overrides the aesthetic one. It is the *track slot*
+  that is 64 dp, with the bar drawn centred inside it, because the slider's height is the taller of
+  its two slots and its drag handling covers exactly that — a `heightIn` on the outside would have
+  left the gesture on the 6 dp. _Measured:_ both sliders on Главная dump as **64.0 dp** tall, as
+  `android.widget.SeekBar`, which is also the value semantics surviving the override.
 - The filled portion takes the tile's domain colour, the rest a low-emphasis neutral. Same two axes
-  as everything else, so a climate slider and a light slider do not come out the same colour.
+  as everything else, so a climate slider and a light slider do not come out the same colour. The
+  *accent* of each family rather than its container — `primary`, `tertiary`, `secondary` — because the
+  container is what an on tile is already painted with, and a climate slider on a climate tile has to
+  be the blue that shows against pale blue rather than that same pale blue again.
+- The rest of the track is **`onSurfaceVariant` at 24 %, composited over whatever the tile is
+  wearing**, and that is the one number here that had to be worked out rather than picked.
+  `outlineVariant` was the obvious role for it and is **the same value as `secondaryContainer` in the
+  dark scheme** (`#3F4754`), so the track would have disappeared on exactly one tile — an open curtain
+  at night, which is the tile nobody has looked at. A neutral composited over the container cannot do
+  that. _The 24 % is a guess and is one constant._
 - The dragged value stays local and commits on `onValueChangeFinished`, exactly as `AcTile` and
   `CurtainTile` already do — the tile behind it only changes on the next poll, and binding straight
   to it drags the handle back out from under the finger.
@@ -484,9 +510,15 @@ What gets a test, each asserting the value returned and not which composable was
 - The tile layout: the recuperator's span from whether it reports climate, and `mood` from `isOn`
   and the error. Added in commit 2 — see section 2 for why a re-skin turned out to have things to
   assert after all.
+- The curtain's glyph, and only that one of the eight: 0 is closed, 40 and 100 are open, and **null
+  is open**. The other seven are a lookup from tile type to drawable and hold nothing a test could
+  catch. It asserts `R.drawable.*` ids directly — the generated `R` is on the unit test classpath, so
+  this needs no Compose and no Robolectric.
 
 What does not get a unit test, and is checked on the tablet instead: the grid spans, the shapes, the
-dark palette, the touch targets, and the idle reset actually firing.
+dark palette, the touch targets, the idle reset actually firing, and **whether a glyph draws at all** —
+a vector drawable with bad path data is not a build error and not a test failure, it is an empty box
+on the wall.
 
 **Do the tablet check before calling a layout commit done, not after.** Commit 2 shipped its span
 table twice: once from a guessed panel width, and again from the measured one after the wall showed
@@ -664,7 +696,7 @@ Tests, written first — `StalenessTest` rewritten, `PanelTabsTest` and `Favouri
   fine. This is the regression the commit exists for; it fails before the fix.
 - A recuperator with its own error still marks its room while the other four do not.
 
-### 4 · `feat(panel): group the bulbs`
+### 4 · `feat(panel): group the bulbs` — done, #15
 
 New: `BulbGroup.kt` — `bulbGroup(bulbs: List<BulbTileState>): BulbGroup`, returning the circles, the
 ones that broke out, how many are on, and the oldest `last_updated` among those that stayed.
@@ -777,7 +809,7 @@ capture side: `zsh` has `noclobber` on here, so `adb exec-out screencap -p > sho
 existing file **silently writes nothing** and the analysis then measures the previous shot. Three
 "the setting made no difference" results came from exactly that. Use `>|`.
 
-### 6 · `feat(panel): an icon per tile, and a slimmer slider`
+### 6 · `feat(panel): an icon per tile, and a slimmer slider` — built, on its branch
 
 The other half of what makes the wall read as a panel rather than as paragraphs. See "Icons" for the
 glyph per tile, the sizes, and why they are `res/drawable` files rather than a dependency, and
@@ -801,6 +833,49 @@ necessary, stop and ask rather than adding it.
 After 5, deliberately. Icons take the tile's content colour, so drawing them before the palette
 exists means placing every glyph against the baseline violet and re-judging all seven once it
 changes.
+
+Also new, in `panel/`: `glyph(...)` and `curtainGlyph(...)` in `TileLayout.kt` — one overload per tile
+state, as `hue` already has; `TileGlyph` and `TileHeading` in `TileCard.kt`, where the
+half-beside-third-above rule lives once and is taken from the tile's own span, so the recuperator
+gets whichever its width earns without being asked twice; and `SlimSlider.kt`, three callers.
+
+**Checked on the wall, 2026-08-17, both themes, and the filter was off for it** — the light surface
+composited as `#F7F9FF` and the dark one as `#111318`, both the scheme's own values to the byte, so
+nothing below is an un-tinted reconstruction and no arithmetic stands between the wall and this table.
+One observation to set beside "The filter cannot be turned off the way this doc said", and not a
+second measurement of it: at **19:38** the screen was untinted with `blue_light_filter` at 0 and
+`blue_light_filter_scheduled` at **1**, where that section recorded it ramping up on schedule at 19:00
+with the schedule key at 0. So the keys still say nothing about what is on the glass — this time in the
+other direction.
+
+| Check | Result |
+| --- | --- |
+| All eight glyphs draw | Every one of them, and none is the empty box a bad path renders as |
+| `doorbell`, `robot_2` — the two unverified names | Both real artwork on the tablet: a bell in a house and a two-eyed robot |
+| The curtain's pair | Visibly different at 24 dp — four tight slats shut, three gathered ones open |
+| Half beside, third above | `Кондиционер`/`Подсветка`/`Бризер`/`Шторы` beside the name, `Домофон`/`Пылесос` above it |
+| The bulb circles | 24 dp lamp centred in the 72 dp circle, on the circle's own content colour in both moods — an amber circle with a dark lamp, a `surfaceContainer` one with a light lamp |
+| Track height | 13 px = **6.1 dp**, both schemes |
+| Touch area | **64.0 dp** on both sliders, dumped as `SeekBar` |
+| Slider colours, light | Fill `#0561A2` = `primary` on the ac, `#865301` = `tertiary` on the strip; rest `#D1B9A2` and `#C2C6CD`, both the 24 % composite to the byte |
+| Slider colours, dark | Fill `#FFB863` = `tertiary`; rest `#7B5F33` and `#44484E`, again the composite to the byte |
+
+The `primary` fill was confirmed the way commit 5's roles were — against something else the scheme
+paints with the same role, here the light strip's checked `Switch`, which measures the same
+`#0561A2`. Two things through the same filter is a filter-independent check, and it was worth keeping
+even on a day the filter turned out to be off.
+
+**The open curtain needed a throwaway build to see**, and it is the one glyph the flat cannot show on
+demand: the curtain reads `0% open · 3 d ago`, so the wall only ever draws the closed one, and opening
+the flat's curtain for a screenshot is not a thing to do without asking. So `curtainGlyph` was locally
+forced to the open branch, installed, captured beside the closed one, and reverted — the shipped code
+is the reverted code and `TileLayout.kt`'s diff is additions only. What that check buys is the thing
+`./gradlew test` cannot: **a vector drawable with bad path data fails silently as an empty box**, and
+the open shades are 141 characters of path data nobody had rendered on this device.
+
+Still unseen, both for the same reason as before — the flat is not doing the thing that would show
+them: a **broken-out bulb tile** (every bulb has state today, so the glyph-above-the-name layout is
+proven on the launchers only) and a **third-width recuperator** (all five report climate).
 
 ### 7 · `fix(panel): the tab strip's touch height`
 

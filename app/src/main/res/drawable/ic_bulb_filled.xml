@@ -1,0 +1,42 @@
+<!-- Tabler "bulb", filled, 24 dp: the SVG from tabler/tabler-icons, path data unmodified.
+     MIT, (c) Paweł Kuna.
+
+     The lit half of the pair. Same 24 grid and same "0 0 24 24" viewBox as ic_bulb.xml, so this is
+     the second of the two drawables here that get none of the 960-grid group translate the seven
+     Material Symbols do — see that file, and docs/ui.md, "Icons".
+
+     Where the outline is one stroked construction, the filled variant is seven filled paths: each
+     ray is its own rounded shape and the glass is one more, which is how Tabler builds a filled
+     glyph and why there is no stroke on any of them. The svg carries fill="currentColor" at the
+     root rather than on the paths, so the fill lands on each of the seven here.
+
+     It is the shape and not only the hue that says a lamp is on — the tint changes with it, but the
+     blue light filter is on the wall permanently and warms everything, so the silhouette is what is
+     actually being read from four metres. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="#FF000000"
+        android:pathData="M4 11a1 1 0 0 1 .117 1.993l-.117 .007h-1a1 1 0 0 1 -.117 -1.993l.117 -.007h1z" />
+    <path
+        android:fillColor="#FF000000"
+        android:pathData="M12 2a1 1 0 0 1 .993 .883l.007 .117v1a1 1 0 0 1 -1.993 .117l-.007 -.117v-1a1 1 0 0 1 1 -1z" />
+    <path
+        android:fillColor="#FF000000"
+        android:pathData="M21 11a1 1 0 0 1 .117 1.993l-.117 .007h-1a1 1 0 0 1 -.117 -1.993l.117 -.007h1z" />
+    <path
+        android:fillColor="#FF000000"
+        android:pathData="M4.893 4.893a1 1 0 0 1 1.32 -.083l.094 .083l.7 .7a1 1 0 0 1 -1.32 1.497l-.094 -.083l-.7 -.7a1 1 0 0 1 0 -1.414z" />
+    <path
+        android:fillColor="#FF000000"
+        android:pathData="M17.693 4.893a1 1 0 0 1 1.497 1.32l-.083 .094l-.7 .7a1 1 0 0 1 -1.497 -1.32l.083 -.094l.7 -.7z" />
+    <path
+        android:fillColor="#FF000000"
+        android:pathData="M14 18a1 1 0 0 1 1 1a3 3 0 0 1 -6 0a1 1 0 0 1 .883 -.993l.117 -.007h4z" />
+    <path
+        android:fillColor="#FF000000"
+        android:pathData="M12 6a6 6 0 0 1 3.6 10.8a1 1 0 0 1 -.471 .192l-.129 .008h-6a1 1 0 0 1 -.6 -.2a6 6 0 0 1 3.6 -10.8z" />
+</vector>

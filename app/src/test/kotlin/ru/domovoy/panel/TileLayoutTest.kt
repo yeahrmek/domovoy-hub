@@ -1,6 +1,7 @@
 package ru.domovoy.panel
 
 import org.junit.jupiter.api.Test
+import ru.domovoy.R
 import ru.domovoy.core.Bounds
 import ru.domovoy.core.Reading
 import java.time.Instant
@@ -110,6 +111,47 @@ class TileLayoutTest {
         assertEquals(TileHue.Climate, hue(failing))
         // The launcher's failure is the app being gone, and it is not a hue either.
         assertEquals(TileHue.Neutral, hue(launcher(openable = false)))
+    }
+
+    @Test
+    fun `only a shut curtain gets the closed glyph`() {
+        // The one glyph on the wall that carries state rather than labelling a type. A curtain 40 %
+        // open is open; only a shut one is shut, and the threshold is this one comparison.
+        assertEquals(R.drawable.ic_vertical_shades_closed, curtainGlyph(0.0))
+        assertEquals(R.drawable.ic_vertical_shades, curtainGlyph(40.0))
+        assertEquals(R.drawable.ic_vertical_shades, curtainGlyph(100.0))
+    }
+
+    @Test
+    fun `a curtain the panel has no position for gets the open glyph, not the closed one`() {
+        // The closed glyph is a positive claim that the curtain is shut, and the panel does not
+        // know. Same rule the strings have always followed — unknown is not off — and the paint
+        // must not undo what the words were careful about.
+        assertEquals(R.drawable.ic_vertical_shades, curtainGlyph(null))
+    }
+
+    @Test
+    fun `a lit lamp is a filled bulb and an unlit one an outline`() {
+        // The second glyph that carries state rather than labelling a type, and the reason the bulb
+        // needs two drawables: the row has no containers left to colour, so being on has to be a
+        // shape. A filled silhouette against an outline is what survives the blue light filter, four
+        // metres, and whatever the dark scheme does to the amber at night.
+        assertEquals(R.drawable.ic_bulb_filled, bulbGlyph(true))
+        assertEquals(R.drawable.ic_bulb, bulbGlyph(false))
+    }
+
+    @Test
+    fun `a lamp the panel has no state for gets the outline, not the filled bulb`() {
+        // The filled bulb is a positive claim that the lamp is lit, and the panel does not know.
+        // Same rule curtainGlyph takes for its null, and for the same reason.
+        assertEquals(R.drawable.ic_bulb, bulbGlyph(null))
+    }
+
+    @Test
+    fun `a bulb tile's glyph follows the one thing that tile is for`() {
+        // A named bulb tile is the bulb the panel has no state for — bulbGroup breaks out exactly
+        // the null ones — so its glyph is the null answer, and it is the same answer asked once.
+        assertEquals(bulbGlyph(null), glyph(bulb(isOn = null)))
     }
 
     private fun recuperator(
