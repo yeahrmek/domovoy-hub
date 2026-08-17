@@ -33,7 +33,7 @@ fun BulbTile(
     error: String? = null,
     onToggle: (String) -> Unit = {},
 ) {
-    TileCard(mood = mood(tile.isOn, error), span = THIRD_SPAN, modifier = modifier) {
+    TileCard(hue = hue(tile), mood = mood(tile.isOn, error), span = THIRD_SPAN, modifier = modifier) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(12.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -120,7 +120,9 @@ private fun BulbCircle(
             contentDescription = "${tile.name} · ${power(tile.isOn)}"
         },
         shape = CircleShape,
-        colors = tileColors(mood(tile.isOn, error)),
+        // A circle is a tile: the same two axes, and a lit lamp is the same amber here as it is on
+        // the named tile a bulb the panel has no state for breaks out into.
+        colors = tileColors(hue(tile), mood(tile.isOn, error)),
     ) {}
 }
 

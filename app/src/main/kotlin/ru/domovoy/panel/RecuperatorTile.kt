@@ -39,6 +39,7 @@ fun RecuperatorTile(
     onToggle: (String) -> Unit = {},
 ) {
     TileCard(
+        hue = hue(tile),
         mood = mood(tile.isOn, tile.error),
         span = span(tile),
         modifier = modifier,

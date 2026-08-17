@@ -86,3 +86,41 @@ internal fun mood(
     isOn -> TileMood.On
     else -> TileMood.Off
 }
+
+/**
+ * What kind of thing a tile is, which is the other half of its colour. One colour for everything
+ * that is on makes a wall where the air conditioner and the bedroom lamp are the same object.
+ *
+ * Three families and no more. A fourth hue on a panel read from four metres is decoration rather
+ * than information, so everything that neither moves air nor makes light shares the quiet one.
+ */
+enum class TileHue {
+    /** Air conditioners and recuperators: the two things in the flat that move air. */
+    Climate,
+
+    /** Bulbs and light strips. */
+    Light,
+
+    /** Curtains and launchers — what is left, and deliberately the family without a colour. */
+    Neutral,
+}
+
+/**
+ * The hue of one tile, from its type and from nothing else.
+ *
+ * Six overloads rather than one function over a sealed type, because the tile states are six
+ * unrelated data classes and this is the whole of what they have in common. [isOn] is deliberately
+ * not consulted by any of them: a lamp that is off is still a lamp, and whether the hue is used at
+ * all is [mood]'s answer, not this one's. The composable maps the pair — see `tileColors`.
+ */
+internal fun hue(tile: AcTileState): TileHue = TileHue.Climate
+
+internal fun hue(tile: RecuperatorTileState): TileHue = TileHue.Climate
+
+internal fun hue(tile: BulbTileState): TileHue = TileHue.Light
+
+internal fun hue(tile: LightStripTileState): TileHue = TileHue.Light
+
+internal fun hue(tile: CurtainTileState): TileHue = TileHue.Neutral
+
+internal fun hue(tile: LauncherTileState): TileHue = TileHue.Neutral

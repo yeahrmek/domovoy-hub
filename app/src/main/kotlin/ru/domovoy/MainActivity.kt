@@ -5,6 +5,7 @@ import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -76,7 +77,10 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         val secrets = secrets(applicationContext)
         setContent {
-            MaterialTheme {
+            // The panel's own palette, and the system's own answer to which of the two. The tablet
+            // switches itself at 19:00 and back at 07:00, so this is the wall going dark for the
+            // night rather than a setting anybody touches. No dynamic colour: see [PanelTheme].
+            MaterialTheme(colorScheme = if (isSystemInDarkTheme()) panelDarkScheme else panelLightScheme) {
                 Surface {
                     Panel(secrets)
                 }

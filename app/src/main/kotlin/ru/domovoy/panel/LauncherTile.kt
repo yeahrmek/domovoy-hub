@@ -32,6 +32,7 @@ fun LauncherTile(
     // one unless it cannot do its single job, and a missing app is the only bad news it has. The
     // package name is the reason, which is what the line under the name prints too.
     TileCard(
+        hue = hue(tile),
         mood = mood(isOn = null, error = tile.packageName.takeUnless { tile.openable }),
         span = THIRD_SPAN,
         modifier = modifier.touchable(),

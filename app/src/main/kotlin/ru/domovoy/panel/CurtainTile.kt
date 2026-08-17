@@ -33,6 +33,7 @@ fun CurtainTile(
     // fully shut is off, and never reported is unknown — which is the same three answers the
     // status line above it already gives, in the same order.
     TileCard(
+        hue = hue(tile),
         mood = mood(tile.openPercent?.let { it > 0 }, error),
         span = HALF_SPAN,
         modifier = modifier,

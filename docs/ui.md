@@ -41,8 +41,8 @@ The baseline commits 1 and 2 replaced, kept so the diff stays legible:
 - Every tile prints a status line ending in `ageLabel(...)`, and appends `not updating: <error>` when
   its group's poll failed. Still true: commit 2 was a re-skin and changed no string.
 - `MainActivity` wraps everything in a bare `MaterialTheme {}` — no colour scheme is passed, so the
-  panel is on the Material baseline light palette in both system themes. **Still true**, and it is
-  what commit 4 is for.
+  panel is on the Material baseline light palette in both system themes. **No longer true:** commit
+  5 passes it one of the two schemes in `PanelTheme.kt`, chosen by `isSystemInDarkTheme()`.
 
 ## Tile sizes
 
@@ -286,8 +286,22 @@ This is a pure function of the room sections. It gets a test.
   the point: five outlined tiles is one vendor, not five broken units.
 - **Confirmed: the tablet's dark theme is on a real schedule, 19:00–07:00** (`mNightMode=0 (auto)`,
   `customStart=19:00 customEnd=07:00`). So the dark scheme is not dead code and the theme commit is
-  worth doing. Forcing night mode on today shows the panel staying light, which is the expected state
-  until it lands: `MainActivity` still wraps a bare `MaterialTheme {}`.
+  worth doing.
+
+**What commit 5 actually wrote**, since "a cool blue and a warm amber" is a brief and not a value.
+Four tonal ramps in `PanelTheme.kt`, generated in CIE LCh at a fixed hue and chroma per ramp with
+the chroma clipped down to sRGB, one tone per role: **blue at Lab hue 272** — the hue of `#2196F3` —
+at chroma 46 for climate, **amber at hue 72** — the hue of `#FFA000` — at chroma 70 for light, and
+the same blue at chroma 3 and 9 for the surfaces and the outlines, which is Material's own way of
+tinting neutrals with the seed. Material's error ramp is kept as it is.
+
+The neutral family is the one that had to be solved rather than generated. It is told apart by
+**lightness, not by hue**: sRGB holds no more than ~16 chroma of blue at tone 90, so a quieted blue
+at the container tone comes out as the same colour as the climate blue — 12 ΔE, which on a wall is
+one colour. Its container sits at **tone 75** instead of Material's 90, and that is what buys the
+separations, measured as CIE ΔE between the three on-colours and the `surfaceContainer` every off
+tile wears: worst pair 13 in light (climate against off) and 19 in dark, against 6 for the
+tone-90 version of the same thing. Every on-colour is ≥ 7:1 on its container in both schemes.
 - **Samsung's blue light filter is on** (`settings get system blue_light_filter` → 1) and it tints
   screencaps too, system UI included. Anything warm-looking in a screenshot of this panel is that
   filter and not the palette. Judge colour with it in mind, or turn it off first.
@@ -684,7 +698,7 @@ Expect this to be almost all of them in a circle. On today's data the split is t
 never reported against the twenty-odd it has, which is the reduction the commit is for — and the
 opposite of what the stale rule would have done.
 
-### 5 · `feat(panel): the panel's own colours`
+### 5 · `feat(panel): the panel's own colours` — built, not yet seen on the wall
 
 The commit that stops the wall being grey. Two things, and they are one concern because they are the
 same file and neither works without the other: the panel gets a palette instead of Material's
@@ -706,6 +720,15 @@ The scheme itself has no unit test — there is no Compose test dependency and a
 first". Checked on the tablet in both themes, and by grepping `panel/` for hex literals, of which
 there should still be none. **Turn the blue light filter off before judging any of it**; it is on,
 and it tints screencaps too.
+
+**Built, and the tablet check is outstanding.** 238 unit tests and `ktlintCheck` green, `panel/`
+grep-clean of colour values, `installDebug` onto the wall tablet, and the app alive on it with
+nothing in logcat. What has *not* happened is anybody looking at it: the tablet locks itself behind
+a PIN on screen-off — the last item under "Open" — and a `screencap` over the keyguard is a
+screencap of the keyguard. So neither palette has been seen on the wall, and the numbers above are
+computed rather than looked at. `blue_light_filter` was set to 0 for the attempt and left there; the
+tablet had it at 1. What the check still needs: unlock, `screencap` on Главная, then
+`adb shell cmd uimode night yes`, again, and `auto` to put it back.
 
 ### 6 · `feat(panel): an icon per tile, and a slimmer slider`
 

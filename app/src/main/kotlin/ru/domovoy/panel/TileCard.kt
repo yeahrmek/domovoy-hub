@@ -45,14 +45,18 @@ internal val MIN_TOUCH = 64.dp
 private val TILE_PADDING = 4.dp
 
 /**
- * Every tile on the wall: one card, its corner from its size and its colour from its [TileMood].
+ * Every tile on the wall: one card, its corner from its size and its colour from the [TileHue] and
+ * [TileMood] pair.
  *
- * Five callers, which is what earns it — the alternative is the same `when` over four colour roles
+ * Five callers, which is what earns it — the alternative is the same `when` over seven colour roles
  * written out five times, and a sixth tile getting one of them wrong. It draws and nothing else:
- * what mood a tile is in is [mood]'s answer, out where a test can reach it.
+ * what kind of thing a tile is and what state it is in are [hue]'s and [mood]'s answers, out where
+ * a test can reach them.
  */
 @Composable
 internal fun TileCard(
+    /** What kind of device this is, which decides *which* colour an on tile takes. */
+    hue: TileHue,
     mood: TileMood,
     /** How many of the grid's columns this tile occupies. Decides its corner, and nothing else. */
     span: Int,
@@ -74,7 +78,7 @@ internal fun TileCard(
     val shape = RoundedCornerShape(corner(span))
     val outer = modifier.fillMaxWidth().padding(TILE_PADDING).heightIn(min = MIN_TOUCH)
     if (onClick == null) {
-        Card(modifier = outer, shape = shape, colors = tileColors(mood), border = border, content = content)
+        Card(modifier = outer, shape = shape, colors = tileColors(hue, mood), border = border, content = content)
     } else {
         // The clickable Card rather than a `Modifier.clickable` outside it, so the ripple is
         // clipped to the corner it is drawn on and the tap lands on the tile and not on the gutter.
@@ -82,7 +86,7 @@ internal fun TileCard(
             onClick = onClick,
             modifier = outer,
             shape = shape,
-            colors = tileColors(mood),
+            colors = tileColors(hue, mood),
             border = border,
             content = content,
         )
@@ -101,12 +105,18 @@ internal fun groupFailureBorder(groupError: String?): BorderStroke? = groupError
 /**
  * The colour roles, and only roles: no hex literal anywhere in `panel/`. A hardcoded colour is a
  * tile that is unreadable in one of the two themes, and the theme that breaks is the one nobody is
- * looking at when they check.
+ * looking at when they check. The values are in `PanelTheme.kt` and nowhere else.
  *
- * Only *on* has a colour of its own. [TileMood.Off], [TileMood.Unknown] and [TileMood.Failing] all
- * wear the neutral, and the difference between the three is said in words on the status line, which
- * is where it was always said — "off", "unknown", "not updating: <reason>". What must not happen is
- * any of them borrowing the *on* colour and claiming a reading nobody has taken.
+ * **Two axes.** [TileHue] says which colour an on tile takes — climate the primary container, light
+ * the tertiary, everything else the secondary — and [TileMood] says whether it takes one at all.
+ * One colour for everything that is on made a wall where the air conditioner and the bedroom lamp
+ * were the same object.
+ *
+ * Only *on* has a colour of anything's own. [TileMood.Off], [TileMood.Unknown] and
+ * [TileMood.Failing] wear `surfaceContainer` whatever the hue — an unlit lamp is not warm and a
+ * stopped recuperator is not cool — and the difference between the three is said in words on the
+ * status line, which is where it was always said: "off", "unknown", "not updating: <reason>". What
+ * must not happen is any of them borrowing an *on* colour and claiming a reading nobody has taken.
  *
  * [TileMood.Failing] was `errorContainer` until the wall had a few of them on it at once. A red tile
  * per failing device turns a flat with one unreachable vendor into a panel that reads as an
@@ -118,12 +128,28 @@ internal fun groupFailureBorder(groupError: String?): BorderStroke? = groupError
  * a bulb circle, which wears a shape of its own and these same colours — see [BulbCircles].
  */
 @Composable
-internal fun tileColors(mood: TileMood): CardColors = when (mood) {
+internal fun tileColors(
+    hue: TileHue,
+    mood: TileMood,
+): CardColors = when (mood) {
     TileMood.On ->
-        CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.primaryContainer,
-            contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-        )
+        when (hue) {
+            TileHue.Climate ->
+                CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                )
+            TileHue.Light ->
+                CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
+                )
+            TileHue.Neutral ->
+                CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                )
+        }
     TileMood.Off, TileMood.Unknown, TileMood.Failing ->
         CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainer,
