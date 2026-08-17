@@ -383,10 +383,10 @@ status line.
   construction and cannot drift apart in one theme.
 - On a half tile the icon sits on the first line beside the name; on a third tile it sits above it,
   which is what the mockups showed and what stops a 251 dp tile from spending its width on a glyph.
-- **A bulb has no container at all. Only the lamp lights up.** A 72 dp cell holding the glyph and
-  nothing else: lit, it is drawn in the light colour with a soft halo behind it; unlit, it is the
-  same glyph in a quiet one. No disc, no tile, no border in either state. The row then reads as a
-  wall of lamps rather than as a row of buttons, which is the thing 28 of anything most needs.
+- **A bulb has no container at all, and a lit one is a filled glyph.** A 72 dp cell holding the lamp
+  and nothing else: lit, it is the **filled** bulb in the light colour; unlit, the **outlined** bulb
+  in a quiet one. No disc, no tile, no border, no halo, in either state. The row then reads as a wall
+  of lamps rather than as a row of buttons, which is the thing 28 of anything most needs.
 
   Two treatments were built before this one and both are worth not going back to. **A filled amber
   disc per lamp** turns the row into 28 coloured dots — a status bar, not a set of lights. **A white
@@ -394,17 +394,25 @@ status line.
   costs two nested shapes and a 24 dp glyph to do it. Neither puts the light in the lamp, which is
   the whole idea: a lamp that is on should look lit, not look labelled.
 
-  - **The halo is a `Brush.radialGradient`, not `Modifier.blur`.** Blur is API 31+ and minSdk here is
-    26, so on Android 8 to 11 a blurred halo silently does not draw — the lamps would simply stop
-    looking lit on the oldest devices this app claims to support. A radial gradient draws everywhere.
-    _The tablet is Android 13, so nothing on this wall would have caught it._
-  - The halo belongs to the lamp, not to the cell: it fades out inside the 72 dp rather than reaching
-    the edge, so two lit lamps side by side do not pool into one smear.
+  - **The state is a shape, not only a hue, and that is the point rather than a detail.** Samsung's
+    blue light filter is on and tints the whole screen warm — the one thing that erodes an
+    amber-against-neutral distinction, and it cannot be judged out of a screencap. A filled silhouette
+    against an outline survives the filter, survives four metres, and survives whatever the dark
+    scheme does to the amber at night.
+  - It costs a second drawable: Tabler ships `bulb` and a filled variant, so `ic_bulb.xml` and
+    `ic_bulb_filled.xml`, and a pure function to choose between them. `bulbGlyph(isOn: Boolean?)`
+    sits in `TileLayout.kt` next to `curtainGlyph` and is the second glyph of the set with a test —
+    same shape of decision, same reason it is testable, same rule for the null: **null takes the
+    outline**, because the filled bulb is a positive claim that the lamp is lit.
+  - A glow was mocked and dropped. Recorded because the *implementation* note outlives the choice: a
+    halo would have had to be a `Brush.radialGradient` and not `Modifier.blur`, which is API 31+
+    against a minSdk of 26 — it would have drawn perfectly on this Android 13 tablet and silently
+    nothing on Android 8 to 11. That trap is still there for anything else that reaches for a blur.
   - **The 64 dp touch target stays, invisible.** This is the cost of the choice and it is the same
     one the handle-less slider took — cleaner to look at, less obviously pressable. Worse here than
     there, because a slider at least prints a number beside it and an unlit lamp offers nothing.
-    _Watch whether anyone works out the lamps are tappable._ If they do not, the answer is treatment
-    C — the same glow over a quiet disc — and not a return to coloured discs.
+    _Watch whether anyone works out the lamps are tappable._ If they do not, the answer is a quiet
+    disc under the glyph and not a return to coloured discs.
   - A circle is only ever `On` or `Off`, because a bulb with no state breaks out of the row and
     becomes a named tile. `Failing` reaches the circles when the group's poll fails, and with no
     container there is nothing to outline: the circles stay in their unlit colour and **the group's
