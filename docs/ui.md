@@ -304,7 +304,9 @@ tile wears: worst pair 13 in light (climate against off) and 19 in dark, against
 tone-90 version of the same thing. Every on-colour is ≥ 7:1 on its container in both schemes.
 - **Samsung's blue light filter is on** (`settings get system blue_light_filter` → 1) and it tints
   screencaps too, system UI included. Anything warm-looking in a screenshot of this panel is that
-  filter and not the palette. Judge colour with it in mind, or turn it off first.
+  filter and not the palette. Judge colour with it in mind, or turn it off first — which is harder
+  than it sounds, and is now measured: see "The filter cannot be turned off the way this doc said"
+  under commit 5.
 
 ## Icons
 
@@ -698,7 +700,7 @@ Expect this to be almost all of them in a circle. On today's data the split is t
 never reported against the twenty-odd it has, which is the reduction the commit is for — and the
 opposite of what the stale rule would have done.
 
-### 5 · `feat(panel): the panel's own colours` — built, not yet seen on the wall
+### 5 · `feat(panel): the panel's own colours` — done, #17
 
 The commit that stops the wall being grey. Two things, and they are one concern because they are the
 same file and neither works without the other: the panel gets a palette instead of Material's
@@ -721,14 +723,59 @@ first". Checked on the tablet in both themes, and by grepping `panel/` for hex l
 there should still be none. **Turn the blue light filter off before judging any of it**; it is on,
 and it tints screencaps too.
 
-**Built, and the tablet check is outstanding.** 238 unit tests and `ktlintCheck` green, `panel/`
-grep-clean of colour values, `installDebug` onto the wall tablet, and the app alive on it with
-nothing in logcat. What has *not* happened is anybody looking at it: the tablet locks itself behind
-a PIN on screen-off — the last item under "Open" — and a `screencap` over the keyguard is a
-screencap of the keyguard. So neither palette has been seen on the wall, and the numbers above are
-computed rather than looked at. `blue_light_filter` was set to 0 for the attempt and left there; the
-tablet had it at 1. What the check still needs: unlock, `screencap` on Главная, then
-`adb shell cmd uimode night yes`, again, and `auto` to put it back.
+**Checked on the wall, 2026-08-17, both themes.** Every tile takes the role it should, and the
+check was done by *measuring the screencap* rather than by looking at it, because looking at it is
+the thing this tablet will not let anybody do — see the filter below. Each tile's pixels were fitted
+against the scheme's four candidate roles; every one landed on its own by a wide margin, in light
+(fit distance ≤ 8 against a next-best ≥ 30) and in dark (≤ 1 against ≥ 30):
+
+| Tile | Role it landed on |
+| --- | --- |
+| Кондиционер, off | `surfaceContainer` |
+| Подсветка в зале, on | `tertiaryContainer` — light |
+| Бризер зал, on | `primaryContainer` — climate |
+| The bulb circles, on | `tertiaryContainer` |
+| Домофон, Пылесос | `surfaceContainer` |
+| The panel behind them | `surface` |
+
+**Two of the values were not exercised and are still unseen**, both because of what the flat happens
+to be doing rather than because of anything in the code. `secondaryContainer` — the neutral family's
+*on* colour, the tone-75 one — needs a curtain that is open, and the flat's one curtain reads
+`0% open · 3 d ago`, which is `Off`. `primaryContainer` in **dark** needs a climate tile that is on,
+and by the time the dark capture was taken both the ac and the breather had gone off. Neither is a
+code path — the hue-to-role map is one `when` and is theme-blind, and it was proven in light — but
+they are two colours nobody has laid eyes on. Opening the curtain to see it would move the flat's
+curtain, which is not a thing to do for a screenshot without asking.
+
+### The filter cannot be turned off the way this doc said
+
+`settings put system blue_light_filter 0` **does not turn it off.** The setting reads back as 0 and
+the screen stays warm. Verified against the framebuffer rather than by eye: pure white composites as
+`#FFEDCD`, and the tint survived every one of `blue_light_filter=0`,
+`blue_light_filter_scheduled=0`, `reduce_bright_colors_activated=0`, `screen_mode_automatic_setting=0`,
+`screen_mode_setting=1` (Natural) and a display power cycle. There is no overlay window and no
+SurfaceFlinger colour matrix, so it is applied in composition by One UI, which keeps its own state
+that these keys only mirror. **The quick-settings tile is the only way found to move it.** It also
+ramped up on schedule at 19:00 with `blue_light_filter_scheduled` set to 0, which is the same fact
+again.
+
+What it does, measured: **an amber overlay**, about `#FFB838` at ~22–25 % — a multiply on light
+colours (gain R 1.00, G 0.94, B 0.81) and a lift on dark ones (`#111318` composites as `#402F13`).
+So a screencap can be *un-tinted* arithmetically, which is what the table above rests on. Anything
+warm in a screenshot of this panel is still that filter and not the palette.
+
+The palette survives it better than expected. The three families' separations, as designed against
+as the tablet actually renders them in light: climate/light 37 → 33, light/neutral 35 → 34,
+neutral/off 20 → 20, and the tightest pair, climate/off, 13.1 → **12.2**. Muted rather than
+collapsed — though a climate tile under the filter reads as a warm grey rather than as blue, which
+is worth knowing before anybody concludes the blue is wrong.
+
+Two things that cost time and are worth writing down. The tablet **relocks on screen-off** at the
+2-minute timeout, so a check has to run inside that window or set `svc power stayon true` first; and
+a `screencap` over the keyguard is a screencap of the keyguard, not of the panel. And on the
+capture side: `zsh` has `noclobber` on here, so `adb exec-out screencap -p > shot.png` onto an
+existing file **silently writes nothing** and the analysis then measures the previous shot. Three
+"the setting made no difference" results came from exactly that. Use `>|`.
 
 ### 6 · `feat(panel): an icon per tile, and a slimmer slider`
 
