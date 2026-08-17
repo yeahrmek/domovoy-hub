@@ -383,16 +383,32 @@ status line.
   construction and cannot drift apart in one theme.
 - On a half tile the icon sits on the first line beside the name; on a third tile it sits above it,
   which is what the mockups showed and what stops a 251 dp tile from spending its width on a glyph.
-- **A bulb circle is two shapes, not one.** A **72 dp** tile at the full corner radius, a **46 dp**
-  disc centred inside it, and the glyph at **24 dp** inside that. The tile carries the mood colour —
-  amber when lit, neutral when not — and the disc is the surface, so the glyph reads out of a light
-  well rather than off a coloured field. No text at any size: the count and the age are on the
-  group's one line underneath, which is what lets 28 lamps be a row rather than fourteen rows.
+- **A bulb has no container at all. Only the lamp lights up.** A 72 dp cell holding the glyph and
+  nothing else: lit, it is drawn in the light colour with a soft halo behind it; unlit, it is the
+  same glyph in a quiet one. No disc, no tile, no border in either state. The row then reads as a
+  wall of lamps rather than as a row of buttons, which is the thing 28 of anything most needs.
 
-  The single-shape version — glyph straight onto a 72 dp coloured disc — was built first and
-  replaced. It gives the glyph 26 dp instead of 24, and that is the whole of what it gives; the
-  inset reads as an object with a light in it rather than as a coloured dot, and 28 coloured dots in
-  a row is a status bar, not a set of lamps.
+  Two treatments were built before this one and both are worth not going back to. **A filled amber
+  disc per lamp** turns the row into 28 coloured dots — a status bar, not a set of lights. **A white
+  disc inset in a coloured tile** fixes that by making each lamp an object with a light in it, and
+  costs two nested shapes and a 24 dp glyph to do it. Neither puts the light in the lamp, which is
+  the whole idea: a lamp that is on should look lit, not look labelled.
+
+  - **The halo is a `Brush.radialGradient`, not `Modifier.blur`.** Blur is API 31+ and minSdk here is
+    26, so on Android 8 to 11 a blurred halo silently does not draw — the lamps would simply stop
+    looking lit on the oldest devices this app claims to support. A radial gradient draws everywhere.
+    _The tablet is Android 13, so nothing on this wall would have caught it._
+  - The halo belongs to the lamp, not to the cell: it fades out inside the 72 dp rather than reaching
+    the edge, so two lit lamps side by side do not pool into one smear.
+  - **The 64 dp touch target stays, invisible.** This is the cost of the choice and it is the same
+    one the handle-less slider took — cleaner to look at, less obviously pressable. Worse here than
+    there, because a slider at least prints a number beside it and an unlit lamp offers nothing.
+    _Watch whether anyone works out the lamps are tappable._ If they do not, the answer is treatment
+    C — the same glow over a quiet disc — and not a return to coloured discs.
+  - A circle is only ever `On` or `Off`, because a bulb with no state breaks out of the row and
+    becomes a named tile. `Failing` reaches the circles when the group's poll fails, and with no
+    container there is nothing to outline: the circles stay in their unlit colour and **the group's
+    line under the row carries the words**, once, which is where it was always said.
 - `contentDescription = null` on the glyph in every tile. They are decorative: the name is right
   there, and a screen reader announcing "lightbulb Лампа в коридоре" says the noun twice. **The bulb
   circles are the exception and already handle it** — they carry the lamp's name and state as the
