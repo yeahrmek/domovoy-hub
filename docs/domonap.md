@@ -1,10 +1,11 @@
 # Domonap (intercom / домофон)
 
-Read from public sources on 2026-08-15. The tablet itself was inspected the same day — see
-[Recorded on the tablet](#recorded-on-the-tablet-2026-08-15), which supersedes the guesses further
-down wherever the two disagree. **No Domonap endpoint has been called.** Everything below about the
-*backend* comes from a third-party Home Assistant integration, not from Domonap. Do not invent
-endpoints on top of it.
+Read from public sources on 2026-08-15. The tablet itself was inspected the same day, and a real
+incoming call was captured on 2026-08-16 — see [Recorded on the tablet](#recorded-on-the-tablet-2026-08-15)
+and [a real incoming call](#recorded-on-the-tablet--a-real-incoming-call-2026-08-16), which supersede
+the guesses further down wherever they disagree. **No Domonap endpoint has been called.** Everything
+below about the *backend* comes from a third-party Home Assistant integration, not from Domonap. Do
+not invent endpoints on top of it.
 
 ## Recorded on the tablet (2026-08-15)
 
@@ -57,8 +58,12 @@ com.domonap.telephony.presentation.activity.incoming.IncomingDomofonCallActivity
   configChanges=0x0d80  (orientation|screenLayout|screenSize|smallestScreenSize)
 ```
 
-`showWhenLocked` + `turnScreenOn` mean **the platform already puts this screen on top and wakes the
-tablet** — our panel does not have to launch anything, only get out of its way.
+`showWhenLocked` + `turnScreenOn` were read here as meaning **the platform already puts this screen
+on top and wakes the tablet**. **Half of that is wrong, and the capture of 2026-08-16 says so:** the
+tablet is woken (by the app's own `SCREEN_BRIGHT_WAKE_LOCK`, not by this activity), but the activity
+**never launches** — not when awake, not over the keyguard. These manifest flags say what the screen
+*may* do once started; they were never evidence that anything starts it. See
+[the call screen did not come up](#the-call-screen-did-not-come-up--in-either-state).
 
 Supporting components: `com.domonap.telephony.presentation.service.TelephonyService`
 (`foregroundServiceType=0x4`, i.e. `phoneCall`, `directBootAware=true`),
@@ -79,31 +84,223 @@ rotation itself. The panel display is 1600×2560 at density 340 → **smallest w
 section below: if the call screen ever appears landscape, that is the tablet's rotation lock, not
 Domonap.
 
-### Still missing — the notification record itself
+## Recorded on the tablet — a real incoming call (2026-08-16)
 
-**No incoming call has been captured yet**, so the posted notification's `extras` — title, text,
-`android.title`/`android.text`, which field carries the caller or the door, whether a
-`fullScreenIntent` and `CATEGORY_CALL` are set, the actions, the `tag` and `key` — are **still
-unrecorded**. The channels above prove the app *has* an incoming-call channel; they do not prove
-what it puts in the notification. A capture needs the intercom rung once while
-`dumpsys notification --noredact` is sampled. Until that exists, nothing in the panel should key on
-any extras field.
+**The intercom was rung once at 22:02 and the whole event captured.** This supersedes the "still
+missing" note that stood here: the notification record is no longer a guess. Method: three
+independent pollers against the tablet — `dumpsys notification --noredact` every ~200 ms,
+`dumpsys telecom` every ~100 ms, screen/lock state every 1 s — plus `adb logcat -v threadtime`,
+all armed before the ring. Device clock ran 262 ms ahead of the capture host; **all times below are
+the tablet's own**, taken from `when=`/`mCreationTimeMs` and from logcat, not from the poller.
 
-An attempt was made on 2026-08-15 and could not be completed — the calling device was out of
-service, so nothing rang. Re-arm with a poll of `dumpsys notification --noredact` filtered to
-`pkg=com.domonap.app`, keep it running, and ring once.
+Conditions, because they turn out to decide the outcome: the tablet was **awake and unlocked**
+(`mWakefulness=Awake`, `isKeyguardShowing=false`) for the whole call, and the foreground app was the
+Samsung launcher — not our panel. Notification access had been granted at 22:00:30 and the listener
+was bound.
 
-**What the panel keys on meanwhile** (`DomonapCalls`): package `com.domonap.app` plus channel id
-`telecom_incoming_channel3` or `telecom_ongoing_channel3`, and nothing else. Consequences to revisit
-when a capture lands:
+| device time | event |
+|---|---|
+| 22:02:22.656 | `ActivityManager: Background started FGS: Allowed` for `com.domonap.app` |
+| 22:02:22.668 | notification **id=200** posted on `telecom_incoming_channel3`, `flags=0x42` (ONGOING\|FOREGROUND_SERVICE) — **extras empty**: `android.title=null`, `android.text=null`, no actions, `fullscreenIntent=null` |
+| 22:02:22.693 | **same key updated** — `flags=0xc2`, CallStyle, 3 actions, `fullscreenIntent` present |
+| 22:02:22.702 | `NotificationManager: com.domonap.app: notify(200, null, …)` |
+| 22:02:22.71–23.00 | the app starts the ringtone **itself**, `MediaPlayer` on the *system default* ringtone (`Over the Horizon`), `setVolume(1.0, 1.0)` |
+| 22:02:23.047 | SystemUI `mHeadsUpShowing: false -> true` — shown as a **heads-up banner** |
+| 22:02:23.554 | Telecom `CREATED (com.domonap.app;null, INCOMING, false)` |
+| 22:02:23.575, .580 | two further `notify(200)`, flags settle at `0xe2` |
+| 22:02:23.579 | Telecom `SET_RINGING (successful incoming call)` |
+| 22:02:23.665 | `PHONE_STATE` broadcast; keyguard sees `IDLE => RINGING` |
+| 22:02:35.500, .511 | `notify(1002)` on `telecom_missed_channel3` |
+| 22:02:35.520 | Telecom `SET_DISCONNECTED`, cause **`REJECTED`** |
+| 22:02:35.525 | FGS count → 0; id=200 gone, **no explicit `cancel(200)` logged** |
 
-- The caller's name, flat and photo are **not shown**, because no field is known to carry them.
-- `telecom_silent_channel3` is treated as *not* a call. If the capture shows the `phoneCall`
-  foreground service posts there for the duration of a call, that is the channel that should extend
-  the call, and it must still never be the thing that *starts* one — it is at importance 2 and could
-  plausibly sit there idle.
-- Whether the ringing notification is replaced (new key) or updated (same key) when the call is
-  answered is unknown; `DomonapCalls` handles both, and the capture will say which happens.
+**The notification arrives first, by 886 ms.** Posted 22:02:22.668, Telecom `CREATED` 22:02:23.554
+(`SET_RINGING` 911 ms after the post). The notification is the earlier signal on this device, and by
+a margin far larger than any measurement error here.
+
+### The record
+
+```
+key=0|com.domonap.app|200|null|10130   id=200  tag=null  importance=5 (mImportance=HIGH)
+channel=telecom_incoming_channel3      category=call     vis=PUBLIC   actions=3
+flags: 0x42 → 0xc2 → 0xe2   (originalFlags=0xc2; the system adds NO_CLEAR)
+fullscreenIntent=PendingIntent{… com.domonap.app startActivity …}
+contentIntent=null   deleteIntent=null   contentView=null   sound=null   vibrate=null
+extras:
+  android.title            = <дом/подъезд/этаж/квартиры>   ← the DOOR, not a person
+  android.text             = "Входящий вызов"              ← constant
+  android.template         = android.app.Notification$CallStyle
+  androidx.core.app.extra.COMPAT_TEMPLATE = androidx.core.app.NotificationCompat$CallStyle
+  android.callType         = 1        android.callIsVideo = false
+  android.callPerson       = Person (opaque in dumpsys — prints as android.app.Person@…)
+  android.answerIntent     = PendingIntent (startActivity)
+  android.declineIntent    = PendingIntent (broadcastIntent)
+  android.hangUpIntent     = null     android.largeIcon = null   android.subText = null
+actions:
+  [0] "Отклонить"     -> broadcastIntent
+  [1] "Открыть дверь" -> startActivity
+  [2] "Ответить"      -> startActivity
+```
+
+`android.title` carries the **door address — building, entrance, floor and the flat range** — which
+AGENTS.md forbids committing, so only its shape is recorded here. It is not a caller name: nothing
+in the record names a person, and `android.callPerson` is a `Person` that `dumpsys` prints only as
+an object hash, so **whether it carries a name or photo is still unconfirmed** and needs the
+listener to read it, not `dumpsys`.
+
+Note `android.callIsVideo=false` on a video intercom, and `handle=tel:…` — Telecom carries a phone
+number (redacted here and partly redacted by `dumpsys` itself). The `Открыть дверь` action means
+**door release is reachable straight from the notification**. The panel does not use it and this
+note is not a proposal that it should.
+
+### Updated in place, never replaced
+
+Four posts, one key: `0|com.domonap.app|200|null|10130` throughout, `tag=null`, `id=200`. The
+ringing notification is **updated (same key)**, and the answered case did not arise (below). The
+first post — the one the `phoneCall` foreground service attaches — is on the incoming channel but
+**carries no extras at all**; the populated update follows **25 ms** later. Anything that reads
+`android.title`/`android.text` on the first `onNotificationPosted` gets nulls.
+
+The call ending posts a **separate** notification: `id=1002`, key
+`0|com.domonap.app|1002|null|10130`, channel `telecom_missed_channel3`, `flags=0x10` (AUTO_CANCEL),
+`vis=PRIVATE`, **no `category`**, `fullscreenIntent=null`, `android.title="Уведомление"`,
+`android.text="Пропущенный звонок от <door>"`.
+
+**Channels never seen in this capture:** `telecom_ongoing_channel3` and `telecom_silent_channel3` —
+neither was posted to at any point. The silent-channel worry recorded earlier did not materialise
+here, and the ongoing channel remains untested because the call was never answered on the tablet.
+
+### The call screen did not come up — in either state
+
+**`IncomingDomofonCallActivity` never launched.** Zero occurrences across both captures' logcat: no
+`ActivityTaskManager` start, no window, no `Displayed`. The full-screen intent sits on the record
+and is *not used*. This was checked in both of the states that could plausibly differ:
+
+| | call 1, 22:02 | call 2, 22:23 |
+|---|---|---|
+| screen at ring | **Awake, unlocked** | **Dozing, keyguard showing** |
+| `IncomingDomofonCallActivity` | never launched | never launched |
+| `mKeyguardOccluded` | n/a (unlocked) | **`false` throughout** |
+| how it surfaced | heads-up banner over the launcher | screen woken, notification over the lock screen |
+| ended by | answered on another phone | **rang out unanswered, ~18.3 s** |
+
+The awake case could be explained away as ordinary platform behaviour — Android prefers a heads-up
+over firing a full-screen intent when the device is awake and unlocked. **The locked case removes
+that explanation.** A dozing, keyguarded tablet is exactly the condition under which the platform
+*does* launch a full-screen intent, and it still did not: `mKeyguardOccluded` stayed `false` for the
+whole ring, and no full-screen-intent launch appears anywhere in the log.
+
+**What Domonap does instead is wake the screen and leave the notification on the lock screen:**
+
+```
+22:23:44.624  PowerManagerService: acquire WakeLock SCREEN_BRIGHT_WAKE_LOCK 'app:call'
+                                   ACQUIRE_CAUSES_WAKEUP (uid=10130)
+22:23:45.127  PowerManagerService: acquire WakeLock SCREEN_BRIGHT_WAKE_LOCK 'EDGELIGHTING:app:call'
+22:23:45.127  PowerGroup: Waking up power group from Dozing (reason=application,
+                          details=EDGELIGHTING:app:call)
+22:23:45.133  WindowManager: Started waking up... (why=ON_BECAUSE_OF_APPLICATION)
+```
+
+So the tablet does light up — but by the **app's own wake lock**, not by `turnScreenOn` on an
+activity that never starts. The keyguard is never occluded, so **the call screen is reached only by
+tapping the notification** (`android.answerIntent` is a `startActivity`).
+
+This overturns the reading recorded on 2026-08-15 that "the platform already puts this screen on top
+and wakes the tablet". The waking half is right; **the putting-on-top half is wrong**. Whatever the
+panel is showing stays on screen, with a notification over it.
+
+### Second capture — locked and unanswered (2026-08-16, 22:23)
+
+Same structure as the first call, which is the point: it reproduces.
+
+- Same key `0|com.domonap.app|200|null|10130`, same flag progression `0x42 → 0xc2 → 0xe2`, same
+  three `notify(200)` calls. **Updated in place, twice out of twice.**
+- **The notification still arrives first, but the margin is not stable:** `notify(200)` at
+  22:23:44.630 against Telecom `CREATED` at 22:23:44.805 — **175 ms**, against 886 ms on the first
+  call. The ordering held both times; the size of the lead should not be relied on.
+- **Ring-out is ~18.3 s** (22:23:44.6 → `SET_DISCONNECTED` 22:24:02.973) with nobody answering.
+- The missed-call notification is posted on the **same key** as the previous call's
+  (`0|com.domonap.app|1002|null|10130`) — after two calls there is still exactly **one** record.
+  Missed calls do not accumulate; the newest replaces the last.
+- Samsung's `NotificationService` logs `Category call notification, so make not work edgelighting`
+  while still taking an `EDGELIGHTING:app:call` wake lock — noted only because it explains the
+  wake-lock name; nothing here depends on it.
+- The screen returned to `Dozing` on its own after the call.
+
+### Sending the full-screen intent ourselves — tried, and withdrawn (2026-08-16, 22:41)
+
+Because the platform does not launch the call screen, the panel was made to: on the first post of a
+ringing call carrying a `fullScreenIntent`, `DomonapCallListener` sent that intent and nothing else
+— never `android.answerIntent`, never `Открыть дверь`. Built, installed on the tablet and rung once,
+screen locked.
+
+**It worked, and it killed the call.**
+
+| device time | event |
+|---|---|
+| 22:41:39.981 | Domonap posts `notify(200)` |
+| **22:41:40.200** | `START u0 … IncomingDomofonCallActivity … from uid 10130` — our send |
+| 22:41:40.244 | Telecom `CREATED` — **44 ms after we had already launched the screen** |
+| 22:41:40.325 | `SET_RINGING` |
+| 22:41:40.519 | call screen resumed, `mKeyguardOccluded=true`, rendering, `keepScreenOn=true` |
+| **22:41:40.616** | `SET_DISCONNECTED`, cause **`LOCAL`** |
+| 22:41:52.9 | the screen was dismissed by hand — 12 s *after* the call was already dead |
+
+The mechanical part succeeded: the activity launched **over the keyguard**, exactly once, and the
+background-activity-start was allowed because a `PendingIntent` runs as its creator (`uid 10130`,
+Domonap). No send failure was logged.
+
+Then the call ended 416 ms later with `LOCAL` — the local side hanging up. No one had touched the
+tablet: the only input lines in that window are the touchscreen powering on with the display.
+
+**An A/B the same evening confirms the association.** The launch was removed, the reverted build
+installed, and the intercom rung again under the same locked-screen conditions:
+
+| | with the launch, 22:41 | reverted, 22:49 | baselines, 22:02 and 22:23 |
+|---|---|---|---|
+| call screen launched | yes, once | **no** | no |
+| disconnect cause | **`LOCAL`** | `REJECTED` | `REJECTED`, `REJECTED` |
+| time to disconnect | **0.42 s** | 4.6 s | 12.5 s, 18.3 s |
+
+`LOCAL` appears in exactly the run that launched the screen, and in none of the three that did not.
+One trial per condition, so this is a strong association and not a proven mechanism.
+
+**The likely mechanism, untested:** we launch off the *notification*, which the earlier captures
+measured as arriving **175–886 ms ahead of the Telecom call** — here 44 ms ahead of `CREATED`. So
+the screen came up before the call it belongs to existed, and Domonap, finding no call session,
+hung up cleanly. If that is right, the fix is to trigger on the Telecom call rather than the
+notification, or to wait for the call to register. Both are guesses until watched.
+
+The `fullscreenIntent`/`android.answerIntent` shared `PendingIntentRecord` (`d42d046`) is *not*
+implicated: the call went `LOCAL`-disconnected, never `SET_ACTIVE`, so nothing answered it.
+
+**Where this leaves the panel:** the listener is read-only again, exactly as before. `DomonapCalls`
+still works out when a call screen *would* go up — once per call, on the post that carries the
+intent, ringing channel only, all of it recorded above and unit-tested — and nothing acts on it.
+A panel that shows nothing while the intercom rings is a poor wall panel; one that hangs up on
+whoever is at the door is a broken intercom, and that trade is not close.
+
+### What the panel did during the captures — unanswered, and why
+
+Nothing observable. The listener bound at 22:00:30 and stayed bound (no disconnect, no rebind), but
+**the panel emits no log line on this path**, and its process logged nothing during the call. The
+panel was also not in the foreground — the launcher was — so there was no yield to see and no tab to
+come back to. Whether polling paused and whether the panel restores its tab are **still
+unconfirmed**; this run could not answer them, and confirming them needs either logging on that path
+or a call raised while the panel is the foreground app.
+
+### `REJECTED` says nothing about what happened
+
+The first call was answered on another household phone; the second rang out with nobody answering.
+**Both produced `DisconnectCause: REJECTED`** on the tablet, and both posted a missed-call
+notification. So answered-elsewhere, declined-here and nobody-answered are **indistinguishable** on
+this evidence. Nothing should be built on the disconnect cause, and "missed" on this panel does not
+mean the door went unanswered.
+
+**What the panel keys on** (`DomonapCalls`): package `com.domonap.app` plus channel id
+`telecom_incoming_channel3` or `telecom_ongoing_channel3`. The capture says this is right for
+detecting the ring — the very first post is already on `telecom_incoming_channel3` — and that the
+missed-call notification correctly does not trigger it. The ongoing-channel branch stays untested.
 
 ## Verified — as facts about the public record, not about the API
 
@@ -153,15 +350,24 @@ installed via HACS; author states it is "никак не связано и не 
 
 ### How the panel handles a call
 
-**The Domonap app owns the call screen.** It stays installed and logged in; when someone rings, its
-own full-screen UI takes over with video, accept/decline and door release. Our panel does not call
+**The Domonap app owns the call screen.** It stays installed and logged in. Our panel does not call
 `api.domonap.ru` at all, so none of the unverified endpoints above become load-bearing, there is no
 ToS question, and the one-phone-number limitation never bites — the app remains the only client.
 
+**Corrected by the 2026-08-16 capture:** "its own full-screen UI takes over" is not what happens on
+an awake, unlocked tablet. The call screen did not launch at all; the call arrived as a heads-up
+banner over the foreground app, with the full-screen intent present on the notification and unused.
+Whether it takes over when the tablet is locked is still unverified. See
+[a real incoming call](#recorded-on-the-tablet--a-real-incoming-call-2026-08-16).
+
 Our side is a **notification listener**. With notification access granted, the panel sees Domonap's
 incoming-call notification and can use it to yield the screen, dim, log the event, and restore the
-panel afterwards; the caller's name and photo may also be readable from the notification's own
-extras. Plus a launcher tile for opening the app on purpose.
+panel afterwards. Plus a launcher tile for opening the app on purpose.
+
+What the extras actually carry, now that they are recorded: the **door** (building, entrance, floor,
+flat range) in `android.title`, a constant `"Входящий вызов"` in `android.text`, and an
+`android.callPerson` whose contents `dumpsys` will not show. There is **no caller name** in the
+record; a photo is unconfirmed.
 
 ### The launcher tile (shipped)
 
@@ -207,17 +413,11 @@ in posts no incoming-call notification, and the panel cannot tell that apart fro
 nobody has rung. That is inherent to keying on notifications rather than anything to fix here — it
 is only worth knowing when the takeover is next tested and nothing happens.
 
-This rests on one unverified assumption: **that Domonap posts a notification we can see**, rather
-than only firing a full-screen intent. Partly answered since: the app has a dedicated
-`telecom_incoming_channel3` at importance MAX and holds `USE_FULL_SCREEN_INTENT`, so it does both —
-but the record's contents are still uncaptured. Ring the intercom once and watch:
-
-```bash
-adb shell dumpsys notification --noredact
-```
-
-If nothing shows up, the call takeover is Domonap's alone and the panel simply gets out of the way —
-still a working outcome, just a blinder one.
+This rested on one unverified assumption: **that Domonap posts a notification we can see**, rather
+than only firing a full-screen intent. **Answered on 2026-08-16: it posts one, and it is the earlier
+signal** — on `telecom_incoming_channel3`, 886 ms before Telecom registers the call. The full-screen
+intent is on the record but went unused on an awake tablet. The assumption the call path rests on
+holds.
 
 Two caveats: notification access is a user-granted toggle in Settings plus a manifest service, both
 "ask first" under AGENTS.md; and notification listeners are known to need rebinding after some
@@ -329,13 +529,29 @@ and is rejected above for reasons that have nothing to do with layout.
 
 ## Open questions
 
-- **What the incoming-call notification actually contains** — extras, caller field, full-screen
-  intent, category, tag. The channel exists; the record has not been captured. Everything the
-  listener keys on depends on this, and it needs the intercom rung once, with the app signed in.
-- Is the notification or the Telecom call state the earlier / more reliable signal? Both exist now;
-  neither has been timed.
-- Does the call screen actually come up portrait on this tablet? The app no longer looks like the
-  reason it would not — only the tablet's own rotation lock is left to check.
+Closed by the two captures of 2026-08-16: what the notification contains; that it is updated in
+place, same key, both times; that it is the earlier signal, both times; that the call screen does
+**not** take over, awake or locked; and that the disconnect cause is uninformative. Still open:
+
+- **The answered-on-the-tablet path.** `telecom_ongoing_channel3` was never posted to in either
+  capture — one call was answered elsewhere, the other rang out. Whether that channel is used at
+  all, and what the notification does on answer, needs someone to tap `Ответить` **on the tablet**.
+- **What `android.callPerson` carries.** `dumpsys` prints it as an object hash. Reading it needs the
+  listener, not adb — and it is the only place a caller name or photo could still be hiding.
+- **Does the panel yield?** Not observable in either run: the panel emits no log line on this path,
+  and it was not the foreground app. Answering it needs logging on that path, or a call raised while
+  the panel is foreground. Note the panel is **not** the HOME app on this tablet (`Role: ru.domovoy
+  not qualified for android.app.role.HOME`), so there is nothing that returns to it automatically —
+  including after the call screen the panel now opens is dismissed.
+- **Why does launching the call screen ourselves end the call?** It does — measured, and A/B'd
+  against a reverted build the same evening. The timing hypothesis (the screen goes up before
+  Telecom has registered the call) is untested. Until somebody tests it, the panel does not launch
+  anything; see [tried, and withdrawn](#sending-the-full-screen-intent-ourselves--tried-and-withdrawn-2026-08-16-2241).
+- **Is there any signal that fires *after* the call is registered?** Telecom's own call state is the
+  obvious candidate and the panel cannot see it without becoming an `InCallService`, which is a much
+  larger commitment than a notification listener. Worth pricing before another attempt.
+- Does the call screen come up portrait? Still untested — it has never come up. It can be reached by
+  tapping the notification, which would answer both this and the orientation section below.
 - Does Domonap have any official/partner API? (One email to support.)
 
 ## Sources
@@ -350,5 +566,7 @@ and is rejected above for reasons that have nothing to do with layout.
 ## Recorded responses
 
 No HTTP response — the panel calls nothing. What has been read off the device is in
-[Recorded on the tablet](#recorded-on-the-tablet-2026-08-15). The incoming-call notification record
-is still to be captured.
+[Recorded on the tablet](#recorded-on-the-tablet-2026-08-15), and the incoming-call notification
+record — captured 2026-08-16 — is in
+[a real incoming call](#recorded-on-the-tablet--a-real-incoming-call-2026-08-16). The door address
+and the phone handle it contains are redacted there, per AGENTS.md.
