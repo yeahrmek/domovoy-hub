@@ -21,13 +21,27 @@ a day. Assume Wi-Fi drops, tokens expire and the tablet reboots unattended.
 
 ## Commands
 
+**There is no JDK, Android SDK or `adb` on the system PATH, and there is not meant to be.**
+`/usr/bin/java` is the macOS stub — it answers "Unable to locate a Java Runtime". Everything the
+build needs lives in the repo-local toolchain under `.toolchain/` (gitignored), and
+`scripts/env.sh` is what puts it on PATH. Source it in the *same* command as gradle; the shell
+does not persist between calls. Do not go looking for a system JDK — there isn't one.
+
 ```bash
-./gradlew test                  # unit tests — run after every change, must be green
-./gradlew ktlintCheck           # formatting
-./gradlew lint                  # Android lint
-./gradlew assembleDebug         # build APK
-./gradlew installDebug          # install on the connected tablet (adb)
-./gradlew connectedAndroidTest  # instrumented tests, needs a device
+source scripts/env.sh && ./gradlew test
+```
+
+Recreate `.toolchain/` with `scripts/toolchain.sh` if it is missing — it downloads Temurin 21 and
+the Android SDK into the repo and installs nothing system-wide. Gradle and `adb` both fail inside
+the command sandbox (they bind local sockets), so run them with the sandbox disabled.
+
+```bash
+source scripts/env.sh && ./gradlew test                  # unit tests — after every change, must be green
+source scripts/env.sh && ./gradlew ktlintCheck           # formatting
+source scripts/env.sh && ./gradlew lint                  # Android lint
+source scripts/env.sh && ./gradlew assembleDebug         # build APK
+source scripts/env.sh && ./gradlew installDebug          # install on the connected tablet (adb)
+source scripts/env.sh && ./gradlew connectedAndroidTest  # instrumented tests, needs a device
 ```
 
 Never report a task as done on the strength of "it compiles". `./gradlew test` must pass.
