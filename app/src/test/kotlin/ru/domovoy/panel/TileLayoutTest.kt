@@ -1,6 +1,7 @@
 package ru.domovoy.panel
 
 import org.junit.jupiter.api.Test
+import ru.domovoy.core.Bounds
 import ru.domovoy.core.Reading
 import java.time.Instant
 import kotlin.test.assertEquals
@@ -8,7 +9,7 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 
 /**
- * The two decisions in the mosaic that have a right and a wrong answer. They live out here rather
+ * The three decisions in the mosaic that have a right and a wrong answer. They live out here rather
  * than inside a `@Composable` because there is no Compose test dependency and adding one is an
  * "ask first" — and because a decision no test can reach is a decision nobody checks.
  */
@@ -66,14 +67,61 @@ class TileLayoutTest {
         assertEquals(TileMood.Off, mood(isOn = false, error = null))
     }
 
+    @Test
+    fun `an air conditioner and a recuperator are climate`() {
+        // The two things in the flat that move air. They are the same family on the wall whatever
+        // vendor is behind them — one is Yandex and the other Tuya, and nobody standing in the
+        // hallway cares which.
+        assertEquals(TileHue.Climate, hue(ac(isOn = true)))
+        assertEquals(TileHue.Climate, hue(recuperator(temperature = 29.3, humidity = 32.2)))
+    }
+
+    @Test
+    fun `a bulb and a light strip are light`() {
+        assertEquals(TileHue.Light, hue(bulb(isOn = true)))
+        assertEquals(TileHue.Light, hue(strip(isOn = true)))
+    }
+
+    @Test
+    fun `a curtain and a launcher are neutral`() {
+        // Three families and no more: a fourth hue on a wall read from four metres is decoration
+        // rather than information, so everything that is neither air nor light shares the quiet one.
+        assertEquals(TileHue.Neutral, hue(curtain(openPercent = 100.0)))
+        assertEquals(TileHue.Neutral, hue(launcher(openable = true)))
+    }
+
+    @Test
+    fun `a tile's hue is its type's and does not move with its state`() {
+        // The two axes are separate on purpose: hue says what kind of thing this is, mood says
+        // whether the hue gets used at all. A lamp that is off is still a lamp — it is mood that
+        // paints it neutral, and hue must not quietly agree by turning into something else.
+        listOf(true, false, null).forEach { state ->
+            assertEquals(TileHue.Light, hue(bulb(isOn = state)))
+            assertEquals(TileHue.Light, hue(strip(isOn = state)))
+            assertEquals(TileHue.Climate, hue(ac(isOn = state)))
+            assertEquals(TileHue.Climate, hue(recuperator(temperature = 29.3, humidity = 32.2, isOn = state)))
+        }
+        listOf(0.0, 100.0, null).forEach { position ->
+            assertEquals(TileHue.Neutral, hue(curtain(openPercent = position)))
+        }
+        // Failing is a state too, and the recuperator is the one tile carrying its own error.
+        val failing = recuperator(temperature = null, humidity = null, isOn = null, error = "timeout")
+        assertEquals(TileMood.Failing, mood(failing.isOn, failing.error))
+        assertEquals(TileHue.Climate, hue(failing))
+        // The launcher's failure is the app being gone, and it is not a hue either.
+        assertEquals(TileHue.Neutral, hue(launcher(openable = false)))
+    }
+
     private fun recuperator(
         temperature: Double?,
         humidity: Double?,
+        isOn: Boolean? = true,
+        error: String? = null,
     ) = RecuperatorTileState(
         id = "xfj-01",
         name = "Бризер",
         room = "Спальня",
-        isOn = true,
+        isOn = isOn,
         powerLastUpdated = Reading.At(now),
         speeds = listOf(FanSpeed.Low),
         speedLastUpdated = Reading.At(now),
@@ -82,5 +130,57 @@ class TileLayoutTest {
         humidity = humidity,
         humidityLastUpdated = if (humidity == null) Reading.Never else Reading.At(now),
         online = true,
+        error = error,
+    )
+
+    private fun ac(isOn: Boolean?) = AcTileState(
+        id = "ac-01",
+        name = "Кондиционер",
+        room = "Зал",
+        isOn = isOn,
+        powerLastUpdated = Reading.At(now),
+        targetTemperature = 22.0,
+        bounds = Bounds(min = 16.0, max = 30.0, precision = 1.0),
+        unit = "unit.temperature.celsius",
+        temperatureLastUpdated = Reading.At(now),
+    )
+
+    private fun bulb(isOn: Boolean?) = BulbTileState(
+        id = "light-01",
+        name = "Лампа",
+        room = "Коридор",
+        isOn = isOn,
+        lastUpdated = Reading.At(now),
+        stateChangedAt = Reading.At(now),
+    )
+
+    private fun strip(isOn: Boolean?) = LightStripTileState(
+        id = "strip-01",
+        name = "Лента",
+        room = "Коридор",
+        isOn = isOn,
+        powerLastUpdated = Reading.At(now),
+        brightnessPercent = 60.0,
+        bounds = Bounds(min = 1.0, max = 100.0, precision = 1.0),
+        unit = "unit.percent",
+        brightnessLastUpdated = Reading.At(now),
+        color = null,
+    )
+
+    private fun curtain(openPercent: Double?) = CurtainTileState(
+        id = "curtain-01",
+        name = "Штора",
+        room = "Зал",
+        openPercent = openPercent,
+        bounds = Bounds(min = 0.0, max = 100.0, precision = 1.0),
+        lastUpdated = Reading.At(now),
+        stateChangedAt = Reading.At(now),
+    )
+
+    private fun launcher(openable: Boolean) = LauncherTileState(
+        packageName = "com.example.intercom",
+        name = "Домофон",
+        room = null,
+        openable = openable,
     )
 }

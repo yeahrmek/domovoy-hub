@@ -41,7 +41,7 @@ fun LightStripTile(
     onToggle: (String) -> Unit = {},
     onSetBrightness: (String, Double) -> Unit = { _, _ -> },
 ) {
-    TileCard(mood = mood(tile.isOn, error), span = HALF_SPAN, modifier = modifier) {
+    TileCard(hue = hue(tile), mood = mood(tile.isOn, error), span = HALF_SPAN, modifier = modifier) {
         Column(modifier = Modifier.fillMaxWidth().padding(12.dp)) {
             Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Column(modifier = Modifier.weight(1f)) {
