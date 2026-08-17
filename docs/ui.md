@@ -273,18 +273,33 @@ This is a pure function of the room sections. It gets a test.
   the two themes, and the theme that breaks is the one nobody is looking at when they check. The
   schemes are the one place values are written, and they are in the theme, not in `panel/`. Done in
   commit 2 and grep-clean; it stays that way.
-- `Off`, `Unknown` and `Failing` all share `surfaceContainer`. There is no second and third neutral
-  to give them, and the difference between the three is said in words on the status line, where it
-  was always said — "off", "unknown", "not updating: <reason>". What must not happen is any of them
-  borrowing the *on* colour and claiming a reading nobody has taken.
-- **`Failing` was `errorContainer` until the wall had several at once.** Commit 2 painted a failing
-  tile red on the reasoning that it is showing a value nobody has confirmed — true, and still the
-  reason `mood` ranks `Failing` above `isOn`. But one unreachable vendor makes a panel that reads as
-  an emergency, and the paint is loudest exactly when it is least useful: at boot, before anything
-  has been read, every tile is failing at once. The reason is on the tile in words either way.
-- The one failure still *painted* is the group's, and it outlines rather than fills — the red border
-  on the recuperators when the inventory call failed. It is now the only red on the panel, which is
-  the point: five outlined tiles is one vendor, not five broken units.
+- `Off` and `Unknown` share `surfaceContainer`. There is no second neutral to give them, and the
+  difference is said in words on the status line, where it was always said — "off" against
+  "unknown". What must not happen is either of them borrowing the *on* colour and claiming a reading
+  nobody has taken.
+- **`Failing` is a filled `errorContainer`, on every tile.** This reverses what commit 2 landed on,
+  and the reversal is the decision rather than the drift, so both halves are kept here.
+
+  Commit 2 painted it red on the reasoning that a failing tile is showing a value nobody has
+  confirmed — true, and still why `mood` ranks `Failing` above `isOn`. It was pulled because one
+  unreachable vendor made the panel read as an emergency, and because the paint is loudest exactly
+  when it is least useful: at boot, before anything has been read, every tile fails at once.
+
+  It comes back because the neutral treatment failed the other way. A failing tile that looks
+  identical to a working one puts the whole weight on a status line nobody reads from four metres,
+  and the point of the mosaic is that a wall is read by colour and shape before it is read by words.
+  A pale rose is also not what commit 2 tried: the error container at this palette's tone is close to
+  the neutral in weight, and a wall of it reads as *muted* rather than as alarm.
+
+  **The boot case is known and accepted, not overlooked.** Until the first poll lands every tile on
+  Главная will be rose. _If that reads as alarm on the wall rather than as "nothing has been read
+  yet", the fix is to tell "never polled" apart from "stopped polling" — `lastPolledAt == null`
+  against a stale timestamp, both of which `Staleness.kt` already has — and leave the first one
+  neutral._ That is the third option that was on the table and was not taken; it is written down so
+  it does not have to be rediscovered.
+- The group's own failure keeps its outline as well as the fill — the border on the recuperators when
+  the inventory call failed. Five outlined tiles is one vendor, not five broken units, and that
+  distinction survives everything above.
 - **Confirmed: the tablet's dark theme is on a real schedule, 19:00–07:00** (`mNightMode=0 (auto)`,
   `customStart=19:00 customEnd=07:00`). So the dark scheme is not dead code and the theme commit is
   worth doing.
@@ -383,40 +398,37 @@ status line.
   construction and cannot drift apart in one theme.
 - On a half tile the icon sits on the first line beside the name; on a third tile it sits above it,
   which is what the mockups showed and what stops a 251 dp tile from spending its width on a glyph.
-- **A bulb has no container at all, and a lit one is a filled glyph.** A 72 dp cell holding the lamp
-  and nothing else: lit, it is the **filled** bulb in the light colour; unlit, the **outlined** bulb
-  in a quiet one. No disc, no tile, no border, no halo, in either state. The row then reads as a wall
-  of lamps rather than as a row of buttons, which is the thing 28 of anything most needs.
+- **A bulb circle is a filled disc carrying the mood colour, with one outlined glyph on it.** 72 dp
+  of disc, the lamp centred at 30 dp, no text at any size — the count and the age are on the group's
+  one line underneath, which is what lets 28 lamps be a row rather than fourteen rows.
 
-  Two treatments were built before this one and both are worth not going back to. **A filled amber
-  disc per lamp** turns the row into 28 coloured dots — a status bar, not a set of lights. **A white
-  disc inset in a coloured tile** fixes that by making each lamp an object with a light in it, and
-  costs two nested shapes and a 24 dp glyph to do it. Neither puts the light in the lamp, which is
-  the whole idea: a lamp that is on should look lit, not look labelled.
+  | State | Disc | Glyph |
+  | --- | --- | --- |
+  | On | the light container | its on-colour |
+  | Off | `surfaceContainer` | `onSurfaceVariant` |
+  | Failing | `errorContainer` | `onErrorContainer` |
 
-  - **The state is a shape, not only a hue, and that is the point rather than a detail.** Samsung's
-    blue light filter is on and tints the whole screen warm — the one thing that erodes an
-    amber-against-neutral distinction, and it cannot be judged out of a screencap. A filled silhouette
-    against an outline survives the filter, survives four metres, and survives whatever the dark
-    scheme does to the amber at night.
-  - It costs a second drawable: Tabler ships `bulb` and a filled variant, so `ic_bulb.xml` and
-    `ic_bulb_filled.xml`, and a pure function to choose between them. `bulbGlyph(isOn: Boolean?)`
-    sits in `TileLayout.kt` next to `curtainGlyph` and is the second glyph of the set with a test —
-    same shape of decision, same reason it is testable, same rule for the null: **null takes the
-    outline**, because the filled bulb is a positive claim that the lamp is lit.
+  **The glyph is the same outlined bulb in every state.** No filled variant, so one drawable rather
+  than two, and no `bulbGlyph` function — the disc carries the whole of the state and the lamp is
+  only ever the label for what the disc is about. `curtainGlyph` stays the one glyph in the set that
+  changes with its value.
+
+  Three other treatments were built or mocked on the way here, and are recorded so the ground is not
+  re-covered: a **white disc inset in a coloured tile** (two nested shapes, glyph down to 24 dp), a
+  **bare glyph with no container**, and a **bare glyph that fills when lit**. The bare ones read as a
+  wall of lamps rather than a row of buttons, which was their appeal, and lost on the thing that
+  matters more on a wall: with no container there is nothing for 64 dp of touch target to look like,
+  and nothing for `Failing` to colour.
+
   - A glow was mocked and dropped. Recorded because the *implementation* note outlives the choice: a
     halo would have had to be a `Brush.radialGradient` and not `Modifier.blur`, which is API 31+
     against a minSdk of 26 — it would have drawn perfectly on this Android 13 tablet and silently
     nothing on Android 8 to 11. That trap is still there for anything else that reaches for a blur.
-  - **The 64 dp touch target stays, invisible.** This is the cost of the choice and it is the same
-    one the handle-less slider took — cleaner to look at, less obviously pressable. Worse here than
-    there, because a slider at least prints a number beside it and an unlit lamp offers nothing.
-    _Watch whether anyone works out the lamps are tappable._ If they do not, the answer is a quiet
-    disc under the glyph and not a return to coloured discs.
-  - A circle is only ever `On` or `Off`, because a bulb with no state breaks out of the row and
-    becomes a named tile. `Failing` reaches the circles when the group's poll fails, and with no
-    container there is nothing to outline: the circles stay in their unlit colour and **the group's
-    line under the row carries the words**, once, which is where it was always said.
+  - A circle is only ever `On`, `Off` or `Failing`. A bulb with no state at all breaks out of the row
+    and becomes a named tile, so `Unknown` never reaches a disc — which is why three rows above and
+    not four.
+  - The group's line under the row still carries the failure **in words**, once, as it always has.
+    The rose says which lamps; the line says why.
 - `contentDescription = null` on the glyph in every tile. They are decorative: the name is right
   there, and a screen reader announcing "lightbulb Лампа в коридоре" says the noun twice. **The bulb
   circles are the exception and already handle it** — they carry the lamp's name and state as the
