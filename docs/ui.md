@@ -329,9 +329,28 @@ is the whole of what it added outside `panel/`.
 | Recuperator | `mode_fan` | `ic_mode_fan.xml` | `swap_vert`, `filter_alt`, `vent` |
 | Light strip | `wb_iridescent` | `ic_wb_iridescent.xml` | `horizontal_rule`, `linear_scale`, `light` |
 | Curtain | `vertical_shades` / `vertical_shades_closed` | `ic_vertical_shades.xml`, `ic_vertical_shades_closed.xml` | `curtains`, `roller_shades`, `blinds`, `shade` |
-| Bulb | `lightbulb` | `ic_lightbulb.xml` | `light_mode`, `emoji_objects` |
-| Домофон | `doorbell` | `ic_doorbell.xml` | — |
-| Пылесос | `robot_2` | `ic_robot_2.xml` | `cleaning_services`, which was the fallback and was not needed |
+| Bulb | Tabler `bulb` — **not a Material Symbol** | `ic_bulb.xml` | `lightbulb`, `wb_incandescent`, `tips_and_updates`, `emoji_objects`, `flare`, `lightbulb_circle` |
+| Домофон | `video_camera_front` | `ic_video_camera_front.xml` | `doorbell`, `ring_volume` |
+| Пылесос | `vacuum` | `ic_vacuum.xml` | `robot_2`, `smart_toy`, `cleaning_services` |
+
+**The bulb comes from Tabler and the other seven from Material Symbols, and that mix is a decision
+rather than an accident.** Six Material bulbs were rendered and none was the one wanted: `lightbulb`
+is plain, and the bulb that had been approved all along has short rays around its top. It had been
+approved all along because **every mockup in this project was drawn in Tabler** — so the look being
+signed off was Tabler's, and Material's bulb was never the thing anyone had looked at.
+
+Moving all seven to Tabler was the tidier answer and was turned down: it re-opens six settled glyphs
+to fix one. The judgement is that the clash will not read, because the bulb is the only glyph that
+never appears beside another — it lives inside its own disc in a row of discs, visually fenced off
+from the tiles that carry the Material ones. _If it does read on the wall, this is the note that
+says which way to resolve it: move the other seven, not the bulb back._
+
+Tabler is MIT, so the SVG is vendored into `res/drawable/` like the rest. It draws on a 24 grid
+against Material's 960, so it is the one file here whose path data is not simply Google's numbers
+moved into the viewport.
+
+`video_camera_front` over `doorbell` because Domonap's call screen is video: the tile opens the app
+you watch someone at the door through, and the glyph now says which of those two things it is.
 
 **All eight are Material Symbols that exist**, and the last two — the ones this doc had down as names
 off a list — were confirmed rather than assumed: `fonts.gstatic.com/s/i/short-term/release/`
@@ -364,11 +383,20 @@ status line.
   construction and cannot drift apart in one theme.
 - On a half tile the icon sits on the first line beside the name; on a third tile it sits above it,
   which is what the mockups showed and what stops a 251 dp tile from spending its width on a glyph.
-- **In the bulb circles the glyph is the whole tile.** 72 dp of circle, the lamp centred in it, no
-  text — the count and the age are on the group's one line underneath. That is the whole reason
-  28 lamps can be a row rather than fourteen rows.
-- `contentDescription = null` on every one of them. They are decorative: the name is right there, and
-  a screen reader announcing "lightbulb Лампа в коридоре" says the noun twice.
+- **A bulb circle is two shapes, not one.** A **72 dp** tile at the full corner radius, a **46 dp**
+  disc centred inside it, and the glyph at **24 dp** inside that. The tile carries the mood colour —
+  amber when lit, neutral when not — and the disc is the surface, so the glyph reads out of a light
+  well rather than off a coloured field. No text at any size: the count and the age are on the
+  group's one line underneath, which is what lets 28 lamps be a row rather than fourteen rows.
+
+  The single-shape version — glyph straight onto a 72 dp coloured disc — was built first and
+  replaced. It gives the glyph 26 dp instead of 24, and that is the whole of what it gives; the
+  inset reads as an object with a light in it rather than as a coloured dot, and 28 coloured dots in
+  a row is a status bar, not a set of lamps.
+- `contentDescription = null` on the glyph in every tile. They are decorative: the name is right
+  there, and a screen reader announcing "lightbulb Лампа в коридоре" says the noun twice. **The bulb
+  circles are the exception and already handle it** — they carry the lamp's name and state as the
+  circle's own content description, because at 72 dp there is no room for either in text.
 
 ### Adding or drawing a glyph
 
