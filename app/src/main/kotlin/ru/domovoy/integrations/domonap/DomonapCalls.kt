@@ -29,10 +29,17 @@ private const val DOMONAP_PACKAGE = "com.domonap.app"
  */
 private val CALL_CHANNELS = setOf("telecom_incoming_channel3", "telecom_ongoing_channel3")
 
+/** The channel a call rings on. Only a ringing call is worth putting on the wall. */
+private const val RINGING_CHANNEL = "telecom_incoming_channel3"
+
 /**
- * Turns Domonap's notifications into "is there a call". Keyed on package and channel only: no
- * incoming call has been captured yet, so nothing here reads the notification's extras, and the
- * caller's name and photo are simply not known — see the open questions in docs/domonap.md.
+ * Turns Domonap's notifications into "is there a call", and decides when to bring Domonap's own
+ * call screen up.
+ *
+ * Keyed on package and channel; of the record's contents only *whether it carries a call screen* is
+ * used. The 2026-08-16 capture recorded the rest — the door in `android.title`, a constant
+ * `"Входящий вызов"` in `android.text` — and the panel shows none of it, because the call screen it
+ * opens shows all of it, with the video, from Domonap itself.
  *
  * Domonap posts nothing at all when idle, which is what makes the channel test safe: the panel
  * cannot be left thinking a call is up because some unrelated notification is sitting there.
@@ -42,26 +49,56 @@ private val CALL_CHANNELS = setOf("telecom_incoming_channel3", "telecom_ongoing_
 class DomonapCalls(private val now: () -> Instant = Instant::now) {
     /** Keys of the call notifications currently up; a call lasts as long as any of them does. */
     private val up = LinkedHashSet<String>()
+
+    /**
+     * Whether this call's screen has already been asked for. A call is four posts on the tablet,
+     * and every one of them carries the same full-screen intent; without this the panel would fling
+     * the call screen up four times for one ring.
+     */
+    private var callScreenAsked = false
     private val mutableState = MutableStateFlow<CallState>(CallState.Idle)
     val state: StateFlow<CallState> = mutableState.asStateFlow()
 
+    /**
+     * Takes one posted notification.
+     *
+     * [hasCallScreen] is whether the record carries a full-screen intent — Domonap's own ringing
+     * screen, with the video from the intercom and its accept and decline. Returns whether the
+     * caller should bring it up now: true at most once per call, and only while the call is still
+     * *ringing*.
+     *
+     * The two posts this splits apart were measured, not guessed. Domonap's first post is the
+     * `phoneCall` foreground service's and carries no extras and no full-screen intent; the
+     * populated one lands 25 ms later **on the same key**. So a repost of a key already counted is
+     * not redundant — it is where the call screen arrives — and the call itself starts on the first
+     * post, 25 ms earlier, which is when polling should already be yielding.
+     */
     @Synchronized
     fun onPosted(
         packageName: String,
         channelId: String,
         key: String,
-    ) {
-        if (packageName != DOMONAP_PACKAGE || channelId !in CALL_CHANNELS) return
+        hasCallScreen: Boolean,
+    ): Boolean {
+        if (packageName != DOMONAP_PACKAGE || channelId !in CALL_CHANNELS) return false
         // Domonap re-posts the same key to update the ringing notification; that is the same call,
         // so the clock keeps running from when it started rather than restarting.
-        if (!up.add(key)) return
+        up.add(key)
         if (mutableState.value is CallState.Idle) mutableState.value = CallState.Active(since = now())
+
+        // Only a ringing call. A call on the ongoing channel is one somebody is already talking on
+        // — answered on another phone, or here before the listener bound — and throwing the call
+        // screen over that interrupts them. Opening it never answers: this is the screen the
+        // platform itself would have shown, and it comes up ringing.
+        if (channelId != RINGING_CHANNEL || !hasCallScreen || callScreenAsked) return false
+        callScreenAsked = true
+        return true
     }
 
     @Synchronized
     fun onRemoved(key: String) {
         if (!up.remove(key)) return
-        if (up.isEmpty()) mutableState.value = CallState.Idle
+        if (up.isEmpty()) endCall()
     }
 
     /**
@@ -74,6 +111,16 @@ class DomonapCalls(private val now: () -> Instant = Instant::now) {
     @Synchronized
     fun onListenerReconnected() {
         up.clear()
+        endCall()
+    }
+
+    /**
+     * The call is over as far as the panel can see, so the next one gets its screen put up too.
+     * A missed-call notification is posted at this moment, on its own channel and its own key; it
+     * is not a call and nothing here counts it.
+     */
+    private fun endCall() {
+        callScreenAsked = false
         mutableState.value = CallState.Idle
     }
 }
