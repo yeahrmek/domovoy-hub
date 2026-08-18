@@ -300,6 +300,10 @@ This is a pure function of the room sections. It gets a test.
 - The group's own failure keeps its outline as well as the fill — the border on the recuperators when
   the inventory call failed. Five outlined tiles is one vendor, not five broken units, and that
   distinction survives everything above.
+- **The bulb circles are the one place none of this can land**, because commit 6 left them with no
+  container to fill or outline. A failed group drops them to their unlit lamp instead, and the group's
+  line under the row carries the reason in words — see "Icons". That is the cost of taking the disc
+  away, and it was accepted with the eyes open rather than missed.
 - **Confirmed: the tablet's dark theme is on a real schedule, 19:00–07:00** (`mNightMode=0 (auto)`,
   `customStart=19:00 customEnd=07:00`). So the dark scheme is not dead code and the theme commit is
   worth doing.
@@ -333,10 +337,10 @@ legible, and on a panel that is looked at on the way past, that is most of the l
 
 **As vector drawables in `app/src/main/res/drawable/`, not as a dependency.**
 `androidx.compose.material:material-icons-extended` carries the glyphs this needs, and it is a large
-artifact to add for eight of them — and adding a dependency is an "ask first" in CLAUDE.md. Eight
-Material Symbols exported to vector XML cost nothing at build time and are `res/` files, which is
-neither a dependency nor a manifest change. Held: commit 6 added no dependency, and `res/drawable/`
-is the whole of what it added outside `panel/`.
+artifact to add for nine of them — and adding a dependency is an "ask first" in CLAUDE.md. Nine
+glyphs exported to vector XML cost nothing at build time and are `res/` files, which is neither a
+dependency nor a manifest change. Held: commit 6 added no dependency, and `res/drawable/` is the
+whole of what it added outside `panel/`.
 
 | Tile | Glyph | File | Chosen over |
 | --- | --- | --- | --- |
@@ -344,34 +348,38 @@ is the whole of what it added outside `panel/`.
 | Recuperator | `mode_fan` | `ic_mode_fan.xml` | `swap_vert`, `filter_alt`, `vent` |
 | Light strip | `wb_iridescent` | `ic_wb_iridescent.xml` | `horizontal_rule`, `linear_scale`, `light` |
 | Curtain | `vertical_shades` / `vertical_shades_closed` | `ic_vertical_shades.xml`, `ic_vertical_shades_closed.xml` | `curtains`, `roller_shades`, `blinds`, `shade` |
-| Bulb | Tabler `bulb` — **not a Material Symbol** | `ic_bulb.xml` | `lightbulb`, `wb_incandescent`, `tips_and_updates`, `emoji_objects`, `flare`, `lightbulb_circle` |
+| Bulb | Tabler `bulb` and its filled variant — **not Material Symbols** | `ic_bulb.xml`, `ic_bulb_filled.xml` | `lightbulb`, `wb_incandescent`, `tips_and_updates`, `emoji_objects`, `flare`, `lightbulb_circle` |
 | Домофон | `video_camera_front` | `ic_video_camera_front.xml` | `doorbell`, `ring_volume` |
 | Пылесос | `vacuum` | `ic_vacuum.xml` | `robot_2`, `smart_toy`, `cleaning_services` |
 
-**The bulb comes from Tabler and the other seven from Material Symbols, and that mix is a decision
-rather than an accident.** Six Material bulbs were rendered and none was the one wanted: `lightbulb`
-is plain, and the bulb that had been approved all along has short rays around its top. It had been
-approved all along because **every mockup in this project was drawn in Tabler** — so the look being
-signed off was Tabler's, and Material's bulb was never the thing anyone had looked at.
+**The bulb's two come from Tabler and the other seven from Material Symbols, and that mix is a
+decision rather than an accident.** Six Material bulbs were rendered and none was the one wanted:
+`lightbulb` is plain, and the bulb that had been approved all along has short rays around its top. It
+had been approved all along because **every mockup in this project was drawn in Tabler** — so the look
+being signed off was Tabler's, and Material's bulb was never the thing anyone had looked at.
 
 Moving all seven to Tabler was the tidier answer and was turned down: it re-opens six settled glyphs
 to fix one. The judgement is that the clash will not read, because the bulb is the only glyph that
-never appears beside another — it lives inside its own disc in a row of discs, visually fenced off
-from the tiles that carry the Material ones. _If it does read on the wall, this is the note that
-says which way to resolve it: move the other seven, not the bulb back._
+never appears beside another — it sits alone in its own cell in the lights row, with no tile, no name
+and no Material glyph anywhere near it. _If it does read on the wall, this is the note that says which
+way to resolve it: move the other seven, not the bulb back._
 
-Tabler is MIT, so the SVG is vendored into `res/drawable/` like the rest. It draws on a 24 grid
-against Material's 960, so it is the one file here whose path data is not simply Google's numbers
-moved into the viewport.
+Tabler is MIT, so the SVGs are vendored into `res/drawable/` like the rest. They draw on a 24 grid
+against Material's 960, so they are the two files here whose path data is not simply Google's numbers
+moved into the viewport — and the two that therefore carry no `<group>` translate at all. The filled
+variant is built differently from the outline, which is worth knowing before editing either: the
+outline is three stroked paths, the filled one seven filled shapes, one per ray plus the glass, with
+`fill="currentColor"` on the root rather than on the paths.
 
 `video_camera_front` over `doorbell` because Domonap's call screen is video: the tile opens the app
 you watch someone at the door through, and the glyph now says which of those two things it is.
 
-**All eight are Material Symbols that exist**, and the last two — the ones this doc had down as names
-off a list — were confirmed rather than assumed: `fonts.gstatic.com/s/i/short-term/release/`
-`materialsymbolsoutlined/<name>/default/24px.svg` answers **404 for a name the set does not have**
-(checked against a made-up one), and all nine candidates answered 200. So `robot_2` is real and
-`cleaning_services` was never needed. Every one of the eight was then seen on the wall — see commit 6.
+**All seven Material names exist**, and the two nobody had rendered — `vacuum` and
+`video_camera_front`, the ones this doc had down as names off a list — were confirmed rather than
+assumed: `fonts.gstatic.com/s/i/short-term/release/``materialsymbolsoutlined/<name>/default/24px.svg`
+answers **404 for a name the set does not have** (checked against a made-up one), and every candidate
+answered 200. So the rejected `robot_2` and `doorbell` are real too, and `cleaning_services` was never
+needed. Every one of the nine was then seen on the wall — see commit 6.
 
 The path data is Google's, unmodified. The set draws on a 960 grid with a `viewBox` of
 `"0 -960 960 960"`, so each file carries the negative y offset as `<group android:translateY="960">`
@@ -389,7 +397,8 @@ status line.
 - `vertical_shades_closed` when the open percent is **0**, `vertical_shades` above it. A curtain 40 %
   open is open; only a shut one is shut. _The threshold is a guess and is one constant_ — if a
   curtain that has crept to 2 % reads as open on the wall and should not, this is the number. It is
-  `curtainGlyph` in `TileLayout.kt`, and it is the one glyph of the eight with a test.
+  `curtainGlyph` in `TileLayout.kt`, and it is one of the two glyphs of the nine with a test — the
+  other is the bulb's, below.
 - **A null open percent takes the open glyph, not the closed one.** The closed glyph is a positive
   claim that the curtain is shut, and the panel does not know. Same rule the strings have always
   followed: unknown is not off, and the paint must not undo what the words were careful about.
@@ -398,37 +407,67 @@ status line.
   construction and cannot drift apart in one theme.
 - On a half tile the icon sits on the first line beside the name; on a third tile it sits above it,
   which is what the mockups showed and what stops a 251 dp tile from spending its width on a glyph.
-- **A bulb circle is a filled disc carrying the mood colour, with one outlined glyph on it.** 72 dp
-  of disc, the lamp centred at 30 dp, no text at any size — the count and the age are on the group's
-  one line underneath, which is what lets 28 lamps be a row rather than fourteen rows.
+- **A bulb circle has no container at all, and a lit lamp is a filled lamp.** A 72 dp cell holding a
+  48 dp lamp and nothing else — no disc, no tile, no border, no halo, in either state. No text at any
+  size either: the count and the age are on the group's one line underneath, which is what lets 28
+  lamps be a row rather than fourteen rows. The row then reads as a wall of lamps rather than as a row
+  of buttons, which is the thing 28 of anything most needs.
 
-  | State | Disc | Glyph |
+  | State | Lamp | Colour |
   | --- | --- | --- |
-  | On | the light container | its on-colour |
-  | Off | `surfaceContainer` | `onSurfaceVariant` |
-  | Failing | `errorContainer` | `onErrorContainer` |
+  | On | `ic_bulb_filled` | `tertiary` |
+  | Off | `ic_bulb` | `onSurfaceVariant` |
 
-  **The glyph is the same outlined bulb in every state.** No filled variant, so one drawable rather
-  than two, and no `bulbGlyph` function — the disc carries the whole of the state and the lamp is
-  only ever the label for what the disc is about. `curtainGlyph` stays the one glyph in the set that
-  changes with its value.
+  The colours are the **accent** roles rather than the container ones the cards wear, for the same
+  reason the slider's fill takes them: there is no container left to hold `tertiaryContainer`, and
+  `onTertiaryContainer` is a colour for sitting *on* that container. The lamp is 48 dp rather than the
+  24 dp every other glyph takes because it is the only one with nothing to share its cell with — it
+  inherits the footprint the old inset well occupied, and at 24 dp in a bare cell the row reads as a
+  scatter of specks.
 
-  Three other treatments were built or mocked on the way here, and are recorded so the ground is not
-  re-covered: a **white disc inset in a coloured tile** (two nested shapes, glyph down to 24 dp), a
-  **bare glyph with no container**, and a **bare glyph that fills when lit**. The bare ones read as a
-  wall of lamps rather than a row of buttons, which was their appeal, and lost on the thing that
-  matters more on a wall: with no container there is nothing for 64 dp of touch target to look like,
-  and nothing for `Failing` to colour.
+  **The state is a shape and not only a hue, and that is the point rather than a detail.** Measured on
+  the glass with the filter on: the lit lamp composites `#865301 → #9E6301` and the unlit one
+  `#3F4754 → #473719`. Off-filter those are amber against slate; on-filter they are both brown and the
+  difference is mostly lightness — so the **hue** distinction really does erode on this wall, exactly
+  as feared, and it is the filled-against-outline silhouette that survives the filter, four metres, and
+  whatever the dark scheme does to the amber at night. `bulbGlyph(isOn)` in `TileLayout.kt` picks
+  between the two, and `glyph(BulbTileState)` asks it rather than fixing the outline, so the lamp in a
+  named tile and the lamp in a circle cannot come out as different lamps.
+
+  Two treatments came before this one, and are recorded so the ground is not re-covered: a **filled
+  amber disc per lamp**, which turns the row into 28 coloured dots — a status bar, not a set of
+  lights — and a **white disc inset in a coloured tile**, which fixes that by making each lamp an
+  object with a light in it, at two nested shapes and a glyph shrunk to 24 dp to fit inside them.
+  Neither puts the light in the lamp, which is the whole idea: a lamp that is on should look lit, not
+  look labelled.
+
+  _This bullet briefly said the opposite_ — bring the disc back, let it carry the whole of the state,
+  and put the same outlined lamp on it in every mood. That was reversed and the bare filled lamp
+  confirmed, so the disc version is history and not an open question. Its two arguments were sound,
+  though, and they are kept below as the two costs of the choice rather than argued away.
 
   - A glow was mocked and dropped. Recorded because the *implementation* note outlives the choice: a
     halo would have had to be a `Brush.radialGradient` and not `Modifier.blur`, which is API 31+
     against a minSdk of 26 — it would have drawn perfectly on this Android 13 tablet and silently
     nothing on Android 8 to 11. That trap is still there for anything else that reaches for a blur.
-  - A circle is only ever `On`, `Off` or `Failing`. A bulb with no state at all breaks out of the row
-    and becomes a named tile, so `Unknown` never reaches a disc — which is why three rows above and
-    not four.
-  - The group's line under the row still carries the failure **in words**, once, as it always has.
-    The rose says which lamps; the line says why.
+  - **The 64 dp touch target stays, invisible**, which is the first cost. It is the same one the
+    handle-less slider took — cleaner to look at, less obviously pressable — and worse here, because a
+    slider at least prints a number beside it and an unlit lamp offers nothing. The only shape that
+    ever draws is the ripple, clipped to a circle the size of the target so a press has somewhere to
+    land. _Watch whether anyone works out the lamps are tappable._ If they do not, the answer is a
+    quiet disc under the glyph and not a return to coloured discs.
+  - **A failing poll has no container to colour, which is the second cost.** `Failing` is a filled
+    `errorContainer` on every *tile* on this wall — see "Colour" — and the circles are the one place
+    that treatment cannot reach. So a failed group drops every circle to unlit, **shape included**:
+    `Failing` outranks a perfectly good `isOn` for the reason it does in `mood`, and a filled lamp is a
+    positive claim that this lamp is lit right now. The row's count still says how many were on when
+    the reading was taken, and the group's line under the row carries the failure **in words**, once,
+    which is where it was always said.
+  - A circle is only ever `On` or `Off`. A bulb with no state at all breaks out of the row and becomes
+    a named tile, so `Unknown` never reaches a circle — which is why two rows in the table above and
+    not four. **A null takes the outline**, because the filled lamp is a positive claim the panel
+    cannot make: the same rule `curtainGlyph` takes for its null, and the same rule the words have
+    always followed.
 - `contentDescription = null` on the glyph in every tile. They are decorative: the name is right
   there, and a screen reader announcing "lightbulb Лампа в коридоре" says the noun twice. **The bulb
   circles are the exception and already handle it** — they carry the lamp's name and state as the
@@ -574,10 +613,12 @@ What gets a test, each asserting the value returned and not which composable was
 - The tile layout: the recuperator's span from whether it reports climate, and `mood` from `isOn`
   and the error. Added in commit 2 — see section 2 for why a re-skin turned out to have things to
   assert after all.
-- The curtain's glyph, and only that one of the eight: 0 is closed, 40 and 100 are open, and **null
-  is open**. The other seven are a lookup from tile type to drawable and hold nothing a test could
-  catch. It asserts `R.drawable.*` ids directly — the generated `R` is on the unit test classpath, so
-  this needs no Compose and no Robolectric.
+- The two glyphs of the nine that are decisions rather than pictures. The curtain's: 0 is closed, 40
+  and 100 are open, and **null is open**. The bulb's: on is filled, off is outlined, and **null is
+  outlined** — a shut curtain and a lit lamp are both positive claims the panel cannot make. The other
+  seven are a lookup from tile type to drawable and hold nothing a test could catch. Both assert
+  `R.drawable.*` ids directly — the generated `R` is on the unit test classpath, so this needs no
+  Compose and no Robolectric.
 
 What does not get a unit test, and is checked on the tablet instead: the grid spans, the shapes, the
 dark palette, the touch targets, the idle reset actually firing, and **whether a glyph draws at all** —
@@ -780,7 +821,9 @@ Reuse rather than reinvent, both already there:
 - `notUpdating(error, lastPolledAt, now, interval)` in `Staleness.kt` — whether the group behind the
   circles has stopped being read. The group line says it once for the row instead of 28 times.
 - `mood(isOn, error)` in `TileLayout.kt` — what colours a circle. A circle is a tile and takes the
-  same four moods as one; nothing new is needed to paint it.
+  same four moods as one; nothing new is needed to paint it. _Commit 6 took the container off the
+  circles, so what a mood does to one is now a glyph and a tint rather than a disc colour — see
+  "Icons"._
 
 Changed: `PanelRooms.kt` renders the group as a `FlowRow` of 72 dp circles under one line, and each
 broken-out bulb as a named third-width tile. Until this lands the bulbs are third-width tiles, one
@@ -830,7 +873,7 @@ against the scheme's four candidate roles; every one landed on its own by a wide
 | Кондиционер, off | `surfaceContainer` |
 | Подсветка в зале, on | `tertiaryContainer` — light |
 | Бризер зал, on | `primaryContainer` — climate |
-| The bulb circles, on | `tertiaryContainer` |
+| The bulb circles, on | `tertiaryContainer` — _as commit 5 left them; commit 6 took the disc away, and a lit lamp is now `tertiary` on bare `surface`_ |
 | Домофон, Пылесос | `surfaceContainer` |
 | The panel behind them | `surface` |
 
@@ -873,19 +916,20 @@ capture side: `zsh` has `noclobber` on here, so `adb exec-out screencap -p > sho
 existing file **silently writes nothing** and the analysis then measures the previous shot. Three
 "the setting made no difference" results came from exactly that. Use `>|`.
 
-### 6 · `feat(panel): an icon per tile, and a slimmer slider` — built, on its branch
+### 6 · `feat(panel): an icon per tile, and a slimmer slider` — done, #19
 
 The other half of what makes the wall read as a panel rather than as paragraphs. See "Icons" for the
 glyph per tile, the sizes, and why they are `res/drawable` files rather than a dependency, and
 "Sliders" for the 6 dp track.
 
-New: eight vector drawables in `app/src/main/res/drawable/` — seven tiles and the curtain's second
-state. Changed: the five tile composables and the bulb circles.
+New: nine vector drawables in `app/src/main/res/drawable/` — seven tiles, the curtain's second state
+and the bulb's filled variant. Changed: the five tile composables and the bulb circles.
 
-One test, because one of the eight is a decision rather than a picture: `curtainGlyph(openPercent:
-Double?)` in `TileLayout.kt`, returning open or closed. Written first — 0 is closed, 40 is open, 100
-is open, and **null is open**, because the closed glyph is a claim the panel cannot make. The other
-seven are a lookup from tile type to drawable and hold nothing a test could catch.
+Two tests, because two of the nine are decisions rather than pictures. `curtainGlyph(openPercent:
+Double?)` in `TileLayout.kt`, returning open or closed — 0 is closed, 40 is open, 100 is open, and
+**null is open**. And `bulbGlyph(isOn: Boolean?)` beside it, returning filled or outlined — and **null
+is outlined**, because the filled lamp is the same kind of claim the closed curtain is. Both written
+first. The other seven are a lookup from tile type to drawable and hold nothing a test could catch.
 
 The slim slider lands here too — the three tiles with one, per "Sliders". It is the same pass over
 the same five composables, and splitting the glyph off from the control on the same tile would mean
@@ -895,11 +939,11 @@ What this commit must not do is add a dependency: if `material-icons-extended` s
 necessary, stop and ask rather than adding it.
 
 After 5, deliberately. Icons take the tile's content colour, so drawing them before the palette
-exists means placing every glyph against the baseline violet and re-judging all seven once it
+exists means placing every glyph against the baseline violet and re-judging all of them once it
 changes.
 
-Also new, in `panel/`: `glyph(...)` and `curtainGlyph(...)` in `TileLayout.kt` — one overload per tile
-state, as `hue` already has; `TileGlyph` and `TileHeading` in `TileCard.kt`, where the
+Also new, in `panel/`: `glyph(...)`, `curtainGlyph(...)` and `bulbGlyph(...)` in `TileLayout.kt` — one
+overload per tile state, as `hue` already has; `TileGlyph` and `TileHeading` in `TileCard.kt`, where the
 half-beside-third-above rule lives once and is taken from the tile's own span, so the recuperator
 gets whichever its width earns without being asked twice; and `SlimSlider.kt`, three callers.
 
@@ -914,11 +958,11 @@ other direction.
 
 | Check | Result |
 | --- | --- |
-| All eight glyphs draw | Every one of them, and none is the empty box a bad path renders as |
-| `doorbell`, `robot_2` — the two unverified names | Both real artwork on the tablet: a bell in a house and a two-eyed robot |
+| All nine glyphs draw | Every one of them, and none is the empty box a bad path renders as |
+| `vacuum`, `video_camera_front` — the two unverified names | Both real artwork on the tablet: an upright vacuum, and a camera with a face in it |
 | The curtain's pair | Visibly different at 24 dp — four tight slats shut, three gathered ones open |
 | Half beside, third above | `Кондиционер`/`Подсветка`/`Бризер`/`Шторы` beside the name, `Домофон`/`Пылесос` above it |
-| The bulb circles | 24 dp lamp centred in the 72 dp circle, on the circle's own content colour in both moods — an amber circle with a dark lamp, a `surfaceContainer` one with a light lamp |
+| The bulb circles | 48 dp lamp alone in its 72 dp cell, no container in either state — a filled `tertiary` lamp for a lit one, an outlined `onSurfaceVariant` lamp for an unlit one |
 | Track height | 13 px = **6.1 dp**, both schemes |
 | Touch area | **64.0 dp** on both sliders, dumped as `SeekBar` |
 | Slider colours, light | Fill `#0561A2` = `primary` on the ac, `#865301` = `tertiary` on the strip; rest `#D1B9A2` and `#C2C6CD`, both the 24 % composite to the byte |
@@ -936,6 +980,30 @@ forced to the open branch, installed, captured beside the closed one, and revert
 is the reverted code and `TileLayout.kt`'s diff is additions only. What that check buys is the thing
 `./gradlew test` cannot: **a vector drawable with bad path data fails silently as an empty box**, and
 the open shades are 141 characters of path data nobody had rendered on this device.
+
+**Checked again on 2026-08-18, and this time the filter was on the glass** — which is what the bulb
+change needed, since its whole argument is about what the filter does to a hue. The surface composited
+as `#F9E8CD` rather than `#F7F9FF`, about what "an amber overlay at ~22–25 %" predicts, so this pass is
+a real reading and not the arithmetic un-tinting the table above rests on. `blue_light_filter` read 1
+for it, agreeing with the glass for once.
+
+| Check | Result |
+| --- | --- |
+| The lamp pair, filter on | Lit `#9E6301`, unlit `#473719` — from `#865301` and `#3F4754`. Both brown under the filter, and told apart by shape rather than hue |
+| A row of both at once | Unmistakable at 1:1 from a throwaway build: filled amber lamps against dark hollow ones |
+| The unlit lamp, for real | Кабинет holds one lamp and it is off, so this one needed no forcing |
+| The open curtain, for real | Спальня read `100% open` on the second pass — the curtain had moved on its own, so the glyph the flat could not show in the first pass showed itself in the second |
+| The closed curtain | Forced instead, this time, being the state the flat was no longer in. Four tight slats at 6× against the open one's three |
+
+The lamp measurement is the one worth keeping, because it settles an argument rather than recording a
+colour: **the filter erodes an amber-against-neutral distinction and leaves a filled-against-hollow one
+intact.** That was the reason for spending a second drawable on the bulb, and it was a prediction until
+this pass. Anything else on this wall that plans to say something with a hue alone should be measured
+the same way before it is trusted.
+
+Two throwaway builds for it, both reverted, and `grep THROWAWAY` is empty in the shipped tree. The
+mixed row is the honest way to check a distinction — a lit row on one tab and an unlit lamp on another
+proves each glyph draws but not that the two read apart at a glance.
 
 Still unseen, both for the same reason as before — the flat is not doing the thing that would show
 them: a **broken-out bulb tile** (every bulb has state today, so the glyph-above-the-name layout is
