@@ -1,6 +1,7 @@
 package ru.domovoy.panel
 
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
@@ -114,6 +115,13 @@ fun PanelRooms(
                     selected = position == index,
                     onClick = { onSelectTab(position) },
                     text = { Text(text = if (tab.marked) tab.title + MARK else tab.title) },
+                    // [MIN_TOUCH], because a tab is the one thing on this wall a finger can miss:
+                    // Material sizes a text-only tab at 48 dp and the row takes its height from
+                    // its tallest tab, so raising the tab raises the strip and the indicator
+                    // stays on the row's bottom edge with it. A floor rather than a fixed height,
+                    // the same shape as [touchable] — 64 dp is the smallest a tab may be, not the
+                    // only size it may have.
+                    modifier = Modifier.heightIn(min = MIN_TOUCH),
                 )
             }
         }
