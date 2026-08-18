@@ -2,7 +2,8 @@
 
 **Scope:** how the panel is laid out and drawn. Not what it reads — that is one doc per vendor.
 
-**Status: commits 1 and 2 built and merged (#11, #12); 3 and 4 not started.** What was a brief is
+**Status: commits 1 to 5 built and merged (#11, #12, #14, #15, #17); 6 built and on its branch;
+7 — the tab strip's touch height — is all that is left.** What was a brief is
 now half a record. Numbers that were guesses when this was written and have since been measured on
 the tablet say so and give the measurement; the ones still marked _measure on the tablet_ are numbers
 nobody has taken, and are not settled just because they are written down.
@@ -272,18 +273,33 @@ This is a pure function of the room sections. It gets a test.
   the two themes, and the theme that breaks is the one nobody is looking at when they check. The
   schemes are the one place values are written, and they are in the theme, not in `panel/`. Done in
   commit 2 and grep-clean; it stays that way.
-- `Off`, `Unknown` and `Failing` all share `surfaceContainer`. There is no second and third neutral
-  to give them, and the difference between the three is said in words on the status line, where it
-  was always said — "off", "unknown", "not updating: <reason>". What must not happen is any of them
-  borrowing the *on* colour and claiming a reading nobody has taken.
-- **`Failing` was `errorContainer` until the wall had several at once.** Commit 2 painted a failing
-  tile red on the reasoning that it is showing a value nobody has confirmed — true, and still the
-  reason `mood` ranks `Failing` above `isOn`. But one unreachable vendor makes a panel that reads as
-  an emergency, and the paint is loudest exactly when it is least useful: at boot, before anything
-  has been read, every tile is failing at once. The reason is on the tile in words either way.
-- The one failure still *painted* is the group's, and it outlines rather than fills — the red border
-  on the recuperators when the inventory call failed. It is now the only red on the panel, which is
-  the point: five outlined tiles is one vendor, not five broken units.
+- `Off` and `Unknown` share `surfaceContainer`. There is no second neutral to give them, and the
+  difference is said in words on the status line, where it was always said — "off" against
+  "unknown". What must not happen is either of them borrowing the *on* colour and claiming a reading
+  nobody has taken.
+- **`Failing` is a filled `errorContainer`, on every tile.** This reverses what commit 2 landed on,
+  and the reversal is the decision rather than the drift, so both halves are kept here.
+
+  Commit 2 painted it red on the reasoning that a failing tile is showing a value nobody has
+  confirmed — true, and still why `mood` ranks `Failing` above `isOn`. It was pulled because one
+  unreachable vendor made the panel read as an emergency, and because the paint is loudest exactly
+  when it is least useful: at boot, before anything has been read, every tile fails at once.
+
+  It comes back because the neutral treatment failed the other way. A failing tile that looks
+  identical to a working one puts the whole weight on a status line nobody reads from four metres,
+  and the point of the mosaic is that a wall is read by colour and shape before it is read by words.
+  A pale rose is also not what commit 2 tried: the error container at this palette's tone is close to
+  the neutral in weight, and a wall of it reads as *muted* rather than as alarm.
+
+  **The boot case is known and accepted, not overlooked.** Until the first poll lands every tile on
+  Главная will be rose. _If that reads as alarm on the wall rather than as "nothing has been read
+  yet", the fix is to tell "never polled" apart from "stopped polling" — `lastPolledAt == null`
+  against a stale timestamp, both of which `Staleness.kt` already has — and leave the first one
+  neutral._ That is the third option that was on the table and was not taken; it is written down so
+  it does not have to be rediscovered.
+- The group's own failure keeps its outline as well as the fill — the border on the recuperators when
+  the inventory call failed. Five outlined tiles is one vendor, not five broken units, and that
+  distinction survives everything above.
 - **Confirmed: the tablet's dark theme is on a real schedule, 19:00–07:00** (`mNightMode=0 (auto)`,
   `customStart=19:00 customEnd=07:00`). So the dark scheme is not dead code and the theme commit is
   worth doing.
@@ -317,24 +333,50 @@ legible, and on a panel that is looked at on the way past, that is most of the l
 
 **As vector drawables in `app/src/main/res/drawable/`, not as a dependency.**
 `androidx.compose.material:material-icons-extended` carries the glyphs this needs, and it is a large
-artifact to add for seven of them — and adding a dependency is an "ask first" in CLAUDE.md. Seven
+artifact to add for eight of them — and adding a dependency is an "ask first" in CLAUDE.md. Eight
 Material Symbols exported to vector XML cost nothing at build time and are `res/` files, which is
-neither a dependency nor a manifest change.
+neither a dependency nor a manifest change. Held: commit 6 added no dependency, and `res/drawable/`
+is the whole of what it added outside `panel/`.
 
-| Tile | Glyph | Chosen over |
-| --- | --- | --- |
-| Air conditioner | `ac_unit` | `air`, `thermostat`, `hvac` |
-| Recuperator | `mode_fan` | `swap_vert`, `filter_alt`, `vent` |
-| Light strip | `wb_iridescent` | `horizontal_rule`, `linear_scale`, `light` |
-| Curtain | `vertical_shades` / `vertical_shades_closed` | `curtains`, `roller_shades`, `blinds`, `shade` |
-| Bulb | `lightbulb` | `light_mode`, `emoji_objects` |
-| Домофон | `doorbell` | — |
-| Пылесос | `robot_2`, falling back to `cleaning_services` | — |
+| Tile | Glyph | File | Chosen over |
+| --- | --- | --- | --- |
+| Air conditioner | `ac_unit` | `ic_ac_unit.xml` | `air`, `thermostat`, `hvac` |
+| Recuperator | `mode_fan` | `ic_mode_fan.xml` | `swap_vert`, `filter_alt`, `vent` |
+| Light strip | `wb_iridescent` | `ic_wb_iridescent.xml` | `horizontal_rule`, `linear_scale`, `light` |
+| Curtain | `vertical_shades` / `vertical_shades_closed` | `ic_vertical_shades.xml`, `ic_vertical_shades_closed.xml` | `curtains`, `roller_shades`, `blinds`, `shade` |
+| Bulb | Tabler `bulb` — **not a Material Symbol** | `ic_bulb.xml` | `lightbulb`, `wb_incandescent`, `tips_and_updates`, `emoji_objects`, `flare`, `lightbulb_circle` |
+| Домофон | `video_camera_front` | `ic_video_camera_front.xml` | `doorbell`, `ring_volume` |
+| Пылесос | `vacuum` | `ic_vacuum.xml` | `robot_2`, `smart_toy`, `cleaning_services` |
 
-**The first five were rendered from the live Material Symbols webfont before being chosen**, so those
-names exist and are the right artwork. The last two were not — they are still names off a list, and
-if either renders as its own spelled-out text that is the set saying it has no such glyph. Record
-here what was actually used.
+**The bulb comes from Tabler and the other seven from Material Symbols, and that mix is a decision
+rather than an accident.** Six Material bulbs were rendered and none was the one wanted: `lightbulb`
+is plain, and the bulb that had been approved all along has short rays around its top. It had been
+approved all along because **every mockup in this project was drawn in Tabler** — so the look being
+signed off was Tabler's, and Material's bulb was never the thing anyone had looked at.
+
+Moving all seven to Tabler was the tidier answer and was turned down: it re-opens six settled glyphs
+to fix one. The judgement is that the clash will not read, because the bulb is the only glyph that
+never appears beside another — it lives inside its own disc in a row of discs, visually fenced off
+from the tiles that carry the Material ones. _If it does read on the wall, this is the note that
+says which way to resolve it: move the other seven, not the bulb back._
+
+Tabler is MIT, so the SVG is vendored into `res/drawable/` like the rest. It draws on a 24 grid
+against Material's 960, so it is the one file here whose path data is not simply Google's numbers
+moved into the viewport.
+
+`video_camera_front` over `doorbell` because Domonap's call screen is video: the tile opens the app
+you watch someone at the door through, and the glyph now says which of those two things it is.
+
+**All eight are Material Symbols that exist**, and the last two — the ones this doc had down as names
+off a list — were confirmed rather than assumed: `fonts.gstatic.com/s/i/short-term/release/`
+`materialsymbolsoutlined/<name>/default/24px.svg` answers **404 for a name the set does not have**
+(checked against a made-up one), and all nine candidates answered 200. So `robot_2` is real and
+`cleaning_services` was never needed. Every one of the eight was then seen on the wall — see commit 6.
+
+The path data is Google's, unmodified. The set draws on a 960 grid with a `viewBox` of
+`"0 -960 960 960"`, so each file carries the negative y offset as `<group android:translateY="960">`
+rather than as a rewritten path: the same numbers, moved into the viewport, and nothing to get wrong
+by hand.
 
 `wb_iridescent` over `horizontal_rule` because the plain rule is a minus sign: correct as a shape,
 carrying no light, and indistinguishable from a divider on a panel that has dividers.
@@ -346,7 +388,8 @@ status line.
 
 - `vertical_shades_closed` when the open percent is **0**, `vertical_shades` above it. A curtain 40 %
   open is open; only a shut one is shut. _The threshold is a guess and is one constant_ — if a
-  curtain that has crept to 2 % reads as open on the wall and should not, this is the number.
+  curtain that has crept to 2 % reads as open on the wall and should not, this is the number. It is
+  `curtainGlyph` in `TileLayout.kt`, and it is the one glyph of the eight with a test.
 - **A null open percent takes the open glyph, not the closed one.** The closed glyph is a positive
   claim that the curtain is shut, and the panel does not know. Same rule the strings have always
   followed: unknown is not off, and the paint must not undo what the words were careful about.
@@ -355,11 +398,41 @@ status line.
   construction and cannot drift apart in one theme.
 - On a half tile the icon sits on the first line beside the name; on a third tile it sits above it,
   which is what the mockups showed and what stops a 251 dp tile from spending its width on a glyph.
-- **In the bulb circles the glyph is the whole tile.** 72 dp of circle, the lamp centred in it, no
-  text — the count and the age are on the group's one line underneath. That is the whole reason
-  28 lamps can be a row rather than fourteen rows.
-- `contentDescription = null` on every one of them. They are decorative: the name is right there, and
-  a screen reader announcing "lightbulb Лампа в коридоре" says the noun twice.
+- **A bulb circle is a filled disc carrying the mood colour, with one outlined glyph on it.** 72 dp
+  of disc, the lamp centred at 30 dp, no text at any size — the count and the age are on the group's
+  one line underneath, which is what lets 28 lamps be a row rather than fourteen rows.
+
+  | State | Disc | Glyph |
+  | --- | --- | --- |
+  | On | the light container | its on-colour |
+  | Off | `surfaceContainer` | `onSurfaceVariant` |
+  | Failing | `errorContainer` | `onErrorContainer` |
+
+  **The glyph is the same outlined bulb in every state.** No filled variant, so one drawable rather
+  than two, and no `bulbGlyph` function — the disc carries the whole of the state and the lamp is
+  only ever the label for what the disc is about. `curtainGlyph` stays the one glyph in the set that
+  changes with its value.
+
+  Three other treatments were built or mocked on the way here, and are recorded so the ground is not
+  re-covered: a **white disc inset in a coloured tile** (two nested shapes, glyph down to 24 dp), a
+  **bare glyph with no container**, and a **bare glyph that fills when lit**. The bare ones read as a
+  wall of lamps rather than a row of buttons, which was their appeal, and lost on the thing that
+  matters more on a wall: with no container there is nothing for 64 dp of touch target to look like,
+  and nothing for `Failing` to colour.
+
+  - A glow was mocked and dropped. Recorded because the *implementation* note outlives the choice: a
+    halo would have had to be a `Brush.radialGradient` and not `Modifier.blur`, which is API 31+
+    against a minSdk of 26 — it would have drawn perfectly on this Android 13 tablet and silently
+    nothing on Android 8 to 11. That trap is still there for anything else that reaches for a blur.
+  - A circle is only ever `On`, `Off` or `Failing`. A bulb with no state at all breaks out of the row
+    and becomes a named tile, so `Unknown` never reaches a disc — which is why three rows above and
+    not four.
+  - The group's line under the row still carries the failure **in words**, once, as it always has.
+    The rose says which lamps; the line says why.
+- `contentDescription = null` on the glyph in every tile. They are decorative: the name is right
+  there, and a screen reader announcing "lightbulb Лампа в коридоре" says the noun twice. **The bulb
+  circles are the exception and already handle it** — they carry the lamp's name and state as the
+  circle's own content description, because at 72 dp there is no room for either in text.
 
 ### Adding or drawing a glyph
 
@@ -402,11 +475,28 @@ round.
 
 - Built with Material 3's `Slider` and its slot overrides — a custom `track` at 6 dp and a `thumb`
   that renders nothing. Not a hand-rolled draggable: the slot version keeps the drag behaviour, the
-  value semantics and the accessibility that a `Box` with a `pointerInput` would silently drop.
+  value semantics and the accessibility that a `Box` with a `pointerInput` would silently drop. An
+  empty thumb is safe rather than clever: the slider wraps each slot in a `Box` of its own and
+  measures that, so an empty one is a zero-size box and not a missing child. Both slots are annotated
+  `ExperimentalMaterial3Api` on this BOM, opted in on the one function rather than module-wide —
+  `build.gradle.kts` keeps the Expressive opt-in it already had and gained nothing.
 - **The touch area stays 64 dp tall** whatever the track looks like. A 6 dp visual is not a 6 dp
-  target, and this is the wall panel's rule that overrides the aesthetic one.
+  target, and this is the wall panel's rule that overrides the aesthetic one. It is the *track slot*
+  that is 64 dp, with the bar drawn centred inside it, because the slider's height is the taller of
+  its two slots and its drag handling covers exactly that — a `heightIn` on the outside would have
+  left the gesture on the 6 dp. _Measured:_ both sliders on Главная dump as **64.0 dp** tall, as
+  `android.widget.SeekBar`, which is also the value semantics surviving the override.
 - The filled portion takes the tile's domain colour, the rest a low-emphasis neutral. Same two axes
-  as everything else, so a climate slider and a light slider do not come out the same colour.
+  as everything else, so a climate slider and a light slider do not come out the same colour. The
+  *accent* of each family rather than its container — `primary`, `tertiary`, `secondary` — because the
+  container is what an on tile is already painted with, and a climate slider on a climate tile has to
+  be the blue that shows against pale blue rather than that same pale blue again.
+- The rest of the track is **`onSurfaceVariant` at 24 %, composited over whatever the tile is
+  wearing**, and that is the one number here that had to be worked out rather than picked.
+  `outlineVariant` was the obvious role for it and is **the same value as `secondaryContainer` in the
+  dark scheme** (`#3F4754`), so the track would have disappeared on exactly one tile — an open curtain
+  at night, which is the tile nobody has looked at. A neutral composited over the container cannot do
+  that. _The 24 % is a guess and is one constant._
 - The dragged value stays local and commits on `onValueChangeFinished`, exactly as `AcTile` and
   `CurtainTile` already do — the tile behind it only changes on the next poll, and binding straight
   to it drags the handle back out from under the finger.
@@ -484,9 +574,15 @@ What gets a test, each asserting the value returned and not which composable was
 - The tile layout: the recuperator's span from whether it reports climate, and `mood` from `isOn`
   and the error. Added in commit 2 — see section 2 for why a re-skin turned out to have things to
   assert after all.
+- The curtain's glyph, and only that one of the eight: 0 is closed, 40 and 100 are open, and **null
+  is open**. The other seven are a lookup from tile type to drawable and hold nothing a test could
+  catch. It asserts `R.drawable.*` ids directly — the generated `R` is on the unit test classpath, so
+  this needs no Compose and no Robolectric.
 
 What does not get a unit test, and is checked on the tablet instead: the grid spans, the shapes, the
-dark palette, the touch targets, and the idle reset actually firing.
+dark palette, the touch targets, the idle reset actually firing, and **whether a glyph draws at all** —
+a vector drawable with bad path data is not a build error and not a test failure, it is an empty box
+on the wall.
 
 **Do the tablet check before calling a layout commit done, not after.** Commit 2 shipped its span
 table twice: once from a guessed panel width, and again from the measured one after the wall showed
@@ -664,7 +760,7 @@ Tests, written first — `StalenessTest` rewritten, `PanelTabsTest` and `Favouri
   fine. This is the regression the commit exists for; it fails before the fix.
 - A recuperator with its own error still marks its room while the other four do not.
 
-### 4 · `feat(panel): group the bulbs`
+### 4 · `feat(panel): group the bulbs` — done, #15
 
 New: `BulbGroup.kt` — `bulbGroup(bulbs: List<BulbTileState>): BulbGroup`, returning the circles, the
 ones that broke out, how many are on, and the oldest `last_updated` among those that stayed.
@@ -777,7 +873,7 @@ capture side: `zsh` has `noclobber` on here, so `adb exec-out screencap -p > sho
 existing file **silently writes nothing** and the analysis then measures the previous shot. Three
 "the setting made no difference" results came from exactly that. Use `>|`.
 
-### 6 · `feat(panel): an icon per tile, and a slimmer slider`
+### 6 · `feat(panel): an icon per tile, and a slimmer slider` — built, on its branch
 
 The other half of what makes the wall read as a panel rather than as paragraphs. See "Icons" for the
 glyph per tile, the sizes, and why they are `res/drawable` files rather than a dependency, and
@@ -801,6 +897,49 @@ necessary, stop and ask rather than adding it.
 After 5, deliberately. Icons take the tile's content colour, so drawing them before the palette
 exists means placing every glyph against the baseline violet and re-judging all seven once it
 changes.
+
+Also new, in `panel/`: `glyph(...)` and `curtainGlyph(...)` in `TileLayout.kt` — one overload per tile
+state, as `hue` already has; `TileGlyph` and `TileHeading` in `TileCard.kt`, where the
+half-beside-third-above rule lives once and is taken from the tile's own span, so the recuperator
+gets whichever its width earns without being asked twice; and `SlimSlider.kt`, three callers.
+
+**Checked on the wall, 2026-08-17, both themes, and the filter was off for it** — the light surface
+composited as `#F7F9FF` and the dark one as `#111318`, both the scheme's own values to the byte, so
+nothing below is an un-tinted reconstruction and no arithmetic stands between the wall and this table.
+One observation to set beside "The filter cannot be turned off the way this doc said", and not a
+second measurement of it: at **19:38** the screen was untinted with `blue_light_filter` at 0 and
+`blue_light_filter_scheduled` at **1**, where that section recorded it ramping up on schedule at 19:00
+with the schedule key at 0. So the keys still say nothing about what is on the glass — this time in the
+other direction.
+
+| Check | Result |
+| --- | --- |
+| All eight glyphs draw | Every one of them, and none is the empty box a bad path renders as |
+| `doorbell`, `robot_2` — the two unverified names | Both real artwork on the tablet: a bell in a house and a two-eyed robot |
+| The curtain's pair | Visibly different at 24 dp — four tight slats shut, three gathered ones open |
+| Half beside, third above | `Кондиционер`/`Подсветка`/`Бризер`/`Шторы` beside the name, `Домофон`/`Пылесос` above it |
+| The bulb circles | 24 dp lamp centred in the 72 dp circle, on the circle's own content colour in both moods — an amber circle with a dark lamp, a `surfaceContainer` one with a light lamp |
+| Track height | 13 px = **6.1 dp**, both schemes |
+| Touch area | **64.0 dp** on both sliders, dumped as `SeekBar` |
+| Slider colours, light | Fill `#0561A2` = `primary` on the ac, `#865301` = `tertiary` on the strip; rest `#D1B9A2` and `#C2C6CD`, both the 24 % composite to the byte |
+| Slider colours, dark | Fill `#FFB863` = `tertiary`; rest `#7B5F33` and `#44484E`, again the composite to the byte |
+
+The `primary` fill was confirmed the way commit 5's roles were — against something else the scheme
+paints with the same role, here the light strip's checked `Switch`, which measures the same
+`#0561A2`. Two things through the same filter is a filter-independent check, and it was worth keeping
+even on a day the filter turned out to be off.
+
+**The open curtain needed a throwaway build to see**, and it is the one glyph the flat cannot show on
+demand: the curtain reads `0% open · 3 d ago`, so the wall only ever draws the closed one, and opening
+the flat's curtain for a screenshot is not a thing to do without asking. So `curtainGlyph` was locally
+forced to the open branch, installed, captured beside the closed one, and reverted — the shipped code
+is the reverted code and `TileLayout.kt`'s diff is additions only. What that check buys is the thing
+`./gradlew test` cannot: **a vector drawable with bad path data fails silently as an empty box**, and
+the open shades are 141 characters of path data nobody had rendered on this device.
+
+Still unseen, both for the same reason as before — the flat is not doing the thing that would show
+them: a **broken-out bulb tile** (every bulb has state today, so the glyph-above-the-name layout is
+proven on the launchers only) and a **third-width recuperator** (all five report climate).
 
 ### 7 · `fix(panel): the tab strip's touch height`
 

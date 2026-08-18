@@ -1,0 +1,15 @@
+<!-- Material Symbols "vertical_shades", Outlined, weight 400, 24 dp: the 24px SVG from
+     fonts.gstatic.com, path data unmodified. The symbol set draws on a 960 grid with a
+     viewBox of "0 -960 960 960", so the y offset is a group translate rather than a
+     rewritten path — the same numbers Google shipped, moved into the viewport. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="960"
+    android:viewportHeight="960">
+    <group android:translateY="960">
+        <path
+            android:fillColor="#FF000000"
+            android:pathData="M80-120v-80h80v-640h640v640h80v80H80Zm160-80h80v-560h-80v560Zm160 0h160v-560H400v560Zm240 0h80v-560h-80v560Zm-400 0v-560 560Zm480 0v-560 560Z" />
+    </group>
+</vector>

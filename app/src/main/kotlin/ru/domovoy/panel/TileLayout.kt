@@ -1,5 +1,7 @@
 package ru.domovoy.panel
 
+import androidx.annotation.DrawableRes
+import ru.domovoy.R
 import java.time.Instant
 
 /**
@@ -124,3 +126,101 @@ internal fun hue(tile: LightStripTileState): TileHue = TileHue.Light
 internal fun hue(tile: CurtainTileState): TileHue = TileHue.Neutral
 
 internal fun hue(tile: LauncherTileState): TileHue = TileHue.Neutral
+
+/**
+ * The glyph one tile wears, as a drawable in `res/drawable/`: nine of them exported to vector XML
+ * rather than `material-icons-extended`, which is a large artifact for nine of them and a
+ * dependency, which is an "ask first". Seven are Material Symbols and the bulb's two are Tabler's,
+ * which is a decision rather than an accident. See docs/ui.md, "Icons".
+ *
+ * Overloads per tile state for the same reason [hue] has them, and — apart from the curtain's and
+ * the bulb's — every one of them is a constant. A tile is recognised across a hallway by its shape
+ * and its glyph long before its name is legible, which on a panel looked at on the way past is most
+ * of the looking.
+ */
+@DrawableRes
+internal fun glyph(tile: AcTileState): Int = R.drawable.ic_ac_unit
+
+@DrawableRes
+internal fun glyph(tile: RecuperatorTileState): Int = R.drawable.ic_mode_fan
+
+/**
+ * Asked of [bulbGlyph] rather than fixed, so the lamp in a named tile and the lamp in a circle
+ * cannot come out as different lamps. In practice this is always the outline: `bulbGroup` breaks out
+ * exactly the bulbs whose `isOn` is null, so a named bulb tile is by construction the null case.
+ */
+@DrawableRes
+internal fun glyph(tile: BulbTileState): Int = bulbGlyph(tile.isOn)
+
+/**
+ * `wb_iridescent` rather than `horizontal_rule`, which was the other candidate: the plain rule is a
+ * minus sign — correct as a shape, carrying no light, and indistinguishable from a divider on a
+ * panel that has dividers.
+ */
+@DrawableRes
+internal fun glyph(tile: LightStripTileState): Int = R.drawable.ic_wb_iridescent
+
+@DrawableRes
+internal fun glyph(tile: CurtainTileState): Int = curtainGlyph(tile.openPercent)
+
+/**
+ * The two launcher tiles, told apart by the app they open — the only thing a launcher tile carries
+ * that says which device it is.
+ *
+ * The intercom is the named branch because it is the one that has to be right: it is why somebody
+ * walks up to this panel at all. Mi Home is the other of the two the catalogue holds, and a third
+ * launcher tile would need its own branch here — this `when` is where it goes.
+ */
+@DrawableRes
+internal fun glyph(tile: LauncherTileState): Int = when (tile.packageName) {
+    DOMONAP_PACKAGE -> R.drawable.ic_video_camera_front
+    else -> R.drawable.ic_vacuum
+}
+
+/**
+ * Named here rather than imported: `launcherTiles` knows it as a catalogue row and `DomonapCalls` as
+ * the sender of a notification, which are different facts about the same string.
+ */
+private const val DOMONAP_PACKAGE = "com.domonap.app"
+
+/**
+ * The curtain's glyph, which is the one on the wall that carries **state** rather than labelling a
+ * type — Material Symbols ships the covering icons as an open/closed pair, so the flat's one curtain
+ * can say what it is doing from across the room instead of only in its status line.
+ *
+ * Closed at 0 and open above it. A curtain 40 % open is open; only a shut one is shut, and _the
+ * threshold is a guess and is this one comparison_ — if a curtain that has crept to 2 % reads as
+ * open on the wall and should not, this is the number.
+ *
+ * **A null position takes the open glyph, not the closed one.** The closed glyph is a positive claim
+ * that the curtain is shut, and the panel does not know. Same rule the strings have always
+ * followed — unknown is not off — and the paint must not undo what the words were careful about.
+ */
+@DrawableRes
+internal fun curtainGlyph(openPercent: Double?): Int = if (openPercent != null && openPercent <= 0.0) {
+    R.drawable.ic_vertical_shades_closed
+} else {
+    R.drawable.ic_vertical_shades
+}
+
+/**
+ * The bulb's glyph, which is the other one carrying **state** — Tabler ships `bulb` and a filled
+ * variant, so a lit lamp can be drawn as a lamp with light in it rather than as a lamp with a colour
+ * behind it.
+ *
+ * This exists because the bulb circles have no container: there is no disc left to fill amber, so
+ * being on has to be said by the glyph itself — see [BulbCircles]. Which makes it a shape and not
+ * only a hue, and that is the point rather than a detail: the wall's blue light filter is on
+ * permanently and tints everything warm, which is exactly what erodes an amber-against-neutral
+ * distinction. A filled silhouette against an outline survives the filter and survives four metres.
+ *
+ * **A null state takes the outline, not the filled bulb.** The filled one is a positive claim that
+ * the lamp is lit, and the panel does not know — the same rule [curtainGlyph] takes for its null, for
+ * the same reason, and the same rule the status lines have always followed in words.
+ */
+@DrawableRes
+internal fun bulbGlyph(isOn: Boolean?): Int = if (isOn == true) {
+    R.drawable.ic_bulb_filled
+} else {
+    R.drawable.ic_bulb
+}

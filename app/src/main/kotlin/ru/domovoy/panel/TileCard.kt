@@ -1,18 +1,28 @@
 package ru.domovoy.panel
 
+import androidx.annotation.DrawableRes
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.sizeIn
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardColors
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 
 /**
@@ -93,6 +103,63 @@ internal fun TileCard(
     }
 }
 
+/**
+ * How big a glyph is, everywhere it appears: 24 dp, which is the size the Material Symbols in
+ * `res/drawable/` were exported at, so nothing is scaled.
+ */
+private val GLYPH_SIZE = 24.dp
+
+/** Between the glyph and the name it sits beside, on the tiles wide enough to put them on one line. */
+private val GLYPH_GAP = 8.dp
+
+/**
+ * One tile's glyph. Untinted here and therefore tinted by [Icon] with `LocalContentColor`, which
+ * inside a [TileCard] is that card's content colour — so the glyph and the text agree by
+ * construction and cannot drift apart in one theme.
+ *
+ * `contentDescription` is null on every one of them, deliberately: they are decorative. The name is
+ * right there, and a screen reader announcing "lightbulb Лампа в коридоре" says the noun twice.
+ */
+@Composable
+internal fun TileGlyph(
+    @DrawableRes glyph: Int,
+    modifier: Modifier = Modifier,
+) {
+    Icon(
+        painter = painterResource(glyph),
+        contentDescription = null,
+        modifier = modifier.size(GLYPH_SIZE),
+    )
+}
+
+/**
+ * A tile's glyph and its name, laid out from the tile's own span so the rule lives in one place:
+ * **beside the name on a half tile, above it on a third.** A 251 dp tile that spends its width on a
+ * glyph has none left for the name, and the recuperator — the one tile whose span moves with its
+ * content — gets whichever of the two its width earns, without asking twice.
+ */
+@Composable
+internal fun TileHeading(
+    @DrawableRes glyph: Int,
+    name: String,
+    /** How many of the grid's columns the tile occupies. See [span]. */
+    span: Int,
+    modifier: Modifier = Modifier,
+) {
+    if (span >= HALF_SPAN) {
+        Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically) {
+            TileGlyph(glyph)
+            Spacer(modifier = Modifier.width(GLYPH_GAP))
+            Text(name, style = MaterialTheme.typography.titleMedium)
+        }
+    } else {
+        Column(modifier = modifier) {
+            TileGlyph(glyph)
+            Text(name, style = MaterialTheme.typography.titleMedium)
+        }
+    }
+}
+
 /** The width of that outline: thick enough to read from across a hallway, thin enough to be one. */
 private val GROUP_FAILURE_OUTLINE = 3.dp
 
@@ -112,17 +179,29 @@ internal fun groupFailureBorder(groupError: String?): BorderStroke? = groupError
  * One colour for everything that is on made a wall where the air conditioner and the bedroom lamp
  * were the same object.
  *
- * Only *on* has a colour of anything's own. [TileMood.Off], [TileMood.Unknown] and
- * [TileMood.Failing] wear `surfaceContainer` whatever the hue — an unlit lamp is not warm and a
- * stopped recuperator is not cool — and the difference between the three is said in words on the
- * status line, which is where it was always said: "off", "unknown", "not updating: <reason>". What
- * must not happen is any of them borrowing an *on* colour and claiming a reading nobody has taken.
+ * [TileMood.Off] and [TileMood.Unknown] wear `surfaceContainer` whatever the hue — an unlit lamp is
+ * not warm and a stopped recuperator is not cool — and the difference between the two is said in
+ * words on the status line, which is where it was always said: "off" against "unknown". What must
+ * not happen is either of them borrowing an *on* colour and claiming a reading nobody has taken.
  *
- * [TileMood.Failing] was `errorContainer` until the wall had a few of them on it at once. A red tile
- * per failing device turns a flat with one unreachable vendor into a panel that reads as an
- * emergency, and it is loudest exactly when it is least useful — at boot, when nothing has been read
- * yet and every tile is failing at once. The one thing still painted rather than written is the
- * *group's* failure, which outlines its tiles rather than filling them — see [groupFailureBorder].
+ * **[TileMood.Failing] is a filled `errorContainer`, on every tile**, which reverses what commit 2
+ * landed on. Commit 2 painted it red for the reason [mood] still ranks `Failing` above `isOn` — a
+ * failing tile shows a value nobody has confirmed — and then pulled it, because one unreachable
+ * vendor made the wall read as an emergency and the paint is loudest exactly when it is least
+ * useful. It comes back because the neutral treatment failed the other way round: a failing tile
+ * that looks identical to a working one puts the whole weight on a status line nobody reads from
+ * four metres, and a mosaic is read by colour and shape before it is read by words. This palette's
+ * error container is also close to the neutral in weight, so a wall of it reads as muted rather than
+ * as alarm — which is not what commit 2 tried.
+ *
+ * **The boot case is known and accepted**: until the first poll lands, every tile on Главная is
+ * rose. If that reads as alarm rather than as "nothing has been read yet", docs/ui.md records the
+ * fix — tell "never polled" from "stopped polling", both of which `Staleness.kt` already has, and
+ * leave the first one neutral. That is a separate decision and not a patch to this one.
+ *
+ * The *group's* failure keeps its outline **as well as** the fill: five outlined recuperators is one
+ * vendor rather than five broken units, and that distinction has to survive the fill — see
+ * [groupFailureBorder].
  *
  * Reachable outside [TileCard] for the one thing on the wall that is a tile without being a card:
  * a bulb circle, which wears a shape of its own and these same colours — see [BulbCircles].
@@ -150,7 +229,12 @@ internal fun tileColors(
                     contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
                 )
         }
-    TileMood.Off, TileMood.Unknown, TileMood.Failing ->
+    TileMood.Failing ->
+        CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.errorContainer,
+            contentColor = MaterialTheme.colorScheme.onErrorContainer,
+        )
+    TileMood.Off, TileMood.Unknown ->
         CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainer,
             contentColor = MaterialTheme.colorScheme.onSurface,

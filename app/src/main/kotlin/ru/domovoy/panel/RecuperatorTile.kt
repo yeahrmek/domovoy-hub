@@ -38,10 +38,14 @@ fun RecuperatorTile(
     groupError: String? = null,
     onToggle: (String) -> Unit = {},
 ) {
+    // Asked once and passed to both: the tile's width and where its glyph sits are the same
+    // decision, and a tile whose card is half the panel while its heading is laid out for a third
+    // is the one way these two could disagree.
+    val span = span(tile)
     TileCard(
         hue = hue(tile),
         mood = mood(tile.isOn, tile.error),
-        span = span(tile),
+        span = span,
         modifier = modifier,
         border = groupFailureBorder(groupError),
     ) {
@@ -50,7 +54,7 @@ fun RecuperatorTile(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                Text(tile.name, style = MaterialTheme.typography.titleMedium)
+                TileHeading(glyph = glyph(tile), name = tile.name, span = span)
                 Text(
                     text = statusLine(tile, now, groupError),
                     style = MaterialTheme.typography.bodySmall,

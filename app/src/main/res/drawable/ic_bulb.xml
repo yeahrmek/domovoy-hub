@@ -1,0 +1,37 @@
+<!-- Tabler "bulb", outline, 24 dp: the SVG from tabler/tabler-icons, path data unmodified.
+     MIT, (c) Paweł Kuna.
+
+     The one glyph here that is not a Material Symbol, and the one that therefore gets none of
+     the 960-grid treatment the other seven do: Tabler draws on a 24 grid with a viewBox of
+     "0 0 24 24", so the viewport is the drawable's own size and there is no group translate to
+     move a negative y offset into it. It is also stroked rather than filled — currentColor at
+     width 2, round caps and joins — which is Tabler's whole construction and is what carries the
+     short rays around the top. See docs/ui.md, "Icons", for why the bulb comes from Tabler and
+     the other seven do not. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FF000000"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M3 12h1m8 -9v1m8 8h1m-15.4 -6.4l.7 .7m12.1 -.7l-.7 .7" />
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FF000000"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M9 16a5 5 0 1 1 6 0a3.5 3.5 0 0 0 -1 3a2 2 0 0 1 -4 0a3.5 3.5 0 0 0 -1 -3" />
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FF000000"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M9.7 17l4.6 0" />
+</vector>

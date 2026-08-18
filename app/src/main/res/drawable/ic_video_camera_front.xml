@@ -1,0 +1,15 @@
+<!-- Material Symbols "video_camera_front", Outlined, weight 400, 24 dp: the 24px SVG from
+     fonts.gstatic.com, path data unmodified. The symbol set draws on a 960 grid with a
+     viewBox of "0 -960 960 960", so the y offset is a group translate rather than a
+     rewritten path — the same numbers Google shipped, moved into the viewport. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="960"
+    android:viewportHeight="960">
+    <group android:translateY="960">
+        <path
+            android:fillColor="#FF000000"
+            android:pathData="M240-320h320v-22q0-44-44-71t-116-27q-72 0-116 27t-44 71v22Zm160-160q33 0 56.5-23.5T480-560q0-33-23.5-56.5T400-640q-33 0-56.5 23.5T320-560q0 33 23.5 56.5T400-480ZM160-160q-33 0-56.5-23.5T80-240v-480q0-33 23.5-56.5T160-800h480q33 0 56.5 23.5T720-720v180l160-160v440L720-420v180q0 33-23.5 56.5T640-160H160Zm0-80h480v-480H160v480Zm0 0v-480 480Z" />
+    </group>
+</vector>

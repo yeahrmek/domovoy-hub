@@ -39,7 +39,7 @@ fun LauncherTile(
         onClick = if (tile.openable) ({ onOpen(tile.packageName) }) else null,
     ) {
         Column(modifier = Modifier.fillMaxWidth().padding(12.dp)) {
-            Text(tile.name, style = MaterialTheme.typography.titleMedium)
+            TileHeading(glyph = glyph(tile), name = tile.name, span = THIRD_SPAN)
             Text(text = statusLine(tile), style = MaterialTheme.typography.bodySmall)
         }
     }

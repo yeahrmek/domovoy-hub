@@ -5,7 +5,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -40,7 +39,7 @@ fun AcTile(
         Column(modifier = Modifier.fillMaxWidth().padding(12.dp)) {
             Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(tile.name, style = MaterialTheme.typography.titleMedium)
+                    TileHeading(glyph = glyph(tile), name = tile.name, span = HALF_SPAN)
                     // The hero tile, and the target is the reason: it is what somebody walking past
                     // reads without stopping, so it is set at display size rather than buried in
                     // the status line, which keeps saying how old it is.
@@ -65,12 +64,12 @@ fun AcTile(
                 // on the next poll, so binding the slider straight to it drags the handle back
                 // under the finger.
                 var dragged by remember(tile.id) { mutableFloatStateOf(sliderStart(tile, bounds.min)) }
-                Slider(
+                SlimSlider(
                     value = dragged,
                     onValueChange = { dragged = it },
                     valueRange = bounds.min.toFloat()..bounds.max.toFloat(),
                     onValueChangeFinished = { onSetTemperature(tile.id, dragged.toDouble()) },
-                    modifier = Modifier.touchable(),
+                    hue = hue(tile),
                 )
             }
         }
