@@ -90,9 +90,10 @@ apart, and collapsing them to one number would print a lie on the bigger of the 
 Sizes to hold to, since this is read and touched at arm's length from a wall:
 
 - Minimum hit area **64 dp** on anything tappable, not the platform's 48 dp. _Measured:_ every
-  switch in the panel dumps as exactly 64.0 × 64.0 dp. **The tab strip does not hold to this** — its
-  tabs are 48 dp tall, Material's default, because `PrimaryScrollableTabRow` sizes them and nothing
-  overrides it. Known, not fixed, and it is the one thing on the wall a finger can miss.
+  switch in the panel dumps as exactly 64.0 × 64.0 dp, and so does every tab — the strip used to be
+  the one thing on the wall a finger could miss, at Material's default 48, until a `heightIn` on the
+  `Tab` raised it. The `PrimaryScrollableTabRow` needed nothing: it takes its height from its
+  tallest tab, so the strip came up 64.0 dp with them.
 - Bulb circles **72 dp**.
 - Grid gutter 8 dp, tile corner radius 22 dp on a half tile, 18 dp on a third, full round on bulbs.
   The corner is derived from the span rather than passed beside it, so a tile's shape and its width
@@ -1051,12 +1052,22 @@ Still unseen, both for the same reason as before — the flat is not doing the t
 them: a **broken-out bulb tile** (every bulb has state today, so the glyph-above-the-name layout is
 proven on the launchers only) and a **third-width recuperator** (all five report climate).
 
-### 7 · `fix(panel): the tab strip's touch height`
+### 7 · `fix(panel): the tab strip's touch height` — done
 
 `PrimaryScrollableTabRow` sizes its tabs at Material's default 48 dp while this doc asks for 64 dp on
 everything a finger goes near, and the tab strip is the one control on the wall a finger can miss.
 One override, no new logic, no test to write — it is a dp. Independent of everything else here and
 can go whenever; last only because it is the smallest thing on the list.
+
+`Modifier.heightIn(min = MIN_TOUCH)` on the `Tab`, which is where the 48 comes from: Material's
+text-only tab asks for 48 dp of its own, and the row only passes on whatever its tallest tab wanted.
+A floor rather than a fixed height, so a title that ever needs more room can have it.
+
+**Measured on the wall rather than eyeballed**, the same way the switches were — `uiautomator dump`
+at 340 dpi, density 2.125. Every tab comes back **64.0 dp** tall (136 px), and so does the row that
+holds them, so the second override the row might have needed was not needed. The indicator survived
+the taller row intact: 3 dp of it at px 181–186 against a row ending at 186, flush with the bottom
+edge and still the width of the selected tab's text, not floating in the extra 16 dp.
 
 ### Order, and what it buys
 
