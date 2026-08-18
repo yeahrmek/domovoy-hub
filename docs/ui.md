@@ -2,9 +2,10 @@
 
 **Scope:** how the panel is laid out and drawn. Not what it reads — that is one doc per vendor.
 
-**Status: commits 1 to 5 built and merged (#11, #12, #14, #15, #17); 6 built and on its branch;
-7 — the tab strip's touch height — is all that is left.** What was a brief is
-now half a record. Numbers that were guesses when this was written and have since been measured on
+**Status: all seven commits built and merged** (#11, #12, #14, #15, #17, #19, #20). The plan is
+done; what is not done is in "What is left", which is a shorter list and a different kind of one —
+things settled after the plan was written rather than things the plan missed. This is no longer a
+brief and is now a record. Numbers that were guesses when this was written and have since been measured on
 the tablet say so and give the measurement; the ones still marked _measure on the tablet_ are numbers
 nobody has taken, and are not settled just because they are written down.
 
@@ -668,7 +669,7 @@ got a palette that works in both. The comment is misleading whether or not the m
 smallest honest version of this is to fix the comment; the fuller one is to make the mark carry the
 error colour like everything else that fails.
 
-**3 · Commit 7, the tab strip's 64 dp.** See "The plan". One dp, no logic.
+~~3 · Commit 7, the tab strip's 64 dp.~~ Done, #20.
 
 ### Watch on the wall
 
