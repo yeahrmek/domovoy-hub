@@ -642,6 +642,48 @@ minutes and locks behind a PIN; `adb shell input keyevent KEYCODE_WAKEUP` immedi
 
 `./gradlew test` and `ktlintCheck` green before push, as everywhere else.
 
+## What is left
+
+Decided and not yet built, which is a different list from "Open" below — nothing here needs an
+answer, only doing. Ordered by how much of the wall it changes.
+
+**1 · The bulb circles do not match what was chosen.** The screenshot that was picked is a filled
+disc carrying the mood colour — light container when on, `surfaceContainer` when off,
+`errorContainer` when failing — with the same outlined lamp on every one of them. What commit 6
+built is the treatment before it: a bare lamp in its own cell, filled when lit and outlined when
+not, no disc in any state. The tile half of that change did land — every half and third tile fills
+with `errorContainer` now — so it is only the lamps that are behind.
+
+_Doing it:_ `BulbCircle` in `BulbTile.kt` gets a 72 dp disc and one glyph; `ic_bulb_filled.xml` and
+`bulbGlyph` both go, along with `bulbGlyph`'s test. Note this also gives a failing lamp somewhere to
+put its colour — today a failed group drops the circles to their unlit glyph and leaves the reason
+to the group's line, because with no container there is nothing to fill.
+
+**2 · The tab mark could be a colour now, and its comment is wrong until it is.**
+[`PanelRooms.kt`](../app/src/main/kotlin/ru/domovoy/panel/PanelRooms.kt) says the mark is a `•`
+character "because a colour is the one thing a tile cannot be trusted to have in both themes yet".
+That was true when commit 1 wrote it and stopped being true at commit 5, which is where the panel
+got a palette that works in both. The comment is misleading whether or not the mark changes, so the
+smallest honest version of this is to fix the comment; the fuller one is to make the mark carry the
+error colour like everything else that fails.
+
+**3 · Commit 7, the tab strip's 64 dp.** See "The plan". One dp, no logic.
+
+### Watch on the wall
+
+Not tasks — bets already placed, each with the note that says which way to resolve it if it turns
+out wrong. None of them can be settled from a screenshot.
+
+- **Does anyone work out that the sliders are draggable?** They have no handle. If not, the answer is
+  a handle, not a thicker track.
+- **Does Главная read as alarm at boot?** Every tile is rose until the first poll lands. If it does,
+  tell `lastPolledAt == null` from a stale timestamp — `Staleness.kt` has both — and leave the
+  never-polled case neutral.
+- **Does the Tabler bulb look foreign beside seven Material Symbols?** If it does, move the other
+  seven to Tabler rather than the bulb back to Material.
+- **Can a finger find the lamps?** Only while they have no container; item 1 above settles it either
+  way.
+
 ## Open
 
 - Status strings are English today (`on`, `just now`, `not updating`) while room names arrive in
