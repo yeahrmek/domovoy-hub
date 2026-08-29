@@ -8,6 +8,7 @@ import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.PrimaryScrollableTabRow
 import androidx.compose.material3.Tab
@@ -20,8 +21,19 @@ import java.time.Instant
 import kotlin.time.Duration
 
 /**
- * How a tab says its room has bad news. A character rather than a colour, because a colour is the
- * one thing a tile cannot be trusted to have in both themes yet — see docs/ui.md, "Theme".
+ * How a tab says its room has bad news: a `•` after the title, and the title in the error colour.
+ *
+ * Commit 1 wrote this as a character *rather than* a colour, because there was no palette to trust
+ * in both themes — true then, and untrue since commit 5 wrote both schemes out. So the colour is
+ * here now. The dot stays, and the two together are the point rather than a leftover:
+ *
+ * - Colour alone is not a signal everyone can perceive, and this dot is the panel's only word that
+ *   a room has gone quiet — the room itself is behind a tab nobody has opened.
+ * - Samsung's blue light filter is on permanently on this tablet and tints the whole screen warm,
+ *   which is exactly what erodes a red against a neutral. That has already bitten once here: the
+ *   bulbs' lit and unlit lamps composited to two browns told apart by lightness (docs/ui.md,
+ *   "Icons"). The answer there was the same — let the shape carry the state and the colour
+ *   reinforce it.
  */
 private const val MARK = " •"
 
@@ -111,10 +123,22 @@ fun PanelRooms(
             // are the ones the room order already puts last — Ванная, Балкон, Гардероб — which are
             // switched at their own door anyway.
             tabs.forEachIndexed { position, tab ->
+                // A marked room's title is the error colour whether or not its tab is the open one,
+                // and that costs the selection nothing — which is the reason it is safe to do.
+                // Material's `Tab` defaults *both* content colours to the strip's own, so on this
+                // panel "which tab is open" has only ever been said by the indicator under it, never
+                // by the label. The indicator is untouched. A tab that is selected and marked
+                // therefore says both things at once, in two places, rather than one of them
+                // quietly winning: an error-coloured title with the selection bar still under it.
+                // [LocalContentColor] rather than naming a role for the unmarked case, so that an
+                // ordinary tab is exactly what the strip would have drawn on its own.
+                val label = if (tab.marked) MaterialTheme.colorScheme.error else LocalContentColor.current
                 Tab(
                     selected = position == index,
                     onClick = { onSelectTab(position) },
                     text = { Text(text = if (tab.marked) tab.title + MARK else tab.title) },
+                    selectedContentColor = label,
+                    unselectedContentColor = label,
                     // [MIN_TOUCH], because a tab is the one thing on this wall a finger can miss:
                     // Material sizes a text-only tab at 48 dp and the row takes its height from
                     // its tallest tab, so raising the tab raises the strip and the indicator
