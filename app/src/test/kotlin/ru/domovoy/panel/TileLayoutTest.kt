@@ -160,11 +160,89 @@ class TileLayoutTest {
     }
 
     @Test
+    fun `a room's lamps are one light tile, whatever they are doing`() {
+        // The group tile is in the family of the seven it stands for, and its hue does not move
+        // with them any more than a single lamp's does.
+        assertEquals(TileHue.Light, hue(lamps(on = 7, off = 0)))
+        assertEquals(TileHue.Light, hue(lamps(on = 0, off = 7)))
+    }
+
+    @Test
+    fun `a group with any lamp lit is on, and one with none is off`() {
+        // What somebody walking past reads off the colour is whether there is light in that room;
+        // how many of the seven are lit is said exactly, in words, at wall size.
+        assertEquals(TileMood.On, mood(lamps(on = 1, off = 6), error = null))
+        assertEquals(TileMood.On, mood(lamps(on = 7, off = 0), error = null))
+        assertEquals(TileMood.Off, mood(lamps(on = 0, off = 7), error = null))
+    }
+
+    @Test
+    fun `a group whose poll failed is failing, however many of its lamps were lit`() {
+        // Failing outranks the count for the same reason it outranks a tile's own isOn: those seven
+        // values are what the panel last read and nobody has confirmed since.
+        assertEquals(TileMood.Failing, mood(lamps(on = 7, off = 0), error = "HTTP 500"))
+        assertEquals(TileMood.Failing, mood(lamps(on = 0, off = 7), error = "HTTP 500"))
+    }
+
+    @Test
+    fun `a group tile promotes how many of its lamps are on`() {
+        assertEquals("5 on", promoted(lamps(on = 5, off = 2)))
+        // Not an absence: every lamp in the group reported, and they reported off. The only group
+        // with nothing to say is the one with no lamps, and that one has no tile.
+        assertEquals("0 on", promoted(lamps(on = 0, off = 3)))
+    }
+
+    @Test
+    fun `a group tile is named for how many lamps it holds`() {
+        assertEquals("7 lamps", anatomy(lamps(on = 5, off = 2), now, null, notUpdating = false, open = false).name)
+        assertEquals("1 lamp", anatomy(lamps(on = 1, off = 0), now, null, notUpdating = false, open = false).name)
+    }
+
+    @Test
+    fun `a group tile says what its tap will do`() {
+        // The one detail line on the wall that describes a gesture rather than a reading, and the
+        // only mark the closed tile carries that it has seven devices behind it.
+        val group = lamps(on = 5, off = 2)
+        assertEquals("tap to see them", anatomy(group, now, null, notUpdating = false, open = false).detail)
+        assertEquals("tap to close", anatomy(group, now, null, notUpdating = false, open = true).detail)
+    }
+
+    @Test
+    fun `opening a group changes nothing it says about the lamps`() {
+        // The count, the value and the age stay on the wall while the seven are open — the tile is
+        // not replaced by what it opens, and no reading is behind the tap.
+        val group = lamps(on = 5, off = 2)
+        val closed = anatomy(group, now, null, notUpdating = false, open = false)
+        val open = anatomy(group, now, null, notUpdating = false, open = true)
+
+        assertEquals(closed.copy(detail = open.detail), open)
+    }
+
+    @Test
+    fun `a group tile that stopped updating says so once, for all of its lamps`() {
+        // One `/v1.0/user/info` call is behind every bulb in the flat, so this is one tile's line
+        // rather than seven — and it is what the seven discs' shared line used to say.
+        val status = anatomy(lamps(on = 5, off = 2), now, "HTTP 500", notUpdating = true, open = false).status
+
+        assertEquals(bulbGroupLine(lamps(on = 5, off = 2), now, notUpdating = true, error = "HTTP 500"), status)
+        assertTrue(status.contains("not updating: HTTP 500"))
+    }
+
+    @Test
+    fun `a group tile offers a finger nothing but the tap that opens it`() {
+        // Deliberately no master switch: Yandex has no group action, so one would be seven requests
+        // behind one finger with one status line to report the mixture. The lamps keep their own
+        // switches, one tap further in.
+        assertEquals(TileControls.None, controls(lamps(on = 5, off = 2)))
+    }
+
+    @Test
     fun `a bulb tile's glyph is the lamp, and only ever the lamp`() {
-        // The bulb is not the curtain: its glyph labels a type and carries no state. A named bulb
-        // tile is by construction the bulb the panel has no state for — bulbGroup breaks out
-        // exactly the null ones — and the state of every other lamp is said by the disc it sits on.
+        // The bulb is not the curtain: its glyph labels a type and carries no state. A lamp is a
+        // lamp whether it is standing on its own or opened out of its room's group, and the group
+        // tile wears the same one — so the two cannot come out as different lamps.
         assertEquals(R.drawable.ic_bulb, glyph(bulb(isOn = null)))
+        assertEquals(R.drawable.ic_bulb, glyph(lamps(on = 5, off = 2)))
     }
 
     // --- What one tile promotes ------------------------------------------------------------
@@ -412,6 +490,11 @@ class TileLayoutTest {
                         anatomy(recuperator(temperature = null, humidity = null, isOn = state), now, error),
                         anatomy(launcher(openable = true)),
                         anatomy(launcher(openable = false)),
+                        // The group tile in all four of the states it has: open or closed, being
+                        // read or not.
+                        anatomy(lamps(on = 5, off = 2), now, error, notUpdating = false, open = false),
+                        anatomy(lamps(on = 5, off = 2), now, error, notUpdating = true, open = true),
+                        anatomy(lamps(on = 0, off = 1), now, error, notUpdating = false, open = true),
                     )
                 }
             }
@@ -461,6 +544,17 @@ class TileLayoutTest {
         bounds = bounds,
         unit = unit,
         temperatureLastUpdated = Reading.At(now),
+    )
+
+    /**
+     * A room's lamps, built through [bulbGroup] rather than by hand: the group tile's whole content
+     * is that function's answer, and a fixture that filled in `on` itself could disagree with it.
+     */
+    private fun lamps(
+        on: Int,
+        off: Int,
+    ) = bulbGroup(
+        (1..on).map { bulb(isOn = true) } + (1..off).map { bulb(isOn = false) },
     )
 
     private fun bulb(isOn: Boolean?) = BulbTileState(

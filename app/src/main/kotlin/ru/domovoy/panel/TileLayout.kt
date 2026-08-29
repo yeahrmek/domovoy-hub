@@ -108,6 +108,23 @@ internal fun mood(
 }
 
 /**
+ * A room's lamps together: **on when any of them is lit**, off when none is.
+ *
+ * A group tile is one card standing for seven devices, and the thing somebody walking past a
+ * hallway is reading off it is whether there is light in that room — not whether the majority of
+ * its lamps agree. How many of the seven are on is said exactly, at wall size, by [promoted]; the
+ * colour answers the coarser question the colour is good at.
+ *
+ * [TileMood.Unknown] is unreachable here by construction and that is [bulbGroup]'s doing: a bulb
+ * with no state at all is not in the group, so `on` is a count of lamps that all reported. The
+ * unknown ones are named tiles, where the word "unknown" is printed rather than implied.
+ */
+internal fun mood(
+    group: BulbGroup,
+    error: String?,
+): TileMood = mood(group.on > 0, error)
+
+/**
  * What kind of thing a tile is, which is the other half of its colour. One colour for everything
  * that is on makes a wall where the air conditioner and the bedroom lamp are the same object.
  *
@@ -144,6 +161,9 @@ internal fun hue(tile: LightStripTileState): TileHue = TileHue.Light
 internal fun hue(tile: CurtainTileState): TileHue = TileHue.Neutral
 
 internal fun hue(tile: LauncherTileState): TileHue = TileHue.Neutral
+
+/** A room's lamps are lamps. The group tile is in the same family as the seven it stands for. */
+internal fun hue(group: BulbGroup): TileHue = TileHue.Light
 
 /**
  * The unit strings Yandex names, which is the only reason the panel is willing to print a degree
@@ -218,6 +238,21 @@ internal fun promoted(tile: BulbTileState): String? = null
 internal fun promoted(tile: LauncherTileState): String? = null
 
 /**
+ * How many of the room's lamps are lit — `5 on` — which is the one thing the group tile has that is
+ * worth the wall's largest type.
+ *
+ * It is the value the seven discs were incapable of saying: a row of circles made you count them,
+ * and counting seven of anything from four metres is not reading. The count of lamps is the tile's
+ * *name* rather than its value, because how many lamps a room has does not change and how many are
+ * on does.
+ *
+ * Never null, unlike every other tile's: a group tile only exists when there are lamps behind it,
+ * and `0 on` is a reading rather than an absence — every lamp in it reported, and they reported
+ * off.
+ */
+internal fun promoted(group: BulbGroup): String = "${group.on} on"
+
+/**
  * The glyph one tile wears, as a drawable in `res/drawable/`: eight of them exported to vector XML
  * rather than `material-icons-extended`, which is a large artifact for eight of them and a
  * dependency, which is an "ask first". Seven are Material Symbols and the bulb's is Tabler's, which
@@ -237,10 +272,19 @@ internal fun glyph(tile: RecuperatorTileState): Int = R.drawable.ic_mode_fan
 /**
  * The outlined lamp, whatever the tile says — a constant like the other six, because the bulb's
  * state is carried by the colour it is drawn on and not by which lamp is drawn. It is the same lamp
- * a circle wears, so a named tile and a circle cannot come out as different lamps.
+ * the group tile wears, so a lamp on its own and a room's lamps together cannot come out as
+ * different lamps.
  */
 @DrawableRes
 internal fun glyph(tile: BulbTileState): Int = R.drawable.ic_bulb
+
+/**
+ * The same lamp again, and one of it. A group tile drawing seven small lamps would be the row of
+ * discs redrawn inside a card — the thing it replaces — and the count is already on the tile in
+ * words, where it can say "7" without anybody counting.
+ */
+@DrawableRes
+internal fun glyph(group: BulbGroup): Int = R.drawable.ic_bulb
 
 /**
  * `wb_iridescent` rather than `horizontal_rule`, which was the other candidate: the plain rule is a
@@ -353,6 +397,17 @@ internal fun controls(tile: BulbTileState): TileControls = TileControls.Toggle
 internal fun controls(tile: LauncherTileState): TileControls = TileControls.None
 
 /**
+ * Nothing, on the launcher's rule and for the launcher's reason: the tap is the whole card, and
+ * what it does is open the lamps behind it.
+ *
+ * **Deliberately not a switch over all seven.** Yandex has no group action — one lamp is one call —
+ * so a master switch here would be seven HTTP requests behind one finger, each able to fail
+ * separately, with one status line to report the mixture. The lamps keep their own switches, on
+ * their own tiles, one tap further in.
+ */
+internal fun controls(group: BulbGroup): TileControls = TileControls.None
+
+/**
  * **The five slots every tile on the wall fills, and the only five.**
  *
  * Before this there were five tile types with five internal rhythms: the air conditioner 169 dp
@@ -391,9 +446,10 @@ internal data class TileAnatomy(
     val status: String,
     /**
      * The status slot's second line, for the two tiles that have a reading with an age of its own —
-     * the strip's colour and the recuperator's climate — and null for the four that do not. Part of
-     * the status slot rather than a sixth one: it is the same words at the same size, and the slot
-     * reserves room for it on every tile whether or not it arrives.
+     * the strip's colour and the recuperator's climate — plus the lights group, whose second line
+     * says what its tap does rather than what it read. Null for the rest. Part of the status slot
+     * rather than a sixth one: it is the same words at the same size, and the slot reserves room for
+     * it on every tile whether or not it arrives.
      */
     val detail: String?,
 )
@@ -474,6 +530,41 @@ internal fun anatomy(
     promoted = promoted(tile),
     status = statusLine(tile, now, error),
     detail = null,
+)
+
+/**
+ * **The lights group's five slots**, which is one card standing for a room's whole set of lamps.
+ *
+ * The name is the count — `7 lamps` — the promoted value is how many of them are lit, and the
+ * status line is the one [bulbGroupLine] has always written: the count again, the count on, the
+ * oldest of their readings, and the reason the poll stopped landing. Saying the count in two places
+ * is the same thing the air conditioner does with its target: the status line is what *ages* a
+ * value, so it has to name the value it is ageing.
+ *
+ * [notUpdating] rather than an error alone, because a group can stop being read without any call
+ * having failed — see [notUpdating] — and this tile is where the whole group's bad news is said
+ * once instead of seven times.
+ *
+ * **The detail line is the one on this wall that describes a gesture rather than a reading**, and it
+ * is here because this is the one tile whose tap has something behind it that the card cannot show:
+ * the seven names. The launcher's status line already does the same job — "opens the app" — for the
+ * same reason, and a wall panel that hides seven devices behind an unmarked card is a wall panel
+ * that has hidden them.
+ */
+internal fun anatomy(
+    group: BulbGroup,
+    now: Instant,
+    error: String?,
+    notUpdating: Boolean,
+    /** Whether the lamps are showing under it, which is the only thing the tile says about itself. */
+    open: Boolean,
+): TileAnatomy = TileAnatomy(
+    art = glyph(group),
+    controls = controls(group),
+    name = lampCount(group),
+    promoted = promoted(group),
+    status = bulbGroupLine(group, now, notUpdating, error),
+    detail = if (open) "tap to close" else "tap to see them",
 )
 
 /**

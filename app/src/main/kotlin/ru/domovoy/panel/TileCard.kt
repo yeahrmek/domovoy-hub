@@ -322,8 +322,10 @@ internal fun groupFailureBorder(groupError: String?): BorderStroke? = groupError
  * vendor rather than five broken units, and that distinction has to survive the fill — see
  * [groupFailureBorder].
  *
- * Reachable outside [TileCard] for the one thing on the wall that is a tile without being a card:
- * a bulb circle, which wears a shape of its own and these same colours — see [BulbCircles].
+ * **Every tile on the wall is a card now**, which is new: the bulbs used to draw as 72 dp discs
+ * reaching in here for these colours through a `when` of their own, and that second copy had already
+ * drifted — the unlit disc took `onSurfaceVariant` where the card beside it took `onSurface`. The
+ * lamps are one group tile, so there is one table again and nothing outside this file reads it.
  */
 @Composable
 internal fun tileColors(

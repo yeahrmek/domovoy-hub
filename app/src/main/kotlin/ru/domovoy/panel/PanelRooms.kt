@@ -151,6 +151,15 @@ fun PanelRooms(
         if (polled && !wasPolled) scroll.scrollToItem(0)
         wasPolled = polled
     }
+    // Which rooms have their lamps open, by heading — the one piece of state the wall holds that is
+    // nobody's reading. A set rather than a single room, because opening Спальня's lamps is not a
+    // reason to close the ones somebody left open in Коридор.
+    //
+    // `remember` and not `rememberSaveable`: this is the panel's only state that a person put there
+    // with a finger, and a tablet that rebooted at 04:00 should come up closed, showing the counts,
+    // like a panel nobody has touched. The idle reset does not close them either — it scrolls to the
+    // top, and an open group eleven sections down is out of sight rather than in the way.
+    var openLamps by remember { mutableStateOf(emptySet<String>()) }
     // The mosaic. Twelve columns against the 753 dp the wall tablet measured in portrait, which is
     // the orientation it is mounted in; the number lives in one place, [COLUMNS].
     // The span of a tile is a property of its type and not of the room it is in: anything with a
@@ -220,26 +229,43 @@ fun PanelRooms(
                 )
             }
             // The lights group. The bulbs the panel has a value for are the many and are on/off
-            // only, so they are one wrapping row of 72 dp circles under one line instead of 28
-            // cards — see docs/ui.md, "The lights group". The few it has no value for come first,
-            // as named third-width tiles: those are the ones worth reading. Asked once per section,
-            // so that a room's row of circles and the tiles it did not take come from one answer.
+            // only, so they are one tile saying how many there are and how many are lit rather than
+            // 28 cards — see docs/ui.md, "The lights group". The few it has no value for come
+            // first, as named quarter-width tiles: those are the ones worth reading. Asked once per
+            // section, so that a room's group tile and the tiles it did not take come from one
+            // answer.
             val group = bulbGroup(section.bulbs)
             items(group.brokenOut, key = { "$room/bulb:${it.id}" }, span = { GridItemSpan(NARROW_SPAN) }) { tile ->
                 BulbTile(tile = tile, now = now, error = bulbs.error, onToggle = onToggleBulb)
             }
-            // A room whose bulbs all broke out has no row, and neither has a room with no bulbs.
-            if (group.circles.isNotEmpty()) {
-                item(key = "$room/bulbs", span = { GridItemSpan(maxLineSpan) }) {
-                    BulbCircles(
+            // A room whose bulbs all broke out has no group tile, and neither has a room with no
+            // bulbs at all.
+            if (group.lamps.isNotEmpty()) {
+                val open = room in openLamps
+                item(key = "$room/lamps", span = { GridItemSpan(NARROW_SPAN) }) {
+                    BulbGroupTile(
                         group = group,
                         now = now,
                         error = bulbs.error,
-                        // Said once for the row rather than 28 times: one call is behind all of
+                        // Said once for the group rather than 28 times: one call is behind all of
                         // them, so a poll that stopped landing stopped for the whole group.
                         notUpdating = notUpdating(bulbs.error, bulbs.lastPolledAt, now, yandexInterval),
-                        onToggle = onToggleBulb,
+                        open = open,
+                        onOpen = { openLamps = if (open) openLamps - room else openLamps + room },
                     )
+                }
+                // What the tap opens: the room's lamps as ordinary tiles, each with its name, its
+                // own age and its own switch — the thing the row of discs could never say. They
+                // follow the group tile in the grid rather than replacing it, so the count and the
+                // one age stay on the wall while the seven are open.
+                if (open) {
+                    items(
+                        group.lamps,
+                        key = { "$room/lamp:${it.id}" },
+                        span = { GridItemSpan(NARROW_SPAN) },
+                    ) { tile ->
+                        BulbTile(tile = tile, now = now, error = bulbs.error, onToggle = onToggleBulb)
+                    }
                 }
             }
             // Last in the room, and the only tiles here taking no `now`: they open another app

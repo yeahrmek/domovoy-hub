@@ -38,11 +38,11 @@ import ru.domovoy.panelTypography
  *   it, and the failure mode is a colour retouched in light drifting in dark, which is the half of
  *   the day nobody is looking at.
  * - **The geometry.** Twelve columns against 753 dp, thirds and quarters, one 22 dp corner, one
- *   328 dp tile height across every kind, 72 dp circles. All of it is in docs/ui.md and in no
- *   assertion, and the one thing an image says that no assertion here does is whether the bottom
- *   edges of two different *kinds* of tile actually land on the same line.
- * - **The two group rules that have a shape**: which bulbs leave the row of circles, and what a
- *   room's heading looks like when it has bad news.
+ *   328 dp tile height across every kind. All of it is in docs/ui.md and in no assertion, and the
+ *   one thing an image says that no assertion here does is whether the bottom edges of two
+ *   different *kinds* of tile actually land on the same line.
+ * - **The two group rules that have a shape**: which bulbs stay out of their room's lights group,
+ *   and what a room's heading looks like when it has bad news.
  *
  * **Recording and checking.** The reference images live in `src/test/screenshots/` and are
  * committed. `verifyRoborazziDebug` compares against them and fails on a difference, writing the
@@ -111,16 +111,26 @@ class PanelScreenshotTest {
 
     @Test
     fun `the lights group`() {
-        // Коридор: three lamps the panel has a value for, drawn as circles under one line, and the
-        // fourth — which has never reported — broken out as its own named tile above them.
+        // Коридор: three lamps the panel has a value for, standing behind one group tile, and the
+        // fourth — which has never reported — as its own named tile beside it.
+        //
+        // Three cards at the quarter width they take on the wall, which is what this picture is for:
+        // the group tile has to come out the same 328 dp as the lamp next to it, and the thing that
+        // would say otherwise is a picture rather than an assertion. The open and closed states are
+        // both here because they differ by one line of text in a slot that is reserved either way —
+        // if opening a group ever moved the card's bottom edge, this is where it would show.
         val koridor = Flat.bulbs.tiles.filter { it.room == "Коридор" }
         val group = bulbGroup(koridor)
         capture("lights-group", panelLightScheme) {
-            Column {
+            Row {
                 group.brokenOut.forEach { tile ->
-                    BulbTile(tile = tile, now = Flat.NOW, error = null)
+                    BulbTile(tile = tile, now = Flat.NOW, error = null, modifier = Modifier.weight(1f))
                 }
-                BulbCircles(group = group, now = Flat.NOW)
+                BulbGroupTile(group = group, now = Flat.NOW, modifier = Modifier.weight(1f))
+                BulbGroupTile(group = group, now = Flat.NOW, open = true, modifier = Modifier.weight(1f))
+                // The wall's fourth column, left empty: these are quarter-width tiles and a row of
+                // three at a third each would be a picture of a width the panel does not use.
+                Spacer(modifier = Modifier.weight(1f))
             }
         }
     }
