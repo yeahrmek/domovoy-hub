@@ -25,9 +25,6 @@ import ru.domovoy.panelDarkScheme
 import ru.domovoy.panelLightScheme
 import ru.domovoy.panelTypography
 
-/** Главная, which is where the panel sits when nobody has touched it. See [resetAfterIdle]. */
-private const val HOME_TAB = 0
-
 /**
  * What the panel actually looks like, recorded as images.
  *
@@ -44,7 +41,7 @@ private const val HOME_TAB = 0
  *   circles. All of it is in docs/ui.md and in no assertion — and four columns was the first draft,
  *   thrown out only because somebody held the tablet up to it.
  * - **The two group rules that have a shape**: which bulbs leave the row of circles, and what a
- *   room's tab looks like when it has bad news.
+ *   room's heading looks like when it has bad news.
  *
  * **Recording and checking.** The reference images live in `src/test/screenshots/` and are
  * committed. `verifyRoborazziDebug` compares against them and fails on a difference, writing the
@@ -82,14 +79,14 @@ class PanelScreenshotTest {
 
     @Test
     fun `the panel on Главная, light`() {
-        capture("panel-home-light", panelLightScheme) { Panel(selected = HOME_TAB) }
+        capture("panel-home-light", panelLightScheme) { Panel() }
     }
 
     @Test
     fun `the panel on Главная, dark`() {
         // The wall is on this scheme from 19:00 to 07:00 — half of every day, and the half nobody
         // is watching when it switches. It gets the same picture taken of it as light does.
-        capture("panel-home-dark", panelDarkScheme) { Panel(selected = HOME_TAB) }
+        capture("panel-home-dark", panelDarkScheme) { Panel() }
     }
 
     @Test
@@ -119,13 +116,24 @@ class PanelScreenshotTest {
     }
 
     @Test
-    fun `a room with bad news is marked on the strip`() {
-        // The bulbs' poll has failed, so every room holding a bulb wears the dot and the error
-        // colour on its title — from Главная, without opening the room. This is the panel's only
-        // word that somewhere behind a tab has gone quiet, and it is a shape as much as a colour:
-        // Samsung's blue light filter is on permanently on this tablet and warms every red on it.
-        capture("tabs-marked", panelLightScheme) {
-            Panel(selected = HOME_TAB, bulbs = Flat.bulbs.copy(error = "HTTP 401"))
+    fun `the two states of a heading, and the longest room name in the flat`() {
+        // The headings alone, with nothing else in the frame — the same reason [TileMatrix] draws
+        // cards rather than tiles. A capture of the whole panel would put the marked room several
+        // sections down its own scroll and out of the picture.
+        //
+        // The mark is a shape as much as a colour: Samsung's blue light filter warms every red on
+        // this tablet when it is on, which is what erodes an error colour against a neutral.
+        //
+        // "Маленькая детская" is the longest name in `ROOM_ORDER` and is here because the tab strip
+        // clipped `Гардеробная` mid-word — the failure this whole shape replaces. A heading is
+        // 753 dp wide and wraps rather than clips, so what this picture has to show is that the
+        // longest name the flat has does not need to.
+        capture("headings", panelLightScheme) {
+            Column {
+                SectionHeading(title = "Коридор", marked = false)
+                SectionHeading(title = "Спальня", marked = true)
+                SectionHeading(title = "Маленькая детская", marked = false)
+            }
         }
     }
 
@@ -152,21 +160,17 @@ class PanelScreenshotTest {
     }
 
     @Composable
-    private fun Panel(
-        selected: Int,
-        bulbs: BulbPanelState = Flat.bulbs,
-    ) {
+    private fun Panel() {
         PanelRooms(
             acs = Flat.acs,
             curtains = Flat.curtains,
             strips = Flat.strips,
             recuperators = Flat.recuperators,
-            bulbs = bulbs,
+            bulbs = Flat.bulbs,
             launchers = Flat.launchers,
             now = Flat.NOW,
             yandexInterval = Flat.YANDEX_INTERVAL,
             tuyaInterval = Flat.TUYA_INTERVAL,
-            selected = selected,
         )
     }
 

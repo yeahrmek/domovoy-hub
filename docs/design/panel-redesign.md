@@ -222,7 +222,13 @@ first: it decides what the strings *are* before this decides what language they 
 
 ---
 
-## 9 · `feat(panel): a marked room that scrolled off still says so`
+## 9 · RESOLVED — `feat(panel): a marked room that scrolled off still says so`
+
+**Done, by the second of the two options below.** The tab strip is gone: rooms are sections down one
+scroll and the mark is on the heading, where it travels with the room and cannot scroll off the end
+of anything. Nothing is left of this item to build — do not build the indicator.
+
+<details><summary>The item as it stood, kept for the record</summary>
 
 Rule 2 of the tab shell says the mark is "visible from Главная without opening the room". Rule 4
 says Ванная, Балкон and Гардероб scroll off the end of the strip. For those three rooms the two
@@ -233,6 +239,8 @@ not item 2. What is missing is the mark itself doing what it claims for the last
 The cheapest honest fix is an indicator at the scrolled-off end of the strip; the alternative is
 admitting the strip cannot hold fourteen rooms and giving room navigation a different shape, which
 is a bigger change than this list wants.
+
+</details>
 
 ---
 

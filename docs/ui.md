@@ -18,8 +18,10 @@ on it, on 2026-08-16.
 
 ## What is decided
 
-1. **A tab shell.** One "Главная" tab holding the favourites, then one tab per room in the existing
-   room order. Replaces the single scroll of 29 tiles.
+1. **Rooms stack down one scroll.** A "Главная" section holding the favourites, then one section
+   per room in the existing room order, each behind its own heading. **This replaced a tab shell**,
+   which is what commits 1–7 shipped: it could not hold fourteen rooms across 753 dp and it answered
+   a vertical problem with a horizontal control. See "The scroll".
 2. **Material 3 Expressive mosaic tiles.** Mixed tile sizes and shapes instead of one full-width
    card per device: half-width tiles for the things with a slider, third-width ones for the rest,
    small circles for the bulbs.
@@ -38,12 +40,15 @@ The baseline commits 1 and 2 replaced, kept so the diff stays legible:
 
 - [`PanelRooms`](../app/src/main/kotlin/ru/domovoy/panel/PanelRooms.kt) was one `LazyColumn`. Group
   failures at the top, then a `Text` heading per room, then every tile in that room as a full-width
-  `Card`, in the fixed order ac → curtain → strip → recuperator → bulb → launcher. It is now a tab
-  strip over a `LazyVerticalGrid`; the tile order within a room is unchanged.
+  `Card`, in the fixed order ac → curtain → strip → recuperator → bulb → launcher. It became a tab
+  strip over a `LazyVerticalGrid`, and is now one `LazyVerticalGrid` with a full-width heading per
+  room — a scroll again, of mosaic tiles rather than full-width cards. The tile order within a room
+  has not changed through any of it.
 - [`roomSections`](../app/src/main/kotlin/ru/domovoy/panel/RoomSections.kt) decides which room a tile
-  lands in and in what order the rooms come. **It did not change, and has not.** The tab shell
-  consumes exactly what it returns — one tab per `RoomSection`, in the order that function already
-  produces, with the roomless section last under "Без комнаты".
+  lands in and in what order the rooms come. **It did not change, and has not** — not for the tab
+  shell and not for the scroll that replaced it. `panelHeadings` consumes exactly what it returns —
+  one heading per `RoomSection`, in the order that function already produces, with the roomless
+  section last under "Без комнаты".
 - Every tile prints a status line ending in `ageLabel(...)`, and appends `not updating: <error>` when
   its group's poll failed. Still true: commit 2 was a re-skin and changed no string.
 - `MainActivity` wraps everything in a bare `MaterialTheme {}` — no colour scheme is passed, so the
@@ -95,12 +100,10 @@ apart, and collapsing them to one number would print a lie on the bigger of the 
 Sizes to hold to, since this is read and touched at arm's length from a wall:
 
 - Minimum hit area **64 dp** on anything tappable, not the platform's 48 dp. _Measured:_ every
-  switch in the panel dumps as exactly 64.0 × 64.0 dp, and so does every tab — the strip used to be
-  the one thing on the wall a finger could miss, at Material's default 48, until a `heightIn` on the
-  `Tab` raised it. The `PrimaryScrollableTabRow` needed nothing: it takes its height from its
-  tallest tab, so the strip came up 64.0 dp with them. The selection indicator survived the taller
-  row intact: 3 dp of it at px 181–186 against a row ending at 186, flush with the bottom edge and
-  still the width of the selected tab's text rather than floating in the extra 16 dp.
+  switch in the panel dumps as exactly 64.0 × 64.0 dp. The tab strip used to be measured here too —
+  it was the one thing on the wall a finger could miss, at Material's default 48, until a `heightIn`
+  on the `Tab` raised it and the row came up 64.0 dp with them. **The strip is gone** and the
+  measurement with it; the rooms are headings on a scroll, which nothing has to hit.
 - Bulb circles **72 dp**.
 - Grid gutter 8 dp, tile corner radius 22 dp on a half tile, 18 dp on a third, full round on bulbs.
   The corner is derived from the span rather than passed beside it, so a tile's shape and its width
@@ -137,13 +140,13 @@ whether Yandex has any state for it at all, and that is the thing worth pulling 
 circles: a circle is a claim that the panel knows whether that lamp is on, and for a `Never` bulb it
 does not. It says "unknown" on a named tile instead, which is what the status line has always said.
 
-A stale *group* is still visible — the tab is marked and the group's error reaches every tile in it,
+A stale *group* is still visible — the room's heading is marked and the group's error reaches every tile in it,
 including the circles. It is just not what decides who is a circle.
 
 ## Stale
 
 Three things in this doc ask the same question — which bulbs leave the lights group, which rooms get
-a mark on their tab, which tiles Главная pulls in — so it is answered once, in one function, and
+a mark on their heading, which tiles Главная pulls in — so it is answered once, in one function, and
 that function is where the number lives.
 
 **Stale means the panel has stopped reading, not that the flat has stopped changing.** Commit 1
@@ -155,7 +158,7 @@ last reported a value, not when we last read it.** A bulb switched on three week
 since carries a three-week-old timestamp while every poll since has read it successfully. 33 of the
 116 recorded capabilities are `0.0`, which is `Never`, and `ac-01`'s two capabilities are 81 days
 apart. So judging health on that timestamp calls a steady device broken: it asks *has this changed
-lately*, and the panel needs *have we been able to read this lately*. That is why Коридор's tab is
+lately*, and the panel needs *have we been able to read this lately*. That is why Коридор's heading is
 marked while both strips inside it are working.
 
 The reading a poll produced is a group fact, not a tile fact. One `/v1.0/user/info` call feeds every
@@ -189,8 +192,8 @@ minutes**. Seen on the wall on 2026-08-16: `Бризеры: not updating: Unable
 So the panel remembers who they are. `KnownRecuperators` keeps the last successful inventory — **id,
 name, room, and nothing else** — in the same encrypted store as the credentials, because device ids
 identify the flat. On a cold start those become tiles with no values on them: "unknown · never read",
-no climate line, third-width, and the group stale until a refresh lands, which is what marks the tab
-and pulls them onto Главная.
+no climate line, third-width, and the group stale until a refresh lands, which is what marks the
+heading and pulls them onto Главная.
 
 What is deliberately *not* remembered is any value. A switch position from before the reboot is not
 something the panel has read, and a tile printing it would be claiming a poll that never happened —
@@ -206,28 +209,48 @@ A tablet with no usable keystore — restored backup, wiped key — remembers no
 Yandex tile already up, and cleared by itself at the next poll — the host resolved fine from the
 shell throughout, so it is the poll's cadence and not the network. After one successful inventory,
 a restart shows all five recuperators inside a second: named, in their rooms, third-width,
-"unknown · never read · unknown · never read", every room tab marked, and the whole set replaced by
+"unknown · never read · unknown · never read", every room heading marked, and the whole set replaced by
 real values 0.4 s later when the poll landed. `Бризер зал` then goes back to half-width with its
 climate line, and the marks clear.
 
 Two things that fall out of it, neither fixed: a placeholder has no climate line, so it is
 third-width and its status line *wraps* onto two lines there — and "Бризер данина комната" wraps its
 name too, so that one tile stands taller than the four beside it for the second it is up. And on a
-tablet whose first read of the day fails, the tabs of five rooms are marked at once, which is the
-tab mark doing its job and looks alarming anyway.
+tablet whose first read of the day fails, the headings of five rooms are marked at once, which is
+the mark doing its job and looks alarming anyway.
 
-## The tab shell
+## The scroll
 
-**Главная** first, then the rooms. Rules, each of which exists because a wall panel is not a phone:
+**Главная** first, then the rooms, each behind a heading, all on one vertical scroll. Rules, each of
+which exists because a wall panel is not a phone:
 
-1. **It returns to Главная by itself.** After **2 minutes** with no touch, whatever tab is showing
-   goes back to Главная. A phone app may stay where you left it; a wall panel is walked up to by
-   someone who did not leave it there, and a panel showing Балкон because that is where the last
-   person got to is a panel showing the wrong room to everyone after them.
-2. **A room tab carries its own bad news.** A room is marked on the tab strip when its group's poll
-   failed, or when every reading in it is stale. Without this the tabs hide eleven rooms, and Спальня
-   can be dead for a day behind a Главная that looks fine. The mark is on the tab, so it is visible
-   from Главная without opening the room.
+0. **It is a scroll and not a strip of tabs, and that is the second answer to this question.**
+   Commits 1–7 shipped a `PrimaryScrollableTabRow`; on the wall it held fourteen rooms across 753 dp
+   and could not. `Гардеробная` was clipped mid-word at the right edge and Ванная, Балкон and
+   Гардероб were off the end entirely — so rule 2's "visible from Главная without opening the room"
+   was false for the last third of the flat, which is what `design/panel-redesign.md` item 9 was
+   about. Measured off the same capture, content stopped at 563 dp of a 1205 dp screen: **53 % of the
+   wall empty**, every tile crammed into the top half. A horizontal control was the wrong answer to
+   a vertical problem twice over, and the fix for both is the same one. _Measured after:_ on the
+   Roborazzi capture at the wall's own 753 × 1204 dp the panel now fills the full height and the
+   scroll continues past the bottom edge.
+1. **It returns to Главная by itself.** After **2 minutes** with no touch, the wall scrolls back to
+   the top, which is where Главная is. A phone app may stay where you left it; a wall panel is walked
+   up to by someone who did not leave it there, and a panel showing Балкон because that is where the
+   last person got to is a panel showing the wrong room to everyone after them.
+
+   **The scroll position is otherwise left alone.** It used to be a `LazyGridState` keyed on the tile
+   count, which threw the position away whenever any device appeared or disappeared — under the hand
+   of whoever was reading a room at the time. That key was doing one useful thing and one harmful
+   one, and only the useful half survives: **a rebooted panel goes back to the top when the first
+   poll lands.** A tablet that came up into a Wi-Fi that was not ready holds nothing but its launcher
+   tiles, and twenty tiles are then inserted *above* them; keyed items would hold the launcher in
+   view and the wall would come up showing the last two tiles of the list. Those are the only two
+   events that move it, and neither can fire under a finger.
+2. **A room heading carries its own bad news.** A room is marked when its group's poll failed, or
+   when every reading in it is stale. Without this Спальня can be dead for a day behind a Главная
+   that looks fine. The mark is on the heading, which travels with the room — this is the half of
+   the old rule the strip could not keep, because three rooms' marks were off the end of it.
 
    **The mark is a `•` after the title _and_ the title in the error colour — both, not either.**
    Commit 1 wrote it as a character *rather than* a colour, because there was no palette to trust in
@@ -240,15 +263,8 @@ tab mark doing its job and looks alarming anyway.
    apart by lightness (see "Icons"). The answer is the same both times: the shape carries the state
    and the colour reinforces it.
 
-   **A tab that is marked _and_ selected says both things, and that is deliberate.** Material's
-   `Tab` defaults *both* of its content colours to the strip's own — confirmed by reading `Tab`'s
-   signature out of material3's `classes.jar` on this BOM, not from the docs — so on this panel
-   "which tab is open" has only ever been said by the indicator underneath and never by the label
-   colour. So the error colour is given to a marked tab whether or not it is the open one, and the
-   indicator is left alone at `primary`. Neither signal loses: an error-coloured title with the
-   selection bar still under it.
-
-   **Measured on the glass, 2026-08-29, filter on, both themes**, with the network dropped so that
+   **Measured on the glass, 2026-08-29, filter on, both themes**, on the tab strip this replaced,
+   with the network dropped so that
    Yandex failed for real. The strip composited as `#F9E8CD` in light and `#402F13` in dark, both
    the values the bulb work recorded for a filter that is genuinely on, so these are real readings.
    A marked title came out `#C23F18` in light and `#F5B492` in dark against an unmarked `#366E82`
@@ -256,20 +272,29 @@ tab mark doing its job and looks alarming anyway.
    respectively. This is not a distinction the filter is going to erode; the tiles live at 13 to 19.
    A marked title against the strip behind it is 4.3:1 in light and 7.2:1 in dark **as composited**,
    against 6.2:1 and 10.9:1 as designed. _The light figure is marginally under WCAG's 4.5:1 for text
-   this size, and it is the filter rather than the palette:_ an **unmarked** tab measures 4.7:1
-   through the same filter against 6.2:1 designed, so the filter costs every label on this strip
-   about the same and the mark is not what put it there. If it is ever worth fixing it is a palette
-   change and not a tab-strip one.
-3. **Group failures stay above everything.** `groupFailures` today prints the groups that failed
-   before they ever had a tile. Those have no room to be marked in — a group with no tiles is in no
-   room — so that line stays at the top of Главная, unchanged.
-4. **The strip scrolls horizontally.** Twelve rooms plus Главная plus Без комнаты does not fit. The
-   rooms that scroll off are the ones the existing order already puts last — Ванная, Балкон,
-   Гардероб — which are switched at their own door and are the long way round from the hallway
-   anyway.
-5. **Без комнаты is a tab like any other**, last, and never dropped: it holds the recuperators when
-   `TUYA_ROOMS` is unset and the vacuum's launcher tile, and a device falling off the wall because no
-   vendor placed it is the bug that section exists to prevent.
+   this size, and it is the filter rather than the palette:_ an **unmarked** tab measured 4.7:1
+   through the same filter against 6.2:1 designed, so the filter costs every label about the same
+   and the mark is not what put it there. If it is ever worth fixing it is a palette change.
+   _Not re-measured on a heading:_ the colours are the same two roles, but the type is now 52sp
+   bold against the tab strip's 14sp, and a contrast figure taken at one size is not a figure at the
+   other. **This wants a walk to the hallway** with the filter on, like the type scale does.
+3. **The heading is the largest type on the wall.** `displayMedium` at 52sp, bold — a step above the
+   44sp a tile promotes, which is what makes fourteen rooms navigable from across the hallway: what
+   somebody is looking for when they walk up is the room, and only then the reading. A heading is
+   full-width and wraps rather than clips, which is the direct answer to `Гардеробная`; the longest
+   name the flat has, "Маленькая детская", measures 517 dp of the 753 and does not need to.
+4. **Group failures stay above everything.** `groupFailures` prints the groups that failed before
+   they ever had a tile. Those have no room to be marked in — a group with no tiles is in no room —
+   so that line stays at the very top, above the Главная heading.
+5. **Без комнаты is a section like any other**, last: it holds the recuperators when `TUYA_ROOMS` is
+   unset and the vacuum's launcher tile, and a device falling off the wall because no vendor placed
+   it is the bug that section exists to prevent.
+
+   **A section with nothing in it gets no heading**, and that includes this one — which is a change
+   from the strip, where Без комнаты was drawn empty or not. The strip's reason was that a tab that
+   is not there is a section that cannot be opened; stacked, a section's tiles are on the same scroll
+   as its heading, so an empty heading cannot lead anywhere and only claims a room that has nothing
+   in it. Nothing can be lost by it: a tile is what makes its own section appear.
 
 ### What is on Главная
 
@@ -279,8 +304,12 @@ No settings screen. Favourites are defined in code, in one place, in the same sp
 The rule: **every tile in Коридор and Зал, plus every launcher tile, plus any tile anywhere that is
 failing or stale.** The first two are the rooms switched on the way in and on the way out; the
 launchers because the intercom is why someone walks up to this panel at all; and the last so that
-rule 2's mark has somewhere to lead — a failing tile appears on Главная itself, not only as a dot on
-a tab.
+rule 2's mark has somewhere to lead — a failing tile appears at the top of the wall, not only as a
+dot beside a room name eleven sections down the scroll.
+
+Its tiles are on the wall twice, once here and once in the room they are in. That was true of the
+strip too and is the point rather than a duplication: Главная is a view of the flat, not a place
+tiles move to.
 
 This is a pure function of the room sections. It gets a test.
 
@@ -731,7 +760,8 @@ The Compose BOM is already `2026.08.00`, so Material 3 Expressive is on the clas
 dependency is needed** — which is the reason this direction was picked over anything needing a card
 library.
 
-- `PrimaryScrollableTabRow` for the tab strip. Done, commit 1.
+- ~~`PrimaryScrollableTabRow` for the tab strip.~~ Done in commit 1 and removed again: the rooms are
+  one scroll of headings now, and no tab row is on the wall. See "The scroll".
 - `LazyVerticalGrid` with `GridCells.Fixed(6)` and `GridItemSpan` for the mosaic. Done, commit 2.
   `FlowRow` for the lights group is commit 3.
 - ~~`MaterialShapes` + shape morph on press for the bulb circles.~~ **Not available.**
@@ -765,12 +795,12 @@ What gets a test, each asserting the value returned and not which composable was
 
 - The favourites list: Коридор and Зал tiles present; launchers present; a stale tile from Спальня
   pulled in; a fresh tile from Спальня not.
-- The tab marks: a room marked when its group errored, marked when everything in it is stale,
+- The heading marks: a room marked when its group errored, marked when everything in it is stale,
   unmarked otherwise.
 - The bulb split: `Reading.Never` leaves the group; a bulb 3 minutes old leaves the group; a bulb
   90 seconds old stays; the group line quotes the oldest of those that stayed.
-- The tab list: Главная first, rooms in `roomSections` order, Без комнаты last and present even when
-  every other section is empty.
+- The heading list: Главная first, rooms in `roomSections` order, Без комнаты last, and a section
+  with no tiles in it dropped rather than given an empty heading.
 - The tile layout: the recuperator's span from whether it reports climate, and `mood` from `isOn`
   and the error. Added in commit 2, which is where "a re-skin has nothing to test" turned out to be
   wrong: both are decisions with a right and a wrong answer, and a decision that only exists inside
@@ -804,7 +834,7 @@ columns is sized from that 753 and from nothing else.
 | `panel-home-light`, `panel-home-dark` | Главная whole, in both schemes: the spans, the corners, the mosaic as one thing |
 | `tiles-light`, `tiles-dark` | Every `TileHue` × `TileMood` pair, plus the group-failure outline. This is the ΔE table in `PanelTheme.kt` made visible |
 | `lights-group` | The row of 72 dp circles, and the `Never` bulb broken out above it |
-| `tabs-marked` | A strip with three rooms carrying the dot and the error colour |
+| `headings` | A plain heading, a marked one, and the longest room name in the flat at heading size |
 
 ```bash
 source scripts/env.sh && ./gradlew verifyRoborazziDebug
@@ -889,7 +919,7 @@ out wrong. None of them can be settled from a screenshot.
   well, so today the two fire together; that is a coincidence of settings, not a design.
 - The ×8 in "Stale". Tying it to each poll's own interval is right; eight of them is a guess, and the
   number that matters is how long a device can be quiet before somebody would want to know.
-- Whether a **stale group** should reach the tile's paint, or only the tab mark. `mood` is a function
+- Whether a **stale group** should reach the tile's paint, or only the heading mark. `mood` is a function
   of `isOn` and the error and nothing else, so a group that has stopped polling still paints every
   tile in it as confidently on. Commit 3 makes the signal trustworthy enough to be worth asking; it
   does not answer it, and wiring it in is a spec change rather than a bug fix.
@@ -926,7 +956,7 @@ for the whole of it, the portrait lock included — that is a device setting, no
 
 **What the order bought.** The shell first, because it is the only part with behaviour to get wrong
 and it is worth having green before anything visual moves. 3 before 4, because the group line and
-the tab marks both read staleness and grouping the bulbs on top of a signal known to be wrong means
+the heading marks both read staleness and grouping the bulbs on top of a signal known to be wrong means
 doing it twice. 5 before 6, because a glyph takes its tile's content colour and drawing seven of
 them against a palette about to be replaced is drawing them twice. 3 stayed its own commit because
 it is the only fix among six features, and a correction folded into a feature is a correction nobody

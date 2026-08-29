@@ -7,13 +7,13 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -194,14 +194,17 @@ private fun Panel(secrets: PanelSecrets) {
     var now by remember { mutableStateOf(Instant.now()) }
     val scope = rememberCoroutineScope()
 
-    // Which tab is showing, and every touch that says somebody is still standing there. The flow
-    // is what the idle reset watches; DROP_OLDEST because a touch arriving while one is still
-    // queued says nothing new — both mean a hand is on the panel — and the pointer handler must
-    // not suspend to say it.
-    var selectedTab by remember { mutableIntStateOf(0) }
+    // Where the wall is scrolled to, and every touch that says somebody is still standing there.
+    // The flow is what the idle reset watches; DROP_OLDEST because a touch arriving while one is
+    // still queued says nothing new — both mean a hand is on the panel — and the pointer handler
+    // must not suspend to say it.
+    //
+    // The rooms are one scroll rather than a strip of tabs, so going back to Главная is going back
+    // to the top: the state is held here because the reset drives it from outside the composable.
+    val scroll = rememberLazyGridState()
     val touches = remember { MutableSharedFlow<Unit>(extraBufferCapacity = 1, onBufferOverflow = DROP_OLDEST) }
     LaunchedEffect(Unit) {
-        resetAfterIdle(touches, IDLE_RESET) { selectedTab = 0 }
+        resetAfterIdle(touches, IDLE_RESET) { scope.launch { scroll.scrollToItem(0) } }
     }
 
     // The launcher tiles hold no vendor state, so there is nothing here to poll — but whether an
@@ -250,7 +253,6 @@ private fun Panel(secrets: PanelSecrets) {
         // either call every recuperator stale or never call a bulb stale.
         yandexInterval = POLL_INTERVAL,
         tuyaInterval = TUYA_POLL_INTERVAL,
-        selected = selectedTab,
         // Every touch on the panel, seen on the way down and not consumed: this watches the
         // gestures, it does not take them. A tap that reached a switch must still flip it. Over the
         // whole screen rather than the tiles, so a touch on the empty half of a short room still
@@ -264,7 +266,7 @@ private fun Panel(secrets: PanelSecrets) {
                 }
             }
         },
-        onSelectTab = { tab -> selectedTab = tab },
+        scroll = scroll,
         onToggleAc = { id -> scope.launch { acs.toggle(id) } },
         onSetTemperature = { id, celsius -> scope.launch { acs.setTemperature(id, celsius) } },
         onSetOpen = { id, percent -> scope.launch { curtains.setOpen(id, percent) } },
