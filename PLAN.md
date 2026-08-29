@@ -1,380 +1,283 @@
-# PLAN — the panel's shape
+# PLAN — the dark wall
 
-Reshaping `panel/` after the Yandex smart home app: rooms stack instead of tabbing, one tile
-anatomy, surfaces stop carrying hue, the lamp row becomes tiles, art per device.
+The shape work is done and merged (PR #23: typography, rooms as sections, one tile anatomy, the
+lamp group, glyphs at wall size). What is left is **colour**, judged against the Yandex app's dark
+theme, which is the thing being aimed at.
 
 **This file is written to be executed by agents working one task at a time, without the
-conversation that produced it.** Each task is self-contained: context, files, acceptance criteria,
-verification. Read *Ground rules* and *Reference* before starting any task; read no other task than
-your own.
+conversation that produced it.** Each task is self-contained. Read *Ground rules* and *Reference*
+before starting any task; read no task other than your own.
+
+The previous plan and its report are in git — `bea50c2` for the plan, `655a683` for the report.
+This file replaces it and does not re-open anything it settled.
 
 ---
 
 ## Ground rules
 
-Non-negotiable. These come from `CLAUDE.md`; an agent that breaks one has failed its task even if
-the feature works.
+From `CLAUDE.md`. An agent that breaks one has failed its task even if the feature works.
 
-1. **TDD.** Failing test first, then the code that makes it pass, same commit. A bug fix starts
-   with a test that reproduces the bug.
-2. **`./gradlew test` must pass before a task is reported done.** "It compiles" is not done.
-3. **Never delete, skip, `@Ignore` or weaken a test to make the build green.** Fix the code.
+1. **TDD.** Failing test first, then the code, same commit. A bug fix starts with a test that
+   reproduces the bug.
+2. **`./gradlew test` must pass before a task is done.** "It compiles" is not done.
+3. **Never delete, skip, `@Ignore` or weaken a test to go green.** Fix the code.
 4. **Do not touch `AndroidManifest.xml`, permissions, foreground services, minSdk or signing.**
-   Any task that seems to need it: stop and report, do not proceed.
+   Stop and report instead.
 5. **Do not add a dependency, a DI framework or a module.** Stop and report.
 6. **Do not reformat, rename or tidy files outside your task.**
-7. **Assert on observable behaviour** — returned values, emitted state — not on which collaborator
-   was called. A pure refactor must not break a test.
+7. **Assert on observable behaviour**, not on which collaborator was called.
 8. **No hex literals in `panel/`.** `PanelTheme.kt` is the only file allowed to hold colour values.
-9. **The lock tile never gets a write action.** It reports; it does not act.
+9. **The lock tile never gets a write action.**
 10. **Never cover, delay or suppress the Domonap call screen.**
-11. Conventional commits, one concern per commit: `feat(panel): …`, `fix(panel): …`.
+11. Conventional commits, one concern per commit.
 
 ## Environment
 
-There is no JDK, Android SDK or `adb` on the system PATH and there is not meant to be. Everything
-lives in `.toolchain/`; `scripts/env.sh` puts it on PATH and must be sourced in the *same* command
-as gradle. Gradle and `adb` both need the sandbox disabled — they bind local sockets.
+No JDK, SDK or `adb` on the system PATH by design; `scripts/env.sh` puts the repo-local toolchain
+there and must be sourced in the *same* command as gradle.
 
 ```bash
-source scripts/env.sh && ./gradlew test                    # after every change, must be green
-source scripts/env.sh && ./gradlew ktlintCheck             # formatting
-source scripts/env.sh && ./gradlew verifyRoborazziDebug    # compare against committed screenshots
-source scripts/env.sh && ./gradlew recordRoborazziDebug    # rewrite them after a deliberate change
+source scripts/env.sh && ./gradlew test
+source scripts/env.sh && ./gradlew ktlintCheck
+source scripts/env.sh && ./gradlew verifyRoborazziDebug
+source scripts/env.sh && ./gradlew recordRoborazziDebug
 ```
 
-**The screenshot gate matters here.** `app/src/test/screenshots/` holds committed reference images
-(`panel-home-dark.png`, `panel-home-light.png`, `tiles-dark.png`, `tiles-light.png`,
-`lights-group.png`, `tabs-marked.png`). Every task below changes the wall, so `verifyRoborazziDebug`
-*will* fail — that is expected and is not a licence to skip it. Run it, **look at the diff** in
-`build/outputs/roborazzi/`, satisfy yourself the change is the one you intended, then
-`recordRoborazziDebug` and commit the new references as part of the same commit.
+**Every task here changes colour, so `verifyRoborazziDebug` will fail — that is expected and is not
+licence to skip it.** Run it, open the diff in `build/outputs/roborazzi/`, satisfy yourself the
+change is the one you intended, then `recordRoborazziDebug` and commit the new references in the
+same commit.
 
-## Order and dependencies
+**Both schemes move together.** `panel-home-dark.png` is the one being judged, but every task edits
+a token mapping that light also reads. Check `panel-home-light.png` in the same diff; a task that
+fixes dark and wrecks light is not done.
+
+## Order
 
 ```
-T0  answered — T5 dropped
-T1 ──> T2 ──> T3 ──> T4
-T6  independent, any time
+D1 ──> D2 ──> D3
+D4  independent, any time
 ```
 
-- **T1 before T2** — section headings cannot be sized until the wall type scale exists.
-- **T3 before T4** — T4 operates on the anatomy T3 establishes.
-- **T5 is dropped.** Do not build it.
-- **T6 never blocks anything.**
+- **D1 first.** It decides what the neutral ramp carries; D2 and D3 are shaped by that answer.
+- **D4 never blocks anything** and can run in parallel, in a worktree.
 
-Do not run T2–T4 in parallel: they all touch `TileLayout.kt`, `TileCard.kt` and `PanelRooms.kt`.
-T6 can run alongside anything.
+Do not run D1–D3 in parallel: they all touch `TileCard.kt` and `TileLayout.kt`.
 
 ---
 
-## T0 · ANSWERED 2026-08-29 — the filter was the problem
+## D1 · `feat(panel): the surfaces stop carrying hue`
 
-**Result: yes. T5 is dropped.** With Eye comfort shield off (`system.blue_light_filter 1 → 0`) the
-wall matches `PanelTheme.kt` exactly: background `#111318`, light container `#663E00`, tabs the
-proper `#A5C8FF`. The palette was never wrong. **Do not build T5.**
+**Depends on:** nothing. Do this first.
 
-Standing caveat, not a task: with the filter on, everything shifts warm and the wall reads as one
-brown. If the filter goes back on at night, the panel needs a palette that survives it — that is
-the same work T5 described, and it should be re-opened deliberately rather than assumed.
+**Context.** In the reference, **every tile is the same neutral dark grey.** Colour appears in
+exactly three places on the whole screen: a green dot for on, a red struck-through wifi glyph for
+offline, and the assistant orb. Nothing else is coloured.
 
-Note for whoever reads the history: an earlier sample of the "climate container" was taken from an
-air conditioner that was **off**, so it was reading `surfaceContainer`, not `primaryContainer`. No
-climate tile was on in either capture, so the blue family is still unverified on the wall. Not a
-defect — just not evidence.
+On this wall, in `panel-home-dark.png`: the air conditioner is a deep blue field, the strip a dark
+amber field, the curtain a mid grey, and **two of the twelve tiles are full saturated red
+rectangles** (the offline Бризер and the missing Пылесос). It reads as a patchwork of colour blocks
+rather than as a set of tiles, and the two red ones are by a wide margin the loudest thing on the
+wall — spending the strongest signal available on "this one is offline".
 
-<details><summary>Original T0 instructions, kept for the record</summary>
+This is the task that was dropped as T5 in the previous plan, when the blue light filter turned out
+to be why the wall looked brown. That was correct and is settled — the filter *was* that problem.
+This is a different one: with the filter off and the palette rendering exactly as designed, the
+surfaces still carry more hue than the thing being aimed at.
 
-**Not an agent task.** An agent must not change device display settings.
-
-The panel was captured off the tablet on 2026-08-29 21:13 — inside the 19:00–07:00 dark window,
-with the blue light filter on — and its pixels sampled against what `PanelTheme.kt` asks for:
-
-| | asked for | on the wall |
-| --- | --- | --- |
-| background | `#111318` | `#402F13` |
-| climate container | `#03497C` | `#4A3A1D` |
-| light container | `#663E00` | `#845200` |
-| promoted value | `#D4E3FF` | `#E6D6BB` |
-
-The amber seed survives. The blue seed does not — 124 of blue down to 29, a deep blue tile arriving
-as brown. The filter is a display colour transform and `screencap` captures it, so this is
-approximately what the wall shows.
-
-**Turn the filter off and look at the wall after 19:00.** If the panel reads correctly without it,
-T5 is a device setting and not a commit — mark T5 dropped and say so here. If the filter stays on,
-T5 proceeds as written.
-
-</details>
-
----
-
-## T1 · `feat(panel): a typography for wall distance`
-
-**Depends on:** nothing.
-
-**Context.** `MainActivity` passes `MaterialTheme` a `colorScheme` and nothing else, so the panel
-runs on Material's baseline typography — a scale drawn for a phone held 30 cm from the face. Counted
-across `panel/`: nine uses of `bodySmall` (12sp), two `titleMedium`, one `displaySmall`, one
-`bodyMedium`. Every status line on a wall read from four metres is 12sp. Only the air conditioner
-promotes a value; the curtain's position, the strip's brightness and the recuperator's temperature
-sit at 12sp inside a dot-separated run-on line.
-
-**Files.** `app/src/main/kotlin/ru/domovoy/PanelTheme.kt`,
-`app/src/main/kotlin/ru/domovoy/MainActivity.kt`, `app/src/main/kotlin/ru/domovoy/panel/TileLayout.kt`,
-the tile composables.
+**Files.** `PanelTheme.kt`, `panel/TileCard.kt`, `panel/TileLayout.kt`.
 
 **Do.**
-- Add a `panelTypography` to `PanelTheme.kt`, beside the two schemes and for the same reason — it is
-  data, and that file is the one allowed to hold values. Pass it from `MainActivity` in the same
-  call as the scheme.
-- Size for the wall, not the phone. The floor is what is legible at four metres on a 753 dp panel at
-  340 dpi. **Nobody has measured that on this tablet.** Pick a defensible scale, state the assumption
-  in the KDoc, and flag in your report that it wants a walk to the hallway. What is not a guess:
-  12sp is under it.
-- **One promoted value per tile.** The AC has one; give the curtain its open percent, the strip its
-  brightness, the recuperator its temperature. Ages and the rest of the line stay demoted.
+- Tiles sit on the neutral ramp — `surfaceContainer` and its four neighbours — instead of taking
+  `primaryContainer` / `tertiaryContainer` / `errorContainer` as a field. `PanelTheme.kt` already
+  argues that the neutral family is told apart by lightness rather than hue; extend that answer to
+  all three families instead of leaving it as one family's compromise.
+- **Hue survives as accent, not as field.** The promoted value, the slider fill, the on indicator,
+  the failing outline. A small saturated mark says the same thing a filled card says and does not
+  cost the whole surface.
+- **Land `docs/design/panel-redesign.md` item 4 in this commit.** A *group's* failure outlines,
+  using the existing `groupFailureBorder`; a *tile's own* failure fills. Today one failed
+  `/v1.0/user/info` turns roughly 34 of 35 tiles red in a single frame and erases the family coding
+  exactly when somebody needs to work out what broke.
+- Also settle the `Off`/`Unknown` neutral disagreement recorded at the foot of that doc. It is the
+  same question — what the neutral ramp carries — and answering it separately will answer it
+  differently.
 
 **Done when.**
-- No `bodySmall` remains as a status line in `panel/`.
-- Which value a tile promotes is a pure function per tile state, living beside `hue` and `span` in
-  `TileLayout.kt`, with a test table covering every tile type and its states.
-- `./gradlew test` green; `ktlintCheck` green; Roborazzi references re-recorded and eyeballed.
+- No tile takes a container colour as a full-bleed field.
+- The family a tile belongs to is still recoverable from the wall. **Verify on the re-recorded dark
+  capture, not by reasoning about tokens.**
+- A group failure outlines and does not turn the wall red.
+- `test` green, `ktlintCheck` green, both schemes' references re-recorded and looked at.
 
-**Do not.** Do not change any colour. Do not touch the grid.
+**Do not.** Do not retune the two seeds or the generated ramps — `docs/ui.md` records them as
+decided and this is not a reason to reopen them. Do not remove a value from a tile.
 
 ---
 
-## T2 · `feat(panel): rooms stack instead of tabbing`
+## D2 · `feat(panel): a tile says how old it is once`
 
-**Depends on:** T1.
+**Depends on:** D1.
 
-**Context.** The tab strip holds fourteen rooms across a 753 dp panel and cannot. `Гардеробная` is
-clipped mid-word at the right edge; Ванная, Балкон and Гардероб are off the end entirely. Separately,
-measured off the same capture: content stops at 563 dp of a 1205 dp screen — **53% of the wall is
-empty**, every tile crammed into the top half. A horizontal strip is the wrong answer to a vertical
-problem.
+**Context.** The reference says almost nothing under a tile name — `Needs configuring`, in grey, and
+otherwise nothing. This wall prints, on one tile:
 
-`docs/design/panel-redesign.md` item 9 describes this and defers it as "a bigger change than this
-list wants". **This is that change; item 9 there is resolved by this task and must not be built
-separately.**
+```
+on · 3 min ago · low + medium + high · 3 min ago
+26.4 °C · 3 min ago · 41.0 % · 3 min ago
+```
 
-**Files.** `app/src/main/kotlin/ru/domovoy/panel/PanelTabs.kt`, `PanelRooms.kt`, `RoomSections.kt`,
-`app/src/main/kotlin/ru/domovoy/MainActivity.kt`.
+**Four timestamps in one paragraph, three of them the same.** The AC prints `on · 1 min ago · 22 °C
+· 81 d ago`; the strip prints two ages plus `not controllable`. `CLAUDE.md` requires a tile to say
+how old its reading is — it does not require it to say so once per field, and the run-on line is
+what makes the wall look busy next to the reference.
+
+D1 removes the colour that was competing for attention; this removes the text that was.
+
+**Files.** `panel/Staleness.kt`, `panel/TileCard.kt`, the tile composables.
 
 **Do.**
-- Rooms become sections down one scroll: heading, that room's tiles, next heading. One
-  `LazyVerticalGrid` with headers spanning full width. `PanelTabs.kt` stops being a strip.
-- The heading is the largest type on the wall and uses T1's scale.
-- **Главная keeps its job** — pulling failing and stale tiles to the top is what makes a fourteen-room
-  scroll bearable, and is what the tab marks stood in for.
-- The room mark (the `•` and the error colour) moves onto the section heading, where it cannot
-  scroll off the end of anything.
-- Fix the grid-position bug while here: `PanelRooms` keys `LazyGridState` on the tile count, so a
-  device appearing throws whoever is scrolled back to the top. Keep the state; scroll to top
-  explicitly on the two events that need it, not under somebody's finger.
+- **One age per tile**, the oldest of the readings it is showing, printed once.
+- Fresh readings do not need to speak. Give staleness a threshold below which the line says nothing,
+  and above which it says one thing. `Staleness.kt` already models the distinction and already
+  reaches the headings; it is the wording that is doing too much.
+- Keep the promoted value exactly as it is — `22 °C`, `40% open`, `60%` are the best thing on the
+  wall today and are not in scope.
+- Keep everything the panel is required to be honest about: `not controllable`, `no state to read`,
+  `not installed`, and the reason a poll failed. Shorten them; do not drop them.
 
 **Done when.**
-- No room is unreachable and no room name is clipped.
-- Section order and which tiles Главная pulls in are pure functions with tests.
-- A room with a failing group carries its mark on its heading — asserted.
-- Vertical fill measured from a fresh Roborazzi capture is materially above the 47% it is now.
-- `./gradlew test` green; `ktlintCheck` green; references re-recorded and eyeballed.
+- No tile prints the same age twice.
+- A tile whose readings are all fresh prints no age at all.
+- The staleness rules stay pure functions with their existing tests extended, not moved into
+  composables.
+- `test` green, `ktlintCheck` green, references re-recorded and looked at.
 
-**Do not.** Do not add a bottom navigation bar. Do not change tile colours or sizes — T3 owns that.
+**Do not.** Do not remove a value or a state the panel is required to report — that is the load-
+bearing refusal in *Reference*.
 
 ---
 
-## T3 · `feat(panel): one tile anatomy`
+## D3 · `fix(panel): nothing on the wall wraps`
 
-**Depends on:** T2.
+**Depends on:** D2.
 
-**Context.** Measured off the capture: the air conditioner is 169 dp tall with a large dead area
-under its slider; the strip beside it is shorter; the recuperator shorter again; the launcher tiles
-shorter still. Four heights, ragged bottom edges, no grid. `docs/ui.md` records "two tiles of the
-same kind come out the same height" — that holds *within* a kind and there is no rule *across* kinds.
-Internal rhythms differ too: a 3.6 dp hairline on the AC, a 6 dp filled bar on the strip, neither on
-the launchers, bare discs for bulbs.
+**Context.** In `panel-home-dark.png`, `81 d ago` wraps to a second line, `not controllable` wraps,
+and `com.example.vacuum` breaks mid-word across three lines. The third row of tiles is visibly
+shorter than the first two. `docs/ui.md` records "two tiles of the same kind come out the same
+height" as the mosaic's proudest property, and T3 gave every kind a reserved-height anatomy — but
+the status line is still unbounded, so a long string is the one thing that can still break it.
 
-**Files.** `app/src/main/kotlin/ru/domovoy/panel/TileCard.kt`, `TileLayout.kt`, and every
-`*Tile.kt`.
+`docs/design/panel-redesign.md` item 7 covers the vendor-exception half of this (raw Java messages
+concatenated onto the line). **Land item 7 here**, in this commit: they are one bug.
+
+**Files.** `panel/TileCard.kt`, `panel/BulbTiles.kt`, wherever the throwable is caught.
 
 **Do.**
-- `TileCard.kt` becomes the single anatomy. Slots: **art**, **controls**, **name**, **promoted
-  value**, **status line**. A tile with nothing for a slot leaves it empty rather than re-flowing, so
-  heights agree across kinds and not only within one.
-- One radius, one padding, one column width. Span stays derived from the tile as today.
-- Slot order follows the reference — art and controls on the top line, words at the bottom — **plus
-  the promoted value**, which is the thing this panel does not give up (see *Reference*).
-- Aim for three or four columns on 753 dp. Two columns is a phone proportion.
-- While here: the sliders are 3.6 dp and 6 dp tall and read as decorative rules rather than
-  controls. Give them a height that says they can be grabbed.
+- Cap what a status line may occupy so no vendor string can change a tile's height.
+- Map the throwable to a small set of reasons the panel is willing to print — unreachable, timed
+  out, refused, and one fallback. The exception text goes to `Log`, not to the wall.
+- Package names and other identifiers that cannot be shortened get truncated rather than wrapped.
+- Row heights agree across the whole grid, not only within a kind.
 
 **Done when.**
-- Every tile type returns something for every slot — asserted as a pure function, which is what stops
-  a kind quietly re-flowing.
-- Bottom edges align across kinds in a fresh Roborazzi capture.
-- `./gradlew test` green; `ktlintCheck` green; references re-recorded and eyeballed.
+- Nothing wraps in either re-recorded capture, at the default font scale.
+- The throwable mapping is a pure function with a table test.
+- `test` green, `ktlintCheck` green, references re-recorded and looked at.
 
-**Do not.** Do not drop a value from a tile to make it look more like the reference — see
-*Reference*, the load-bearing refusal. Do not change the palette.
+**Do not.** Do not fix wrapping by shrinking type — D1 of the previous plan raised it deliberately
+and the wall is read from four metres.
 
 ---
 
-## T4 · `feat(panel): the lamp row becomes tiles`
+## D4 · `feat(panel): art per device`
 
-**Depends on:** T3.
+**Depends on:** nothing. Independent; can land any time or never.
 
-**Context.** Seven identical amber discs in a row, unlabelled, one shared line beneath reading
-`7 lamps · 7 on · never read`. They are 67 dp across — the best touch targets on the wall — and the
-most saturated, highest-contrast thing on screen, so the eye lands there first and learns nothing.
-Which lamp is which is not recoverable from the wall.
+**Context.** The previous run's T6 enlarged the glyph set to 48 dp and unified it, which was the
+cheap third of this. The reference does something different in kind: **photographs of the devices**
+— a white bulb, a wall switch, a door sensor, a coil of strip — light objects on dark tiles. You
+identify a device by recognising the object, not by decoding a symbol, and it is the largest single
+contributor to the reference looking like a product rather than a dashboard.
 
-**Files.** `app/src/main/kotlin/ru/domovoy/panel/BulbTile.kt`, `BulbTiles.kt`, `BulbGroup.kt`.
-
-**Do.** Pick one and say which in the commit message:
-- the seven become ordinary tiles in T3's grid and carry their names; **or**
-- the row collapses into one group tile saying `7 lamps` that opens the seven.
-
-Both are honest; the row as it stands is neither. Either way the discs stop out-shouting every tile
-that carries a reading.
-
-**Done when.**
-- Every lamp is identifiable from the wall without touching it, or is behind a group tile that says
-  how many and what state.
-- `bulbGroup` tests cover one lamp, seven lamps, and a group part-stale.
-- `./gradlew test` green; `ktlintCheck` green; references re-recorded and eyeballed.
-
-**Do not.** Do not settle the unlit-disc colour question here — that is `panel-redesign.md` item 6.
-
----
-
-## T5 · DROPPED — `feat(panel): the surfaces stop carrying hue`
-
-**Do not build this.** T0 was answered on 2026-08-29: the blue light filter was the whole problem,
-and with it off the wall matches `PanelTheme.kt` exactly. Kept below only so that re-opening it —
-if the filter goes back on permanently — does not start from nothing.
-
-<details><summary>Dropped task, kept for the record</summary>
-
-**Depends on:** T3, and on T0 having been answered.
-
-**Context.** See T0's table. The consequence is the ΔE table in `PanelTheme.kt`: climate/light is
-computed at 75 in dark, and with the blue axis flattened both families land in the same hue — the
-wall is one colour. The palette is not wrong; it is being destroyed downstream of itself, at night,
-which is half of every day.
-
-**Files.** `app/src/main/kotlin/ru/domovoy/PanelTheme.kt`,
-`app/src/main/kotlin/ru/domovoy/panel/TileCard.kt`, `TileLayout.kt`.
-
-**Do.**
-- Tiles sit on the neutral ramp — `surfaceContainer` and its four neighbours — instead of reaching
-  for `primaryContainer` and `tertiaryContainer` for their family. The neutral family is already told
-  apart by lightness rather than hue; extend that to all three families.
-- Hue survives as **accent, not field**: the on-state indicator, the promoted value, the failing
-  outline. A small saturated mark loses less to the filter than a large field does.
-- **Land `panel-redesign.md` item 4 in the same commit** — group failure outlines (using the existing
-  `groupFailureBorder`), a tile's own failure fills. And the `Off`/`Unknown` neutral disagreement
-  recorded at that doc's foot. All three are one question — what the neutral ramp carries — and
-  answering them separately will answer them three different ways.
-
-**Done when.**
-- No large field of `primaryContainer` or `tertiaryContainer` remains in `panel/`.
-- The family a tile belongs to is still recoverable from the wall — verify on a re-recorded dark
-  capture, not by reasoning.
-- A group failure outlines and does not erase family colour across ~34 tiles at once.
-- `./gradlew test` green; `ktlintCheck` green; references re-recorded and eyeballed.
-
-**Do not.** Do not retune the two seeds or the generated ramps — `docs/ui.md` records them as decided
-and this is not a reason to reopen them.
-
-</details>
-
----
-
-## T6 · `feat(panel): art per device`
-
-**Depends on:** nothing. Independent of every other task; can land last or never.
-
-**Context.** Nine drawables of mixed weight — a thin outline snowflake and fan against a filled bulb
-glyph in the disc row. As a set they do not agree, and at four metres a thin outline glyph is the
-least legible thing that could occupy that slot. In the reference, device art is the single largest
-contributor to looking like a product: you identify a device by recognising the object, not by
-decoding a symbol.
+It matters more after D1 than before it. Once the tiles are all one neutral grey, the art is what
+tells them apart at a glance.
 
 **Do.** Three options, in the order they are worth doing. **The first two need assets an agent
-cannot produce — for those, report what is needed and stop.**
+cannot produce — for those, report exactly what is needed and stop.**
 - **Photograph the actual hardware** on a neutral background. A couple of hours with a phone, and
   more honest than a render: the tile shows the lamp that is in that room.
-- **Source renders** for the AC, curtains, seven bulbs, strips, recuperators, lock, vacuum, intercom
-  — with the licence questions that brings.
-- **Keep glyphs, unify them** — one stroke weight, one family, roughly double the size. The cheap
-  answer, fully doable by an agent, and it fixes the inconsistency without buying the recognition.
+- **Source renders** for the AC, curtains, bulbs, strips, recuperators, lock, vacuum, intercom —
+  with the licence questions that brings.
+- **Keep the glyphs.** Already done and already unified; this is the null option and is acceptable.
 
-**Done when.** Every device id resolves to an asset; the set shares one weight and family;
-`./gradlew test` green; references re-recorded and eyeballed.
+**Done when.** Every device id resolves to an asset, the set shares one treatment, and the art reads
+against the neutral tile D1 produces. `test` green, references re-recorded and looked at.
 
 ---
 
 ## Reference
 
-### What was looked at
+### What is being aimed at
 
-A screenshot of the Yandex smart home app on a phone, 2026-08-29, showing Ванная, Гардероб and
-Детская. What it does, in the order it matters:
+The Yandex smart home app, **dark theme**, captured 2026-08-29 23:33. What it does, in the order it
+matters:
 
-- **Colour is spent only on meaning.** Surfaces are near-white and barely-there grey. The only
-  saturated pixels are a green "on" dot, a red struck-through wifi glyph, and the assistant orb.
-- **Photographs of devices, not glyphs.**
-- **Rooms are section headings, not tabs** — bold, several steps larger than anything in the tiles.
-- **One tile anatomy, repeated exactly** — art top-left, small round controls top-right, name at the
-  bottom. Uniform size, radius, aligned edges.
-- **Almost no state on the tile.** No temperature, no percentage, no age.
-
-The ad card is not incidental: it is what makes the tiles small and the page a feed. A panel with no
-ad slot has that space back and should not inherit proportions chosen around one.
+- **No hue in any surface.** Near-black background, every tile the same neutral dark grey.
+- **Three coloured things on the entire screen**: a green dot meaning on, a red struck-through wifi
+  glyph meaning offline, and the assistant orb. That is the whole colour budget.
+- **Photographic device art**, light objects against dark tiles.
+- **Room names as headings**, bold, well above the tiles in weight.
+- **One short grey line under a name, or nothing.**
 
 ### What is taken and what is refused
 
-Decided. No task re-argues this table.
+Settled. No task re-argues this table.
 
-| Yandex | Here | Why |
+| Yandex dark | Here | Why |
 | --- | --- | --- |
-| Rooms as vertical sections | **take** | Fixes the strip that cannot hold fourteen rooms *and* the empty half, in one change |
-| Uniform tile grid | **take** | Four tile heights, misaligned bottom edges |
-| One tile anatomy | **take** | Five tile types, five internal rhythms |
-| Neutral surfaces, colour as status only | **take** | And it survives the filter |
-| Device art instead of glyphs | **take** | T6, and the expensive one |
-| Light theme | **refuse** | White in a dark hallway at 03:00; the 19:00–07:00 schedule exists for a reason |
-| Small, truncated labels (`Свет в гарде…`) | **refuse** | Fine at 30 cm, useless at four metres |
-| Bottom navigation bar | **refuse** | One screen, nothing to navigate to |
-| Two columns | **adapt** | Two columns of a 411 dp phone is not two of a 753 dp wall. Three or four |
-| State hidden behind a tap | **refuse** | Load-bearing — below |
+| Neutral surfaces, no hue in tiles | **take** | D1 — the remaining visible difference |
+| Colour only as small status marks | **take** | D1 |
+| A quiet or absent secondary line | **take** | D2 |
+| Photographic device art | **take** | D4, and the expensive one |
+| Near-black background | **already have it** | `#111318`, verified against the wall |
+| Showing almost no state on a tile | **refuse** | Load-bearing — below |
+| Truncated device names | **refuse** | Fine at 30 cm, useless at four metres |
+| Small secondary type | **refuse** | Same reason |
+| A bottom navigation bar | **refuse** | One screen |
 
-**Why the last row governs everything.** Yandex shows almost nothing on a tile because it is a phone
-app: opened, tapped, read, closed. A wall panel is read *without being touched* — the 16 °C and the
-33.5 % visible from the hallway is the whole point, and `CLAUDE.md` requires a tile to say how old
-its reading is. Copy the minimalism literally and the result is a handsome thing that has stopped
-being a panel.
+**Why the refusals hold.** Yandex shows nearly nothing on a tile because it is a phone app: opened,
+tapped, read, closed. This panel is read *without being touched* — the 22 °C and the 40% open
+visible from the hallway is the point, and `CLAUDE.md` requires a tile to say how old its reading
+is. D2 makes the secondary line quieter; it does not make it disappear.
 
-**Their layout discipline, this panel's information density.** A task that quietly drops a value to
-look more like the reference is wrong.
+**Their colour discipline, this panel's information density.** A task that drops a value to look
+more like the reference is wrong.
 
 ### What must survive all of this
 
-`mood`, `hue`, `span`, `isStale` and `bulbGroup` as pure functions outside the composables, and the
-distinction between when the device reported and when the panel last read it. Every task above is
-layered on those, not against them.
+`mood`, `hue`, `span`, `promoted`, `isStale` and `bulbGroup` as pure functions outside the
+composables, and the distinction between when the device reported and when the panel last read it.
+Every task is layered on those, not against them.
+
+### Known and out of scope
+
+- **The blue light filter** turns the whole wall warm and brown. Verified 2026-08-29: with it off,
+  the wall matches `PanelTheme.kt` exactly. It is a device setting, not a bug, and D1 is not an
+  attempt to work around it — though neutral surfaces will survive it better.
+- **`docs/design/panel-redesign.md` items 1, 2, 3, 5, 6, 8, 10, 11, 12** are open and are not in
+  this plan. Item 4 lands in D1 and item 7 in D3; do not build those two separately.
+- **Item 13 there is an ask-first** — always-on, system bars, screen timeout — and stays unbuilt
+  until asked. The tablet PIN-locking after two minutes is part of it.
 
 ### Related documents
 
 - `docs/ui.md` — what is already decided about the mosaic. Read before changing anything visual.
-- `docs/design/panel-redesign.md` — thirteen audit items about what a tile *says*. T1 is its item 1;
-  T2 resolves its item 9; T5 must land with its item 4. Its item 13 is an ask-first and is not in
-  scope here.
+- `docs/design/panel-redesign.md` — the audit's thirteen items.
+- `REPORT.md` — the previous run. **Overwrite it** when this plan is executed; `655a683` keeps it.
 
 ## Reporting
 
-On finishing a task, report: what changed, the test and ktlint result, what the Roborazzi diff
-showed and why it is the intended change, anything assumed that wants a walk to the hallway, and
-anything found that belongs in another task rather than yours.
+On finishing a task, report: what changed, `test` and `ktlintCheck` output (real output, not a
+summary), what the Roborazzi diff showed in **both** schemes and why it is the intended change,
+anything assumed that wants a walk to the hallway, and anything found that belongs to another task.
