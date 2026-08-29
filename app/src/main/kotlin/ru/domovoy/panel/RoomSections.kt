@@ -117,6 +117,16 @@ fun roomSections(
     }
 }
 
+/**
+ * How many tiles are under one heading — every group, since any of them can be the one that arrives.
+ *
+ * Two things ask: whether a section is worth a heading at all ([panelHeadings]), and whether the
+ * wall has anything polled on it yet, which is what puts a rebooted panel back at the top. One
+ * count for both, so a group added later cannot be counted by one of them and not the other.
+ */
+internal fun RoomSection.tileCount(): Int = acs.size + curtains.size + strips.size + recuperators.size +
+    bulbs.size + launchers.size
+
 // Named rooms in the order above, then the ones the order does not name, then the unplaced —
 // which is not a room and so cannot be anywhere but last.
 private fun rank(room: String?): Int = when {

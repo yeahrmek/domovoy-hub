@@ -1,25 +1,13 @@
 package ru.domovoy.panel
 
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
 import java.time.Instant
-import kotlin.math.roundToInt
-
-/** The one unit the flat's air conditioners report their target in. */
-private const val CELSIUS = "unit.temperature.celsius"
 
 /**
  * One air conditioner: its name, whether it is on, what it is set to, and how old each of those
@@ -35,29 +23,18 @@ fun AcTile(
     onToggle: (String) -> Unit = {},
     onSetTemperature: (String, Double) -> Unit = { _, _ -> },
 ) {
-    TileCard(hue = hue(tile), mood = mood(tile.isOn, error), span = HALF_SPAN, modifier = modifier) {
-        Column(modifier = Modifier.fillMaxWidth().padding(12.dp)) {
-            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Column(modifier = Modifier.weight(1f)) {
-                    TileHeading(glyph = glyph(tile), name = tile.name, span = HALF_SPAN)
-                    // The hero tile, and the target is the reason: it is what somebody walking past
-                    // reads without stopping, so it is set at display size rather than buried in
-                    // the status line, which keeps saying how old it is.
-                    Text(
-                        text = temperatureLabel(tile),
-                        style = MaterialTheme.typography.displaySmall,
-                    )
-                    Text(
-                        text = statusLine(tile, now, error),
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                }
-                Switch(
-                    checked = tile.isOn == true,
-                    onCheckedChange = { onToggle(tile.id) },
-                    modifier = Modifier.touchable(),
-                )
-            }
+    // The words, the art and which controls this tile offers, all from one pure function — see
+    // [TileAnatomy]. What is left here is the two things a data class cannot hold: the switch and
+    // the slider, which carry callbacks and a drag of their own.
+    TileCard(
+        anatomy = anatomy(tile, now, error),
+        hue = hue(tile),
+        mood = mood(tile.isOn, error),
+        modifier = modifier,
+        toggle = {
+            Switch(checked = tile.isOn == true, onCheckedChange = { onToggle(tile.id) })
+        },
+        level = {
             val bounds = tile.bounds
             if (bounds != null) {
                 // As on the curtain, the dragged value is local: the tile behind it only changes
@@ -72,8 +49,8 @@ fun AcTile(
                     hue = hue(tile),
                 )
             }
-        }
-    }
+        },
+    )
 }
 
 // An ac that has never reported a target has none to start the handle from; the bottom of its
@@ -99,15 +76,11 @@ internal fun statusLine(
             false -> "off"
             null -> "unknown"
         }
+    // The same string the tile promotes, plus the word for a target nobody has reported. One
+    // formatter for both, so the value at the top of the tile and the value being aged underneath
+    // it cannot disagree.
     val line =
         "$power · ${ageLabel(tile.powerLastUpdated, now)} · " +
-            "${temperatureLabel(tile)} · ${ageLabel(tile.temperatureLastUpdated, now)}"
+            "${promoted(tile) ?: "unknown"} · ${ageLabel(tile.temperatureLastUpdated, now)}"
     return if (error == null) line else "$line · not updating: $error"
-}
-
-// The degree sign is printed only for the unit the ac actually named. Hanging "°C" on a number
-// whose unit the vendor did not report would be the panel inventing it.
-private fun temperatureLabel(tile: AcTileState): String {
-    val target = tile.targetTemperature?.roundToInt() ?: return "unknown"
-    return if (tile.unit == CELSIUS) "$target °C" else "$target"
 }

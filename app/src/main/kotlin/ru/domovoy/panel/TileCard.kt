@@ -2,16 +2,16 @@ package ru.domovoy.panel
 
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.sizeIn
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardColors
@@ -23,22 +23,19 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
 /**
- * The corner of a half-width tile. The two radii are the mosaic's whole shape vocabulary; a third
- * one is a tile that looks like a mistake rather than like a size.
+ * The corner every tile on the wall wears. **One radius, not two.**
+ *
+ * It was 22 dp on a half tile and 18 dp on a third, derived from the span so that a tile's shape
+ * and its width could not disagree. That was a rule about widths at a time when the mosaic had four
+ * heights and no anatomy; with one anatomy the shape vocabulary is one shape, and a second radius
+ * is a tile that looks like a mistake rather than like a size. docs/ui.md already recorded that on
+ * the wall the two were "a real but subtle difference" nobody standing back from it could name.
  */
-private val HALF_CORNER = 22.dp
-
-/** The corner of a third-width tile: the bulbs, the launchers, the recuperator with no climate. */
-private val THIRD_CORNER = 18.dp
-
-/**
- * The corner a tile of this span wears. Derived rather than passed so that a tile's shape and its
- * width cannot disagree — the one thing a caller could get wrong when both were parameters.
- */
-private fun corner(span: Int) = if (span >= HALF_SPAN) HALF_CORNER else THIRD_CORNER
+private val TILE_CORNER = 22.dp
 
 /**
  * The smallest anything tappable is allowed to be — 64 dp, not the platform's 48. This is read and
@@ -54,22 +51,85 @@ internal val MIN_TOUCH = 64.dp
  */
 private val TILE_PADDING = 4.dp
 
+/** Inside the card, on all four sides. One padding, on every tile, whatever its span. */
+private val TILE_CONTENT_PADDING = 12.dp
+
 /**
- * Every tile on the wall: one card, its corner from its size and its colour from the [TileHue] and
- * [TileMood] pair.
+ * The **art and controls** line: the glyph on the left, the switch on the right, and 64 dp of
+ * height because that is what the switch's touch target needs whether or not there is a switch.
+ */
+private val ART_ROW = MIN_TOUCH
+
+/**
+ * The **level** band: the slider, drawn centred in it. [MIN_TOUCH] again, and for the same reason —
+ * it is what [SlimSlider]'s own track slot measures, so a tile with a slider and a tile without one
+ * reserve exactly the same strip of card.
+ */
+private val LEVEL_ROW = MIN_TOUCH
+
+/** The **promoted value**: one line of `displaySmall`, whose line height is 52sp. */
+private val PROMOTED_ROW = 52.dp
+
+/** The **name**: one line of `titleMedium`, whose line height is 28sp. A longer name wraps. */
+private val NAME_ROW = 28.dp
+
+/**
+ * The **status line**: four lines of `bodyMedium`, whose line height is 24sp.
  *
- * Five callers, which is what earns it — the alternative is the same `when` over seven colour roles
- * written out five times, and a sixth tile getting one of them wrong. It draws and nothing else:
- * what kind of thing a tile is and what state it is in are [hue]'s and [mood]'s answers, out where
- * a test can reach them.
+ * Four rather than one, and this is the number the whole anatomy is sized around. The panel refuses
+ * to hide state behind a tap, so a tile prints its on/off, both of its ages, its second reading
+ * with two more ages, and the reason a poll stopped landing — a run-on of up to 90 characters, on a
+ * card 251 or 188 dp wide. Four lines is what the longest of them measures on the narrower of the
+ * two, and reserving it on every tile is what stops a bulb sitting 70 dp higher than the strip
+ * beside it.
+ *
+ * _It is a reserve and not a ceiling._ A vendor error long enough to run past four lines makes that
+ * one tile taller rather than being clipped or ellipsised — the panel does not swallow the reason a
+ * thing is broken to keep a bottom edge straight. Nothing the flat has ever produced does that; the
+ * failing recuperator, which is the longest line on the wall, is why [span] gives a tile with an
+ * error the wider column.
+ */
+private val STATUS_ROW = 96.dp
+
+/**
+ * How tall every tile is: the five slots plus the padding, written out so the number is visible.
+ *
+ * **328 dp, and the same 328 for a bulb as for an air conditioner.** That is the point of the whole
+ * file — the mosaic had four heights and ragged bottom edges because each kind laid itself out
+ * around what it happened to have. A minimum rather than a fixed height so that nothing is ever
+ * clipped; the slots below sum to exactly this, so a tile only exceeds it by wrapping past a
+ * reserve, which see.
+ */
+private val TILE_HEIGHT =
+    ART_ROW + LEVEL_ROW + PROMOTED_ROW + NAME_ROW + STATUS_ROW + TILE_CONTENT_PADDING * 2
+
+/**
+ * **Every tile on the wall, drawn: one card, one anatomy, five slots, one height.**
+ *
+ * It decides nothing. What goes in the slots is [TileAnatomy]'s answer, what colour the card takes
+ * is [hue]'s and [mood]'s, and how wide it is is [span]'s — all of them pure functions a test can
+ * reach. This lays them out and does so identically for all six tile types, which is the thing that
+ * was missing: there was a rule for how two air conditioners agreed with each other and no rule at
+ * all for how an air conditioner agreed with the launcher beside it.
+ *
+ * **Slot order, top to bottom.** Art and the switch on the top line and the words at the bottom is
+ * the reference app's anatomy; the promoted value between them is this panel's one addition to it,
+ * and the refusal that addition stands for is in PLAN.md — a wall panel is read without being
+ * touched, so the value is the point and dropping it to look more like a phone app would be a
+ * handsome thing that had stopped being a panel.
+ *
+ * **An empty slot is empty, not absent.** A launcher has no switch, no slider and no value, and it
+ * reserves all three anyway. That is what buys bottom edges that line up across kinds, and it is
+ * the cost of it too: a bulb tile carries a 64 dp band where a slider would go. The alternative —
+ * each kind collapsing what it does not have — is the four ragged heights this replaces.
  */
 @Composable
 internal fun TileCard(
+    /** What this tile puts in each of the five slots. */
+    anatomy: TileAnatomy,
     /** What kind of device this is, which decides *which* colour an on tile takes. */
     hue: TileHue,
     mood: TileMood,
-    /** How many of the grid's columns this tile occupies. Decides its corner, and nothing else. */
-    span: Int,
     modifier: Modifier = Modifier,
     /**
      * Bad news that belongs to the tile's *group* rather than to the tile. Only the recuperators
@@ -83,34 +143,112 @@ internal fun TileCard(
      * tile exists not to be — see [LauncherTile].
      */
     onClick: (() -> Unit)? = null,
-    content: @Composable ColumnScope.() -> Unit,
+    /**
+     * The switch, on the top line beside the art. Empty on the tiles [TileAnatomy.controls] says
+     * have none, and the 64 dp it would have taken stays reserved.
+     */
+    toggle: @Composable () -> Unit = {},
+    /** The slider, on its own band. Empty on the tiles that have none, and reserved all the same. */
+    level: @Composable () -> Unit = {},
 ) {
-    val shape = RoundedCornerShape(corner(span))
-    val outer = modifier.fillMaxWidth().padding(TILE_PADDING).heightIn(min = MIN_TOUCH)
+    val shape = RoundedCornerShape(TILE_CORNER)
+    val outer = modifier.fillMaxWidth().padding(TILE_PADDING).heightIn(min = TILE_HEIGHT)
+    val colors = tileColors(hue, mood)
     if (onClick == null) {
-        Card(modifier = outer, shape = shape, colors = tileColors(hue, mood), border = border, content = content)
+        Card(modifier = outer, shape = shape, colors = colors, border = border) {
+            TileBody(anatomy, toggle, level)
+        }
     } else {
         // The clickable Card rather than a `Modifier.clickable` outside it, so the ripple is
         // clipped to the corner it is drawn on and the tap lands on the tile and not on the gutter.
-        Card(
-            onClick = onClick,
-            modifier = outer,
-            shape = shape,
-            colors = tileColors(hue, mood),
-            border = border,
-            content = content,
-        )
+        Card(onClick = onClick, modifier = outer, shape = shape, colors = colors, border = border) {
+            TileBody(anatomy, toggle, level)
+        }
+    }
+}
+
+/** The five slots in order. Split out only because [TileCard] draws two kinds of [Card]. */
+@Composable
+private fun TileBody(
+    anatomy: TileAnatomy,
+    toggle: @Composable () -> Unit,
+    level: @Composable () -> Unit,
+) {
+    Column(modifier = Modifier.fillMaxWidth().padding(TILE_CONTENT_PADDING)) {
+        Row(
+            modifier = Modifier.fillMaxWidth().height(ART_ROW),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            TileGlyph(anatomy.art)
+            Spacer(modifier = Modifier.weight(1f))
+            // The 64 dp floor, for the switch inside it: a Switch is 52×32 dp, so the finger gets
+            // the box rather than the graphic. Drawn whether or not a switch arrives, which is what
+            // keeps the art line one height on all six kinds.
+            Box(modifier = Modifier.touchable(), contentAlignment = Alignment.Center) { toggle() }
+        }
+        Slot(LEVEL_ROW) { level() }
+        Slot(PROMOTED_ROW) { PromotedValue(anatomy.promoted) }
+        Slot(NAME_ROW) {
+            // Never truncated. A wall read from four metres cannot spend its one legible label on
+            // "Свет в гарде…", which is the reference app's answer and the one PLAN.md refuses.
+            Text(text = anatomy.name, style = MaterialTheme.typography.titleMedium)
+        }
+        Slot(STATUS_ROW) {
+            Column {
+                Text(text = anatomy.status, style = MaterialTheme.typography.bodyMedium)
+                // The second line of the same slot, on the two tiles that have one. Its own line
+                // rather than more dots on the first: it carries ages of its own, and six values in
+                // one run is a line nobody reads at any size.
+                anatomy.detail?.let {
+                    Text(text = it, style = MaterialTheme.typography.bodyMedium)
+                }
+            }
+        }
     }
 }
 
 /**
- * How big a glyph is, everywhere it appears: 24 dp, which is the size the Material Symbols in
- * `res/drawable/` were exported at, so nothing is scaled.
+ * One slot: at least [reserved] tall, full width, and empty when its content draws nothing.
+ *
+ * `heightIn` rather than `height` so that a name or a status line longer than its reserve grows the
+ * tile instead of being cut off — see [STATUS_ROW].
+ *
+ * **Top-aligned, which only the status slot can tell the difference about**: the other three hold
+ * exactly one line and fill their reserve. A status line of one or two lines centred in a four-line
+ * reserve floats away from the name it belongs to, with a gap above it and a gap below; anchored to
+ * the top it stays attached, and the slack falls at the foot of the card where it reads as padding.
  */
-private val GLYPH_SIZE = 24.dp
+@Composable
+private fun Slot(
+    reserved: Dp,
+    content: @Composable () -> Unit,
+) {
+    Box(
+        modifier = Modifier.fillMaxWidth().heightIn(min = reserved),
+        contentAlignment = Alignment.TopStart,
+    ) {
+        content()
+    }
+}
 
-/** Between the glyph and the name it sits beside, on the tiles wide enough to put them on one line. */
-private val GLYPH_GAP = 8.dp
+/**
+ * How big a glyph is, **everywhere on the wall**: 48 dp, twice the 24 dp the drawables in
+ * `res/drawable/` were exported at.
+ *
+ * 24 dp is a phone's icon size, measured for something held 30 cm from the face, and every glyph
+ * here was at it — against a lamp on a bulb disc that had already been given 48 dp for exactly this
+ * reason. The disc is gone and its lamp with it, but the number it was given survives it: the whole
+ * set is at the size the one piece of art sized for this wall was already at.
+ *
+ * Scaling costs nothing: these are vector drawables, so 48 dp is redrawn rather than resampled, and
+ * a stroke drawn at 2 of a 24 grid comes out at 4 dp — the whole glyph twice the size, which is what
+ * legibility at four metres wants and not a hairline stretched over more pixels.
+ *
+ * It is *only* the art that grew. Nothing here changes what a tile says, which colour it says it in,
+ * or how wide it is, and the anatomy's art slot already reserves 64 dp — so 48 fits where 24 sat and
+ * no tile changes height.
+ */
+private val GLYPH_SIZE = 48.dp
 
 /**
  * One tile's glyph. Untinted here and therefore tinted by [Icon] with `LocalContentColor`, which
@@ -133,30 +271,24 @@ internal fun TileGlyph(
 }
 
 /**
- * A tile's glyph and its name, laid out from the tile's own span so the rule lives in one place:
- * **beside the name on a half tile, above it on a third.** A 251 dp tile that spends its width on a
- * glyph has none left for the name, and the recuperator — the one tile whose span moves with its
- * content — gets whichever of the two its width earns, without asking twice.
+ * The one value a tile says at wall distance, or nothing at all when it has none.
+ *
+ * `displaySmall` — 44sp on this panel's scale, see `panelTypography` — because this is the line the
+ * whole type scale exists for: the 22 °C and the 33.5 % that CLAUDE.md says is the point of hanging
+ * a panel on a wall. Everything else on the tile is read standing at it.
+ *
+ * **Null draws nothing**, and that is [promoted]'s decision arriving intact. A tile with no value
+ * has an empty slot rather than the word "unknown" set at 44sp; the status line under it still says
+ * "unknown" in words and the tile's colour still says [TileMood.Unknown]. The slot it would have
+ * filled stays reserved either way — see [TileCard].
  */
 @Composable
-internal fun TileHeading(
-    @DrawableRes glyph: Int,
-    name: String,
-    /** How many of the grid's columns the tile occupies. See [span]. */
-    span: Int,
+internal fun PromotedValue(
+    value: String?,
     modifier: Modifier = Modifier,
 ) {
-    if (span >= HALF_SPAN) {
-        Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically) {
-            TileGlyph(glyph)
-            Spacer(modifier = Modifier.width(GLYPH_GAP))
-            Text(name, style = MaterialTheme.typography.titleMedium)
-        }
-    } else {
-        Column(modifier = modifier) {
-            TileGlyph(glyph)
-            Text(name, style = MaterialTheme.typography.titleMedium)
-        }
+    if (value != null) {
+        Text(text = value, style = MaterialTheme.typography.displaySmall, modifier = modifier)
     }
 }
 
@@ -203,8 +335,10 @@ internal fun groupFailureBorder(groupError: String?): BorderStroke? = groupError
  * vendor rather than five broken units, and that distinction has to survive the fill — see
  * [groupFailureBorder].
  *
- * Reachable outside [TileCard] for the one thing on the wall that is a tile without being a card:
- * a bulb circle, which wears a shape of its own and these same colours — see [BulbCircles].
+ * **Every tile on the wall is a card now**, which is new: the bulbs used to draw as 72 dp discs
+ * reaching in here for these colours through a `when` of their own, and that second copy had already
+ * drifted — the unlit disc took `onSurfaceVariant` where the card beside it took `onSurface`. The
+ * lamps are one group tile, so there is one table again and nothing outside this file reads it.
  */
 @Composable
 internal fun tileColors(

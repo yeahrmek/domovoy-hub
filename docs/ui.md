@@ -18,11 +18,13 @@ on it, on 2026-08-16.
 
 ## What is decided
 
-1. **A tab shell.** One "Главная" tab holding the favourites, then one tab per room in the existing
-   room order. Replaces the single scroll of 29 tiles.
-2. **Material 3 Expressive mosaic tiles.** Mixed tile sizes and shapes instead of one full-width
-   card per device: half-width tiles for the things with a slider, third-width ones for the rest,
-   small circles for the bulbs.
+1. **Rooms stack down one scroll.** A "Главная" section holding the favourites, then one section
+   per room in the existing room order, each behind its own heading. **This replaced a tab shell**,
+   which is what commits 1–7 shipped: it could not hold fourteen rooms across 753 dp and it answered
+   a vertical problem with a horizontal control. See "The scroll".
+2. **Material 3 Expressive mosaic tiles.** Mixed tile sizes instead of one full-width card per
+   device: third-width tiles for the things with a slider, quarter-width ones for the rest, and a
+   room's bulbs behind one group tile that opens them.
 3. **Both themes, following the system.** The panel is light by day and dark by night, driven by
    `isSystemInDarkTheme()`.
 
@@ -38,12 +40,15 @@ The baseline commits 1 and 2 replaced, kept so the diff stays legible:
 
 - [`PanelRooms`](../app/src/main/kotlin/ru/domovoy/panel/PanelRooms.kt) was one `LazyColumn`. Group
   failures at the top, then a `Text` heading per room, then every tile in that room as a full-width
-  `Card`, in the fixed order ac → curtain → strip → recuperator → bulb → launcher. It is now a tab
-  strip over a `LazyVerticalGrid`; the tile order within a room is unchanged.
+  `Card`, in the fixed order ac → curtain → strip → recuperator → bulb → launcher. It became a tab
+  strip over a `LazyVerticalGrid`, and is now one `LazyVerticalGrid` with a full-width heading per
+  room — a scroll again, of mosaic tiles rather than full-width cards. The tile order within a room
+  has not changed through any of it.
 - [`roomSections`](../app/src/main/kotlin/ru/domovoy/panel/RoomSections.kt) decides which room a tile
-  lands in and in what order the rooms come. **It did not change, and has not.** The tab shell
-  consumes exactly what it returns — one tab per `RoomSection`, in the order that function already
-  produces, with the roomless section last under "Без комнаты".
+  lands in and in what order the rooms come. **It did not change, and has not** — not for the tab
+  shell and not for the scroll that replaced it. `panelHeadings` consumes exactly what it returns —
+  one heading per `RoomSection`, in the order that function already produces, with the roomless
+  section last under "Без комнаты".
 - Every tile prints a status line ending in `ageLabel(...)`, and appends `not updating: <error>` when
   its group's poll failed. Still true: commit 2 was a re-skin and changed no string.
 - `MainActivity` wraps everything in a bare `MaterialTheme {}` — no colour scheme is passed, so the
@@ -52,36 +57,73 @@ The baseline commits 1 and 2 replaced, kept so the diff stays legible:
 
 ## Tile sizes
 
-A **six-column** grid, laid out in halves and thirds. The span is a property of the tile type, not
-of the room:
+A **twelve-column** grid, laid out in thirds and quarters. The span is a property of the tile type,
+not of the room, and **every tile is 328 dp tall whatever its span** — see "One tile anatomy":
 
 | Tile | Count | Span | Width | What it shows |
 | --- | --- | --- | --- | --- |
-| Air conditioner | 3 | 3 (half) | 376 dp | Name, target temperature at display size, on/off, temperature slider, both ages |
-| Curtain | 1 | 3 (half) | 376 dp | Name, open percent, slider, age |
-| Light strip | 2 | 3 (half) | 376 dp | Name, on/off, brightness slider, colour, both ages |
-| Recuperator | 5 | 3 or 2 | 376 / 251 dp | Name, on/off, fan speeds, and — when it reports them — temperature and humidity. Up to four ages |
-| Bulb | many | 2 (third) | 251 dp | Not a grid cell once commit 3 lands. See "The lights group" below |
-| Launcher | 2 | 2 (third) | 251 dp | Name and one line. No age — there is no reading to age |
+| Air conditioner | 3 | 4 (wide) | 251 dp | Name, target temperature at display size, on/off, temperature slider, both ages |
+| Curtain | 1 | 4 (wide) | 251 dp | Name, open percent, slider, age |
+| Light strip | 2 | 4 (wide) | 251 dp | Name, on/off, brightness slider, colour, both ages |
+| Recuperator | 5 | 4 or 3 | 251 / 188 dp | Name, on/off, fan speeds, and — when it reports them — temperature and humidity. Up to four ages |
+| Bulb | many | 3 (narrow) | 188 dp | Name, on/off, age. On the wall when it has never reported, or when its room's group has been opened. See "The lights group" below |
+| Lights group | 1 per room | 3 (narrow) | 188 dp | How many lamps the room has, how many are lit, the oldest of their ages. Opens the lamps |
+| Launcher | 2 | 3 (narrow) | 188 dp | Name and one line. No age — there is no reading to age |
 
-**Four columns was the first draft of this and the tablet threw it out.** Four came from a 10"
-tablet nobody had measured; the panel is 753 dp, so a full-width hero was 753 dp holding a name, a
-temperature and a slider, with the switch stranded 700 dp from the value it switches. The launcher
-at one column was 188 dp and wrapped its one line onto two.
+**This was six columns, halves and thirds, and the widest tile was half the wall.** Two columns of
+anything is a phone's proportion — the reference smart-home app is two columns of a 411 dp phone —
+and 376 dp for a name, a value and a slider left a great deal of nothing between them. Three across
+and four across is what a 753 dp panel has room for.
 
-**Halves and thirds, because both divide six.** This is the rule that matters, and it was learned
-rather than designed: a row fills instead of trailing dead cells, and — the part that is not
-obvious — two tiles of the same kind beside each other come out the same height. At a third of the
-panel the two light strips wrapped differently, one onto two lines and the other onto three, and
-stood side by side at visibly different sizes. Widths that do not divide the grid produce that, and
-it reads as breakage rather than as variety.
+**Four columns as a *grid* is still rejected and this is not that.** The first draft made `COLUMNS`
+itself 4, so a hero tile spanned all four and came out 753 dp with its switch stranded 700 dp from
+the value it switches. What is here is twelve columns with nothing ever one column wide. The other
+half of that old rejection — "the launcher at 188 dp wrapped its one line onto two" — has stopped
+being a defect: every tile now reserves the same block of status lines whether it fills them or
+not, so a line that wraps costs nothing that was not already spent.
+
+**Thirds and quarters, because both divide twelve.** This is the rule that matters, and it was
+learned rather than designed: a row fills instead of trailing dead cells. It used to carry a second
+job — two tiles of the same kind beside each other coming out the same height — and that job has
+been taken over by the anatomy, which makes tiles of *different* kinds agree as well.
 
 The recuperator is the densest tile the flat has and the only one whose span is decided by its
-content: **half when `climateLine` returns a line, a third when it returns null.** A device
-reporting neither temperature nor humidity has a second line that does not exist, and a half-width
-tile holding one line of "on · 2 min ago" is a hole in the wall. _Unexercised on this wall:_ all
-five recuperators report both values, so the third-width branch is covered by `TileLayoutTest` and
-has never been seen.
+content: **wide when it has a second line to put there, narrow when it has neither.** Two things
+count as a second line — `climateLine`, and its own error, whose vendor string is the longest thing
+any tile on this wall prints. A wide tile holding one line of "on · 2 min ago" is a hole in the
+wall; a narrow one holding six lines of failure is a tile that does not line up with anything.
+_Unexercised on this wall:_ all five recuperators report both values, so the narrow branch is
+covered by `TileLayoutTest` and has never been seen.
+
+### One tile anatomy
+
+Five slots, in this order, on every tile of every kind:
+
+| Slot | Reserved | What is in it |
+| --- | --- | --- |
+| Art and controls | 64 dp | The glyph, left; the switch, right, inside its 64 dp touch box |
+| Level | 64 dp | The slider, centred — the same 64 dp `SlimSlider`'s track slot measures |
+| Promoted value | 52 dp | One line of `displaySmall`, or nothing |
+| Name | 28 dp | One line of `titleMedium`, wrapped rather than truncated |
+| Status line | 96 dp | Four lines of `bodyMedium`: the status line, and the second line the strip and the recuperator have |
+
+**328 dp = 64 + 64 + 52 + 28 + 96 + 2 × 12 of padding**, and the same 328 for a bulb as for an air
+conditioner. Before this the mosaic had four heights — the air conditioner 169 dp with a dead area
+under its slider, the strip shorter, the recuperator shorter again, the launchers shorter still —
+because each kind laid itself out around whatever it happened to have.
+
+**An empty slot is empty, not absent.** A launcher has no switch, no slider and no value and
+reserves all three anyway. That is what buys bottom edges that line up across kinds, and it is the
+whole cost of it too: a bulb tile carries a 64 dp band where a slider would go.
+
+The reserve is **a minimum and not a ceiling**. A vendor error long enough to run past four lines
+makes that one tile taller rather than being clipped or ellipsised — the panel does not swallow the
+reason a thing is broken to keep a bottom edge straight. Nothing the flat has produced does that,
+and the tile that came closest is why the recuperator's span counts its error as a second line.
+
+What goes in the slots is one pure function per tile type — `anatomy(...)` in `TileLayout.kt`,
+returning a `TileAnatomy` — so "does this kind still fill all five" is a test rather than a picture.
+`TileCard` draws it and decides nothing.
 
 It is also the only tile with **an error of its own**. Every other group shares one — a failed
 `/v1.0/user/info` failed for all of them — but recuperator state costs one Tuya call per device, so
@@ -95,29 +137,46 @@ apart, and collapsing them to one number would print a lie on the bigger of the 
 Sizes to hold to, since this is read and touched at arm's length from a wall:
 
 - Minimum hit area **64 dp** on anything tappable, not the platform's 48 dp. _Measured:_ every
-  switch in the panel dumps as exactly 64.0 × 64.0 dp, and so does every tab — the strip used to be
-  the one thing on the wall a finger could miss, at Material's default 48, until a `heightIn` on the
-  `Tab` raised it. The `PrimaryScrollableTabRow` needed nothing: it takes its height from its
-  tallest tab, so the strip came up 64.0 dp with them. The selection indicator survived the taller
-  row intact: 3 dp of it at px 181–186 against a row ending at 186, flush with the bottom edge and
-  still the width of the selected tab's text rather than floating in the extra 16 dp.
-- Bulb circles **72 dp**.
-- Grid gutter 8 dp, tile corner radius 22 dp on a half tile, 18 dp on a third, full round on bulbs.
-  The corner is derived from the span rather than passed beside it, so a tile's shape and its width
-  cannot disagree. On the wall the two radii are a real but subtle difference; nobody standing back
-  from it is going to name which is which.
+  switch in the panel dumps as exactly 64.0 × 64.0 dp. The tab strip used to be measured here too —
+  it was the one thing on the wall a finger could miss, at Material's default 48, until a `heightIn`
+  on the `Tab` raised it and the row came up 64.0 dp with them. **The strip is gone** and the
+  measurement with it; the rooms are headings on a scroll, which nothing has to hit.
+- Grid gutter 8 dp, **one tile corner radius of 22 dp**. It was two radii — 22
+  on a half tile and 18 on a third, derived from the span so that a tile's shape and its width could
+  not disagree — and that was a rule about widths at a time when the mosaic had four heights and no
+  anatomy. This doc already recorded that on the wall the two were "a real but subtle difference"
+  nobody standing back from it could name. One anatomy, one shape.
 - **The panel is 753 dp wide.** 1600 px at 340 dpi, portrait, which is the orientation it hangs in.
-  This is what six columns is sized from. Landscape would be 1204 dp and the panel is not laid out
+  This is what the column widths are sized from. Landscape would be 1204 dp and the panel is not laid out
   for it: **auto-rotate is off on the tablet** (`accelerometer_rotation` 0) rather than
   `screenOrientation` being set in the manifest, so a settings reset puts landscape back and the
   mosaic will be wrong until it is turned off again.
 
 ### The lights group
 
-28 bulbs at 72 dp each is the whole point of the mosaic — they are the many, they are on/off only,
-and one full-width card each is what makes the panel a mile of scrolling. So a room's bulbs render
-as one wrapping row of circles with a single line under it: how many there are, how many are on, and
-one age.
+28 bulbs against 7 of everything else — they are the many, they are on/off only, and a card each is
+what makes the panel a mile of scrolling. So a room's bulbs render as **one group tile in the
+mosaic**: `7 lamps` as its name, how many of them are lit as its promoted value, and one line
+carrying both counts again with the oldest of their readings. Tapping it opens the lamps under it as
+ordinary named tiles, each with its own age and its own switch; tapping it again puts them away.
+
+**This was a wrapping row of 72 dp discs, and the row is gone.** Seven identical amber circles,
+unlabelled, under one shared line — the most saturated thing on the wall and the biggest touch
+targets on it, so the eye landed there first and learned nothing, and which lamp was which could not
+be recovered from the wall at all. They were also the one thing here that was a tile without being a
+card: their own shape, their own colour `when`, their own touch target, outside the anatomy every
+other kind agreed on.
+
+**The other option was seven ordinary tiles, and the count is why it was not taken.** One
+`/v1.0/user/info` call feeds every bulb in the flat, so the moment it stops landing `favourites`
+pulls all 28 onto Главная — at 328 dp each that is seven rows of lamp before the wall says anything
+about the air conditioner, which is the "fourteen rows of lamps" the group exists to prevent, four
+times taller.
+
+**No reading is behind the tap**, which is the line that matters: how many lamps, how many are on and
+how old the oldest of them is are all on the closed tile, and the panel's refusal is about hiding a
+*reading*, not about hiding a name. What the tap opens is which lamp is which — the one thing the
+row of discs never showed at any number of taps.
 
 That single age is a problem, and it has to be solved rather than waved at: **a tile that cannot say
 when it was last read is a bug**, and a group line quoting the freshest reading would hide a bulb
@@ -126,24 +185,40 @@ that stopped answering a week ago.
 The rule, which is a pure function and gets a test:
 
 - A bulb the panel **has no state for** — `isOn` null, which is `Reading.Never` on the capability —
-  leaves the group and renders as its own named third-width tile.
-- Every other bulb stays in the group, and the group line quotes the **oldest** `last_updated` among
-  those that stayed, plus how many there are and how many are on.
+  stays out of the group and renders as its own named quarter-width tile, whether or not the group
+  is open.
+- Every other bulb is in the group, and the group tile quotes the **oldest** `last_updated` among
+  them, plus how many there are and how many are on.
 
 Staleness is deliberately not the split, and that was the first draft of this. Poll freshness is a
 group fact — one call feeds every bulb, so either all of them are stale or none are (see "Stale"),
 and a rule that fires on all 28 at once is not a split. What genuinely varies bulb by bulb is
-whether Yandex has any state for it at all, and that is the thing worth pulling out of a row of
-circles: a circle is a claim that the panel knows whether that lamp is on, and for a `Never` bulb it
-does not. It says "unknown" on a named tile instead, which is what the status line has always said.
+whether Yandex has any state for it at all, and that is the thing worth keeping out of the group: the
+group tile is a claim that the panel knows whether each of those lamps is on, and for a `Never` bulb
+it does not. It says "unknown" on a named tile instead, which is what the status line has always
+said.
 
-A stale *group* is still visible — the tab is marked and the group's error reaches every tile in it,
-including the circles. It is just not what decides who is a circle.
+Two things the group tile deliberately does not do:
+
+- **No master switch.** Yandex has no group action — one lamp is one call — so a switch here would be
+  seven requests behind one finger, each able to fail separately, with one status line to report the
+  mixture. The lamps keep their own switches, one tap further in.
+- **Its colour answers the coarse question only:** on when any lamp is lit, off when none is. How
+  many of the seven are lit is said exactly, in words, at wall size.
+
+A stale *group* is still visible — the room's heading is marked and the group's error reaches the
+group tile and every lamp opened under it. It is just not what decides who is in the group.
+
+Which rooms have their lamps open is the panel's only piece of state that a person put there with a
+finger. It is a `remember` and not a `rememberSaveable`: a tablet that rebooted at 04:00 comes up
+closed, showing the counts, like a panel nobody has touched. The idle reset does not close them
+either — it scrolls to the top, and an open group eleven sections down is out of sight rather than in
+the way.
 
 ## Stale
 
 Three things in this doc ask the same question — which bulbs leave the lights group, which rooms get
-a mark on their tab, which tiles Главная pulls in — so it is answered once, in one function, and
+a mark on their heading, which tiles Главная pulls in — so it is answered once, in one function, and
 that function is where the number lives.
 
 **Stale means the panel has stopped reading, not that the flat has stopped changing.** Commit 1
@@ -155,7 +230,7 @@ last reported a value, not when we last read it.** A bulb switched on three week
 since carries a three-week-old timestamp while every poll since has read it successfully. 33 of the
 116 recorded capabilities are `0.0`, which is `Never`, and `ac-01`'s two capabilities are 81 days
 apart. So judging health on that timestamp calls a steady device broken: it asks *has this changed
-lately*, and the panel needs *have we been able to read this lately*. That is why Коридор's tab is
+lately*, and the panel needs *have we been able to read this lately*. That is why Коридор's heading is
 marked while both strips inside it are working.
 
 The reading a poll produced is a group fact, not a tile fact. One `/v1.0/user/info` call feeds every
@@ -189,8 +264,8 @@ minutes**. Seen on the wall on 2026-08-16: `Бризеры: not updating: Unable
 So the panel remembers who they are. `KnownRecuperators` keeps the last successful inventory — **id,
 name, room, and nothing else** — in the same encrypted store as the credentials, because device ids
 identify the flat. On a cold start those become tiles with no values on them: "unknown · never read",
-no climate line, third-width, and the group stale until a refresh lands, which is what marks the tab
-and pulls them onto Главная.
+no climate line, third-width, and the group stale until a refresh lands, which is what marks the
+heading and pulls them onto Главная.
 
 What is deliberately *not* remembered is any value. A switch position from before the reboot is not
 something the panel has read, and a tile printing it would be claiming a poll that never happened —
@@ -206,28 +281,48 @@ A tablet with no usable keystore — restored backup, wiped key — remembers no
 Yandex tile already up, and cleared by itself at the next poll — the host resolved fine from the
 shell throughout, so it is the poll's cadence and not the network. After one successful inventory,
 a restart shows all five recuperators inside a second: named, in their rooms, third-width,
-"unknown · never read · unknown · never read", every room tab marked, and the whole set replaced by
+"unknown · never read · unknown · never read", every room heading marked, and the whole set replaced by
 real values 0.4 s later when the poll landed. `Бризер зал` then goes back to half-width with its
 climate line, and the marks clear.
 
 Two things that fall out of it, neither fixed: a placeholder has no climate line, so it is
 third-width and its status line *wraps* onto two lines there — and "Бризер данина комната" wraps its
 name too, so that one tile stands taller than the four beside it for the second it is up. And on a
-tablet whose first read of the day fails, the tabs of five rooms are marked at once, which is the
-tab mark doing its job and looks alarming anyway.
+tablet whose first read of the day fails, the headings of five rooms are marked at once, which is
+the mark doing its job and looks alarming anyway.
 
-## The tab shell
+## The scroll
 
-**Главная** first, then the rooms. Rules, each of which exists because a wall panel is not a phone:
+**Главная** first, then the rooms, each behind a heading, all on one vertical scroll. Rules, each of
+which exists because a wall panel is not a phone:
 
-1. **It returns to Главная by itself.** After **2 minutes** with no touch, whatever tab is showing
-   goes back to Главная. A phone app may stay where you left it; a wall panel is walked up to by
-   someone who did not leave it there, and a panel showing Балкон because that is where the last
-   person got to is a panel showing the wrong room to everyone after them.
-2. **A room tab carries its own bad news.** A room is marked on the tab strip when its group's poll
-   failed, or when every reading in it is stale. Without this the tabs hide eleven rooms, and Спальня
-   can be dead for a day behind a Главная that looks fine. The mark is on the tab, so it is visible
-   from Главная without opening the room.
+0. **It is a scroll and not a strip of tabs, and that is the second answer to this question.**
+   Commits 1–7 shipped a `PrimaryScrollableTabRow`; on the wall it held fourteen rooms across 753 dp
+   and could not. `Гардеробная` was clipped mid-word at the right edge and Ванная, Балкон and
+   Гардероб were off the end entirely — so rule 2's "visible from Главная without opening the room"
+   was false for the last third of the flat, which is what `design/panel-redesign.md` item 9 was
+   about. Measured off the same capture, content stopped at 563 dp of a 1205 dp screen: **53 % of the
+   wall empty**, every tile crammed into the top half. A horizontal control was the wrong answer to
+   a vertical problem twice over, and the fix for both is the same one. _Measured after:_ on the
+   Roborazzi capture at the wall's own 753 × 1204 dp the panel now fills the full height and the
+   scroll continues past the bottom edge.
+1. **It returns to Главная by itself.** After **2 minutes** with no touch, the wall scrolls back to
+   the top, which is where Главная is. A phone app may stay where you left it; a wall panel is walked
+   up to by someone who did not leave it there, and a panel showing Балкон because that is where the
+   last person got to is a panel showing the wrong room to everyone after them.
+
+   **The scroll position is otherwise left alone.** It used to be a `LazyGridState` keyed on the tile
+   count, which threw the position away whenever any device appeared or disappeared — under the hand
+   of whoever was reading a room at the time. That key was doing one useful thing and one harmful
+   one, and only the useful half survives: **a rebooted panel goes back to the top when the first
+   poll lands.** A tablet that came up into a Wi-Fi that was not ready holds nothing but its launcher
+   tiles, and twenty tiles are then inserted *above* them; keyed items would hold the launcher in
+   view and the wall would come up showing the last two tiles of the list. Those are the only two
+   events that move it, and neither can fire under a finger.
+2. **A room heading carries its own bad news.** A room is marked when its group's poll failed, or
+   when every reading in it is stale. Without this Спальня can be dead for a day behind a Главная
+   that looks fine. The mark is on the heading, which travels with the room — this is the half of
+   the old rule the strip could not keep, because three rooms' marks were off the end of it.
 
    **The mark is a `•` after the title _and_ the title in the error colour — both, not either.**
    Commit 1 wrote it as a character *rather than* a colour, because there was no palette to trust in
@@ -240,15 +335,8 @@ tab mark doing its job and looks alarming anyway.
    apart by lightness (see "Icons"). The answer is the same both times: the shape carries the state
    and the colour reinforces it.
 
-   **A tab that is marked _and_ selected says both things, and that is deliberate.** Material's
-   `Tab` defaults *both* of its content colours to the strip's own — confirmed by reading `Tab`'s
-   signature out of material3's `classes.jar` on this BOM, not from the docs — so on this panel
-   "which tab is open" has only ever been said by the indicator underneath and never by the label
-   colour. So the error colour is given to a marked tab whether or not it is the open one, and the
-   indicator is left alone at `primary`. Neither signal loses: an error-coloured title with the
-   selection bar still under it.
-
-   **Measured on the glass, 2026-08-29, filter on, both themes**, with the network dropped so that
+   **Measured on the glass, 2026-08-29, filter on, both themes**, on the tab strip this replaced,
+   with the network dropped so that
    Yandex failed for real. The strip composited as `#F9E8CD` in light and `#402F13` in dark, both
    the values the bulb work recorded for a filter that is genuinely on, so these are real readings.
    A marked title came out `#C23F18` in light and `#F5B492` in dark against an unmarked `#366E82`
@@ -256,20 +344,29 @@ tab mark doing its job and looks alarming anyway.
    respectively. This is not a distinction the filter is going to erode; the tiles live at 13 to 19.
    A marked title against the strip behind it is 4.3:1 in light and 7.2:1 in dark **as composited**,
    against 6.2:1 and 10.9:1 as designed. _The light figure is marginally under WCAG's 4.5:1 for text
-   this size, and it is the filter rather than the palette:_ an **unmarked** tab measures 4.7:1
-   through the same filter against 6.2:1 designed, so the filter costs every label on this strip
-   about the same and the mark is not what put it there. If it is ever worth fixing it is a palette
-   change and not a tab-strip one.
-3. **Group failures stay above everything.** `groupFailures` today prints the groups that failed
-   before they ever had a tile. Those have no room to be marked in — a group with no tiles is in no
-   room — so that line stays at the top of Главная, unchanged.
-4. **The strip scrolls horizontally.** Twelve rooms plus Главная plus Без комнаты does not fit. The
-   rooms that scroll off are the ones the existing order already puts last — Ванная, Балкон,
-   Гардероб — which are switched at their own door and are the long way round from the hallway
-   anyway.
-5. **Без комнаты is a tab like any other**, last, and never dropped: it holds the recuperators when
-   `TUYA_ROOMS` is unset and the vacuum's launcher tile, and a device falling off the wall because no
-   vendor placed it is the bug that section exists to prevent.
+   this size, and it is the filter rather than the palette:_ an **unmarked** tab measured 4.7:1
+   through the same filter against 6.2:1 designed, so the filter costs every label about the same
+   and the mark is not what put it there. If it is ever worth fixing it is a palette change.
+   _Not re-measured on a heading:_ the colours are the same two roles, but the type is now 52sp
+   bold against the tab strip's 14sp, and a contrast figure taken at one size is not a figure at the
+   other. **This wants a walk to the hallway** with the filter on, like the type scale does.
+3. **The heading is the largest type on the wall.** `displayMedium` at 52sp, bold — a step above the
+   44sp a tile promotes, which is what makes fourteen rooms navigable from across the hallway: what
+   somebody is looking for when they walk up is the room, and only then the reading. A heading is
+   full-width and wraps rather than clips, which is the direct answer to `Гардеробная`; the longest
+   name the flat has, "Маленькая детская", measures 517 dp of the 753 and does not need to.
+4. **Group failures stay above everything.** `groupFailures` prints the groups that failed before
+   they ever had a tile. Those have no room to be marked in — a group with no tiles is in no room —
+   so that line stays at the very top, above the Главная heading.
+5. **Без комнаты is a section like any other**, last: it holds the recuperators when `TUYA_ROOMS` is
+   unset and the vacuum's launcher tile, and a device falling off the wall because no vendor placed
+   it is the bug that section exists to prevent.
+
+   **A section with nothing in it gets no heading**, and that includes this one — which is a change
+   from the strip, where Без комнаты was drawn empty or not. The strip's reason was that a tab that
+   is not there is a section that cannot be opened; stacked, a section's tiles are on the same scroll
+   as its heading, so an empty heading cannot lead anywhere and only claims a room that has nothing
+   in it. Nothing can be lost by it: a tile is what makes its own section appear.
 
 ### What is on Главная
 
@@ -279,8 +376,12 @@ No settings screen. Favourites are defined in code, in one place, in the same sp
 The rule: **every tile in Коридор and Зал, plus every launcher tile, plus any tile anywhere that is
 failing or stale.** The first two are the rooms switched on the way in and on the way out; the
 launchers because the intercom is why someone walks up to this panel at all; and the last so that
-rule 2's mark has somewhere to lead — a failing tile appears on Главная itself, not only as a dot on
-a tab.
+rule 2's mark has somewhere to lead — a failing tile appears at the top of the wall, not only as a
+dot beside a room name eleven sections down the scroll.
+
+Its tiles are on the wall twice, once here and once in the room they are in. That was true of the
+strip too and is the point rather than a duplication: Главная is a view of the flat, not a place
+tiles move to.
 
 This is a pure function of the room sections. It gets a test.
 
@@ -340,11 +441,11 @@ This is a pure function of the room sections. It gets a test.
 - The group's own failure keeps its outline as well as the fill — the border on the recuperators when
   the inventory call failed. Five outlined tiles is one vendor, not five broken units, and that
   distinction survives everything above.
-- **The bulb circles take it too, and take it from the same function.** A circle is a 72 dp disc
-  wearing the `mood(isOn, error)` colours every card wears — see "Icons" — so a failing lamp is the
-  same rose as a failing tile rather than a lamp pretending to be off. It was the one place none of
-  this could land for as long as commit 6's bare lamp had no container to fill; the group's line
-  under the row still carries the reason in words, which the colour cannot.
+- **Every tile on the wall is a card, so there is one colour table again.** The bulbs used to draw as
+  72 dp discs reaching into `tileColors` through a `when` of their own, and that second copy had
+  already drifted: the unlit disc took `onSurfaceVariant` where the card beside it took `onSurface`.
+  The lamps are one group tile now (see "The lights group") and nothing outside `TileCard.kt` reads
+  the table.
 - **Confirmed: the tablet's dark theme is on a real schedule, 19:00–07:00** (`mNightMode=0 (auto)`,
   `customStart=19:00 customEnd=07:00`). So the dark scheme is not dead code and the theme commit is
   worth doing.
@@ -382,7 +483,7 @@ against the scheme's four candidate roles; every one landed on its own by a wide
 | Кондиционер, off | `surfaceContainer` |
 | Подсветка в зале, on | `tertiaryContainer` — light |
 | Бризер зал, on | `primaryContainer` — climate |
-| The bulb circles, on | `tertiaryContainer` — _as commit 5 left them, and as they are again: commit 6 took the disc away for a lamp tinted `tertiary` on bare `surface`, and the disc came back_ |
+| The bulb circles, on | `tertiaryContainer` — _measured when the lamps were a row of discs. The discs are gone; their room's group tile is an ordinary card and takes the same `tertiaryContainer` from the same table_ |
 | Домофон, Пылесос | `surfaceContainer` |
 | The panel behind them | `surface` |
 
@@ -501,90 +602,75 @@ status line.
 
 - **Outlined, 24 dp**, tinted with the tile's content colour so the glyph and the text agree by
   construction and cannot drift apart in one theme.
-- On a half tile the icon sits on the first line beside the name; on a third tile it sits above it,
-  which is what the mockups showed and what stops a 251 dp tile from spending its width on a glyph.
-- **A bulb circle is a filled disc carrying the mood, with the same outlined lamp on every one of
-  them.** A 72 dp disc holding a 48 dp `ic_bulb` and nothing else — no text at any size: the count
-  and the age are on the group's one line underneath, which is what lets 28 lamps be a row rather
-  than fourteen rows.
+- **Top-left of the tile, on its own line, on every kind and every span.** It used to sit beside the
+  name on a half tile and above it on a third — a rule that existed because a 251 dp tile spending
+  its width on a glyph had none left for the name. The anatomy answers that instead: art and the
+  switch share the top line, and the name is at the bottom with the words, so there is no width to
+  compete for and no second arrangement to get wrong.
+- **The bulb wears the same lamp everywhere it appears** — on a lamp's own tile and on its room's
+  group tile — at the same 24 dp as every other glyph. It labels a type and carries no state; the
+  card's colour is what says whether anything is lit.
 
-  | Mood | Disc | Lamp |
-  | --- | --- | --- |
-  | On | `tertiaryContainer` | `onTertiaryContainer` |
-  | Off | `surfaceContainer` | `onSurfaceVariant` |
-  | Failing | `errorContainer` | `onErrorContainer` |
+  <details><summary>The row of 72 dp discs, and what its four treatments measured</summary>
 
-  **The disc says the state and the lamp says what kind of thing it is**, which is the split every
-  other tile on the wall already makes: a card's colour is its mood and its glyph is its type. Those
-  are the **container** roles the cards wear rather than the accent ones, because there is a
-  container here to hold them — the row is the light family's own `tertiaryContainer` when lit, and
-  the same rose as every other failing tile when its poll failed. It is `mood(isOn, error)` that
-  picks, the same function all five tile composables ask, so a failing lamp cannot quietly rank
-  differently from a failing card. The lamp is 48 dp rather than the 24 dp every other glyph takes
-  because it is the only one with nothing to share its cell with, and at 24 dp on a 72 dp disc the
-  row is a status bar of coloured dots with specks on them.
+  Until the group tile landed, a room's lamps were a wrapping row of 72 dp discs: each a filled
+  circle carrying `mood(isOn, error)` — `tertiaryContainer` lit, `surfaceContainer` unlit,
+  `errorContainer` failing — with a 48 dp `ic_bulb` on it and no text at any size. Three treatments
+  came before it and are recorded so the ground is not re-covered: a **white disc inset in a coloured
+  tile**, two nested shapes with the glyph shrunk to fit; a **bare lamp with no disc at all**
+  (commit 6), `ic_bulb_filled` in `tertiary` when lit and `ic_bulb` in `onSurfaceVariant` when not;
+  and the filled disc that replaced it.
 
-  **A circle is only ever `On`, `Off` or `Failing`** — three rows above and not four. A bulb with
-  `isOn == null` breaks out of the row and becomes a named tile, which is `bulbGroup`'s whole split,
-  so `Unknown` never reaches a disc.
+  Two measurements outlive all of them:
 
-  **The group's line still says the failure in words**, unchanged: the rose says which lamps, the
-  line says why. Neither is enough on its own — a colour cannot name a hostname and a line of
-  `bodySmall` is not read from four metres.
+  - **A hue distinction really does erode on this wall.** With the filter on, commit 6's lit lamp
+    composited `#865301 → #9E6301` and its unlit one `#3F4754 → #473719` — both brown, told apart
+    mostly by lightness. Anything here that plans to say something with a hue alone should be
+    measured the same way before it is trusted.
+  - **`surfaceContainer` on `surface` is ΔE 4.0 as designed** in light and 6.3 in dark, and measured
+    3.3 on the glass. That is the step every *off card* on this wall sits at, which is why an off
+    tile is found by its text and its corner rather than by its fill.
 
-  One treatment came before this one and is recorded so the ground is not re-covered: a **white disc
-  inset in a coloured tile**, two nested shapes with the glyph shrunk to 24 dp to fit inside them.
-  What it bought over one disc was not worth two shapes and a smaller lamp.
+  And one implementation trap: the halo that was mocked for the discs and dropped would have had to
+  be a `Brush.radialGradient` rather than `Modifier.blur`, which is API 31+ against a minSdk of 26 —
+  it would have drawn perfectly on this Android 13 tablet and silently nothing on Android 8 to 11.
+  That trap is still there for anything else that reaches for a blur.
 
-  _Commit 6 built a third and it was on the wall until this change_: no disc at all, a bare lamp in
-  its cell, `ic_bulb_filled` in `tertiary` when lit and `ic_bulb` in `onSurfaceVariant` when not,
-  with `bulbGlyph(isOn)` picking between the two. It is worth keeping the measurement that was taken
-  for it, because it settles something a screenshot cannot: with the filter on, its lit lamp
-  composited `#865301 → #9E6301` and its unlit one `#3F4754 → #473719` — both brown, told apart
-  mostly by lightness. **A hue distinction really does erode on this wall.** That is an argument
-  about a 48 dp glyph's tint against a bare surface, not about a 72 dp disc, whose On and Off states
-  are `tertiaryContainer` against `surfaceContainer` — a pair the filter was separately measured
-  against at commit 5 and left at 34 of separation. But anything on this wall that plans to say
-  something with a hue alone should be measured the same way before it is trusted.
+  </details>
+- `contentDescription = null` on the glyph in every tile, with no exceptions left. They are
+  decorative: the name is right there, and a screen reader announcing "lightbulb Лампа в коридоре"
+  says the noun twice. The discs used to be the exception — they carried the lamp's name and state as
+  the circle's own content description, because at 72 dp there was no room for either in text — and
+  every lamp has a tile with its name on it now.
 
-  **Measured on the glass, 2026-08-29, filter on, both themes.** The surface composited as
-  `#F9E8CD` in light and `#402F13` in dark — both the values commit 6 recorded for a filter that is
-  genuinely on, so this is a real reading and not an un-tinted reconstruction. In light: a lit disc
-  `#FFD296`, which is the light strip tile's `tertiaryContainer` **to the byte**, two different
-  things through one filter and therefore a filter-independent check; an unlit disc `#EFDFC3`, the
-  same as the off ac tile and both launchers; a failing disc `#FAD2B1`, which is `errorContainer`
-  through the filter's own gain. Separations: on/off **21**, on/failing **14**, failing/off **11**.
+### The size, and the family question that is still open
 
-  **The unlit disc is all but invisible against the panel, and that is the palette rather than the
-  filter.** `surfaceContainer` on `surface` is ΔE **4.0 as designed** in light and 6.3 in dark; it
-  measured 3.3 on the glass. So an unlit lamp still reads as a bare lamp with a faint halo, which is
-  very nearly what commit 6 drew — the disc earns its keep on a lit lamp and on a failing one and
-  earns nothing on an off one. This is the same step every *off card* on the wall already sits at,
-  and a card carries text and a corner to be found by where a disc has only its fill. _This is the
-  one thing the wall check turned up that the plan did not, and it is a bet rather than a bug — see
-  "Can a finger find an unlit lamp?" under "Watch on the wall", which holds the number to move if it
-  turns out to matter._
+**A glyph is 48 dp everywhere on the wall.** `GLYPH_SIZE` in `TileCard.kt`, one number, and
+`TileGlyphTest` asserts the laid-out height against a literal 48 dp rather than against the constant —
+a test that reads the constant passes whatever the constant becomes. It was 24 dp, which is a phone's
+icon size measured for something held 30 cm from the face; the lamp on a bulb disc had been given 48
+for exactly the wall reason, and when the disc went the number survived it. The drawables are vectors,
+so 48 dp is redrawn and not resampled: a stroke at 2 of a 24 grid comes out at 4 dp. No tile changed
+height for it — the anatomy's art slot reserves 64 dp and 48 fits where 24 sat.
 
-  Two things that argued for the disc all along, and what it actually bought:
+**One family is not settled, and the way this doc said to settle it turns out not to be available.**
+Above: _"move the other seven, not the bulb back"_. Measured against Tabler 3.31.0's 4,936 outline
+icons, that direction has **no covering icon at all** — no `curtain`, `blind`, `shade`, `shutter`,
+`roller`, `awning` — so the curtain would lose the open/closed pair that is the one glyph here
+carrying state, and there is nothing for a light strip either. Three glyphs would have to be drawn in
+Tabler's construction, which is what "Adding or drawing a glyph" below warns against.
 
-  - **The 64 dp touch target is visible on a lit lamp, and on a failing one.** The bare lamp's only
-    drawn shape was the ripple it took to press — the same cost the handle-less slider still pays,
-    and worse there, because a slider at least prints a number beside it and an unlit lamp offered
-    nothing. The disc is the "quiet disc under the glyph" that bullet named as the fix. On the wall
-    it is quiet enough that an unlit lamp is not much better off than before, which is now its own
-    bet; a room whose lamps are all on — which is most of them, most of the time — is.
-  - **A failing poll has somewhere to put its colour.** `Failing` is a filled `errorContainer` on
-    every *tile* on this wall — see "Theme" — and the circles used to be the one place that
-    treatment could not reach, so a failed group dropped every lamp to its unlit shape and a failing
-    lamp pretended to be an off one. It is rose like everything else now.
-  - A glow was mocked and dropped, and the *implementation* note outlives the choice: a halo would
-    have had to be a `Brush.radialGradient` and not `Modifier.blur`, which is API 31+ against a
-    minSdk of 26 — it would have drawn perfectly on this Android 13 tablet and silently nothing on
-    Android 8 to 11. That trap is still there for anything else that reaches for a blur.
-- `contentDescription = null` on the glyph in every tile. They are decorative: the name is right
-  there, and a screen reader announcing "lightbulb Лампа в коридоре" says the noun twice. **The bulb
-  circles are the exception and already handle it** — they carry the lamp's name and state as the
-  circle's own content description, because at 72 dp there is no room for either in text.
+Two premises above have also moved:
+
+- **The weight clash is smaller than it was written up as.** Material Symbols outlined at weight 400
+  strokes 80 of the 960 grid, which is 2 of 24 — Tabler's `stroke-width` exactly. What differs is
+  terminals: Tabler's round caps and joins against Material's square. All eight were rendered at
+  24/48/96 px on the dark surface to check.
+- **"The bulb never appears beside another glyph" is no longer true.** That was the reason the mix was
+  judged safe, and it held while the lamps were bare discs in their own row. The lamps are one group
+  tile now and its lamp sits in a mosaic beside `mode_fan` and `vacuum`.
+
+So the question is live again and is the mockups' owner's call, not an agent's. It is in **Open**.
 
 ### Adding or drawing a glyph
 
@@ -630,9 +716,9 @@ other direction.
 | All nine glyphs draw | Every one of them, and none is the empty box a bad path renders as |
 | `vacuum`, `video_camera_front` — the two unverified names | Both real artwork on the tablet: an upright vacuum, and a camera with a face in it |
 | The curtain's pair | Visibly different at 24 dp — four tight slats shut, three gathered ones open |
-| Half beside, third above | `Кондиционер`/`Подсветка`/`Бризер`/`Шторы` beside the name, `Домофон`/`Пылесос` above it |
-| The bulb circles | 48 dp lamp alone in its 72 dp cell, no container in either state — a filled `tertiary` lamp for a lit one, an outlined `onSurfaceVariant` lamp for an unlit one |
-| Track height | 13 px = **6.1 dp**, both schemes |
+| Half beside, third above | `Кондиционер`/`Подсветка`/`Бризер`/`Шторы` beside the name, `Домофон`/`Пылесос` above it. **Superseded:** the anatomy puts every glyph top-left, and this row records the build that was on the glass that day |
+| The bulb circles | 48 dp lamp alone in its 72 dp cell, no container in either state — a filled `tertiary` lamp for a lit one, an outlined `onSurfaceVariant` lamp for an unlit one. **Superseded:** the row is one group tile, and its lamp is the ordinary 24 dp glyph |
+| Track height | 13 px = **6.1 dp**, both schemes. **Superseded:** the track is 20 dp now — 6 read as a hairline rather than as something to take hold of. Unmeasured on the glass at the new height |
 | Touch area | **64.0 dp** on both sliders, dumped as `SeekBar` |
 | Slider colours, light | Fill `#0561A2` = `primary` on the ac, `#865301` = `tertiary` on the strip; rest `#D1B9A2` and `#C2C6CD`, both the 24 % composite to the byte |
 | Slider colours, dark | Fill `#FFB863` = `tertiary`; rest `#7B5F33` and `#44484E`, again the composite to the byte |
@@ -689,18 +775,22 @@ as a reading with a range behind it rather than as a control demanding to be ope
 a wall panel wants — the number is the point and the slider is how it is changed, not the other way
 round.
 
-- Built with Material 3's `Slider` and its slot overrides — a custom `track` at 6 dp and a `thumb`
-  that renders nothing. Not a hand-rolled draggable: the slot version keeps the drag behaviour, the
+- Built with Material 3's `Slider` and its slot overrides — a custom `track` at **20 dp** and a
+  `thumb` that renders nothing. It was 6 dp, and the reasoning behind 6 stands — Material's own is a
+  16 dp track with a tall handle beside it, and on a wide tile that assembly is louder than the value
+  it sets — but 6 went past quiet and came out decorative: a hairline that reads as a rule between
+  two lines of text rather than as something a finger takes hold of, which is a real cost on a slider
+  with no handle to announce itself either. Not a hand-rolled draggable: the slot version keeps the drag behaviour, the
   value semantics and the accessibility that a `Box` with a `pointerInput` would silently drop. An
   empty thumb is safe rather than clever: the slider wraps each slot in a `Box` of its own and
   measures that, so an empty one is a zero-size box and not a missing child. Both slots are annotated
   `ExperimentalMaterial3Api` on this BOM, opted in on the one function rather than module-wide —
   `build.gradle.kts` keeps the Expressive opt-in it already had and gained nothing.
-- **The touch area stays 64 dp tall** whatever the track looks like. A 6 dp visual is not a 6 dp
-  target, and this is the wall panel's rule that overrides the aesthetic one. It is the *track slot*
+- **The touch area stays 64 dp tall** whatever the track looks like. A drawn bar is not a target,
+  and this is the wall panel's rule that overrides the aesthetic one. It is the *track slot*
   that is 64 dp, with the bar drawn centred inside it, because the slider's height is the taller of
   its two slots and its drag handling covers exactly that — a `heightIn` on the outside would have
-  left the gesture on the 6 dp. _Measured:_ both sliders on Главная dump as **64.0 dp** tall, as
+  left the gesture on the bar. _Measured:_ both sliders on Главная dump as **64.0 dp** tall, as
   `android.widget.SeekBar`, which is also the value semantics surviving the override. The track
   measures 13 px = **6.1 dp** in both schemes, and both the fill and the rest-of-track composite to
   the byte — the full reading is in "The glyphs, measured on the glass" under "Icons", which is the
@@ -731,9 +821,12 @@ The Compose BOM is already `2026.08.00`, so Material 3 Expressive is on the clas
 dependency is needed** — which is the reason this direction was picked over anything needing a card
 library.
 
-- `PrimaryScrollableTabRow` for the tab strip. Done, commit 1.
-- `LazyVerticalGrid` with `GridCells.Fixed(6)` and `GridItemSpan` for the mosaic. Done, commit 2.
-  `FlowRow` for the lights group is commit 3.
+- ~~`PrimaryScrollableTabRow` for the tab strip.~~ Done in commit 1 and removed again: the rooms are
+  one scroll of headings now, and no tab row is on the wall. See "The scroll".
+- `LazyVerticalGrid` with `GridCells.Fixed(12)` and `GridItemSpan` for the mosaic. Done, commit 2 at
+  six columns and twelve since the anatomy landed. ~~`FlowRow` for the lights group~~ — the row of
+  circles it laid out is gone; a room's lamps are one ordinary tile in the grid, and the lamps it
+  opens are ordinary items after it.
 - ~~`MaterialShapes` + shape morph on press for the bulb circles.~~ **Not available.**
   `MaterialShapes` is not in material3's `classes.jar` on the 2026.08.00 BOM — it lives in a
   separate artifact, which would be a new dependency and therefore an "ask first". Shapes are
@@ -765,12 +858,14 @@ What gets a test, each asserting the value returned and not which composable was
 
 - The favourites list: Коридор and Зал tiles present; launchers present; a stale tile from Спальня
   pulled in; a fresh tile from Спальня not.
-- The tab marks: a room marked when its group errored, marked when everything in it is stale,
+- The heading marks: a room marked when its group errored, marked when everything in it is stale,
   unmarked otherwise.
-- The bulb split: `Reading.Never` leaves the group; a bulb 3 minutes old leaves the group; a bulb
-  90 seconds old stays; the group line quotes the oldest of those that stayed.
-- The tab list: Главная first, rooms in `roomSections` order, Без комнаты last and present even when
-  every other section is empty.
+- The bulb split: a bulb with no `isOn` stays out of the group however fresh its reading, and one
+  with an `isOn` is in it however old — the group tile quotes the oldest of those that are. Plus the
+  one thing about the group that is Compose state rather than a pure function: the tap opens the
+  lamps, names and all, and a second tap puts them away.
+- The heading list: Главная first, rooms in `roomSections` order, Без комнаты last, and a section
+  with no tiles in it dropped rather than given an empty heading.
 - The tile layout: the recuperator's span from whether it reports climate, and `mood` from `isOn`
   and the error. Added in commit 2, which is where "a re-skin has nothing to test" turned out to be
   wrong: both are decisions with a right and a wrong answer, and a decision that only exists inside
@@ -778,8 +873,8 @@ What gets a test, each asserting the value returned and not which composable was
 - The one glyph of the eight that is a decision rather than a picture: the curtain's. 0 is closed, 40
   and 100 are open, and **null is open** — a shut curtain is a positive claim the panel cannot make.
   The other seven are a lookup from tile type to drawable and hold nothing a test could catch, the
-  bulb's included since the disc took the state off it; what is asserted there is only that a
-  broken-out bulb tile draws `ic_bulb`, which is that tile's whole contract. Both assert
+  bulb's included since its card's colour carries the state; what is asserted there is only that a
+  lamp and its room's group tile draw the same `ic_bulb`. Both assert
   `R.drawable.*` ids directly — the generated `R` is on the unit test classpath, so this needs no
   Compose and no Robolectric.
 
@@ -796,15 +891,20 @@ it is legible from four metres.
 
 Six images in `app/src/test/screenshots/`, committed, drawn by Robolectric and Roborazzi at the
 wall's own geometry — **753 × 1204 dp at 340 dpi, portrait**, which is the 1600 × 2560 px the tablet
-measured. A screenshot at any other width is a picture of a panel that does not exist, since six
-columns is sized from that 753 and from nothing else.
+measured. A screenshot at any other width is a picture of a panel that does not exist, since the
+column widths are sized from that 753 and from nothing else.
+
+The one exception is the swatch sheet, and only in *height*: `tiles-light` and `tiles-dark` are
+captured at 753 × 1700 dp. Thirteen swatches at 328 dp is 1656 dp of column, and in a 1204 dp frame
+the failing row and the outlined case fell off the bottom and were recorded as nothing at all. They
+are not a picture of the wall; the two Главная captures are, and those keep the wall's own frame.
 
 | Image | What it is for |
 | --- | --- |
-| `panel-home-light`, `panel-home-dark` | Главная whole, in both schemes: the spans, the corners, the mosaic as one thing |
+| `panel-home-light`, `panel-home-dark` | Главная whole, in both schemes: the spans, the corner, whether two kinds of tile actually end on the same line |
 | `tiles-light`, `tiles-dark` | Every `TileHue` × `TileMood` pair, plus the group-failure outline. This is the ΔE table in `PanelTheme.kt` made visible |
-| `lights-group` | The row of 72 dp circles, and the `Never` bulb broken out above it |
-| `tabs-marked` | A strip with three rooms carrying the dot and the error colour |
+| `lights-group` | The `Never` bulb's own tile beside its room's group tile, closed and open — three cards at the quarter width, which is where a group tile that stopped agreeing with an ordinary one would show |
+| `headings` | A plain heading, a marked one, and the longest room name in the flat at heading size |
 
 ```bash
 source scripts/env.sh && ./gradlew verifyRoborazziDebug
@@ -860,24 +960,13 @@ out wrong. None of them can be settled from a screenshot.
   never-polled case neutral.
 - **Does the Tabler bulb look foreign beside seven Material Symbols?** If it does, move the other
   seven to Tabler rather than the bulb back to Material.
-- **Can a finger find an _unlit_ lamp?** The disc settled this for a lit lamp and for a failing one
-  and did not settle it for an off one: `surfaceContainer` on `surface` is ΔE 4 in light and 6 in
-  dark, so an off circle is a lamp with a faint halo and not much more than commit 6 drew — measured,
-  see "Icons". The wider question the disc did answer is struck from this list; this is what is left
-  of it, and it is the last state on the wall whose only affordance is the ripple under a finger.
-
-  _Doing it, if the wall says so:_ **move the tone, not the role.** `surfaceContainerHigh` is one
-  step up, is already in both schemes, and is one word in `BulbCircle`'s `when` — `#E5E8EE` against
-  the `#EBEEF3` it wears now, which takes the light separation from ΔE 4 to about 7. Do not reach for
-  `secondaryContainer` or any other *on* colour: an off lamp borrowing one is the tile claiming a
-  reading nobody took, which is the rule the whole palette is built on.
-
-  Two things to know before spending anything on it. It is **the same step every off card already
-  sits at** — an off ac tile is `surfaceContainer` on `surface` too, and nobody has complained,
-  because a card is found by its name and its corner where a circle has only its fill. And it is
-  **rare on this wall**: the flat's lamps are mostly on, and a room with all of them off has a group
-  line saying `0 on` right underneath. So this is worth a look from four metres before it is worth a
-  commit.
+- ~~**Can a finger find an _unlit_ lamp?**~~ **Dissolved by the group tile, not answered.** The
+  question was about a 72 dp disc whose only drawn shape was its fill, at ΔE 4 from the surface in
+  light; there is no disc. An unlit lamp is a card with its name, its age and its corner on it, which
+  is the same step every off card on this wall already sits at and has never been a complaint. If a
+  *room* whose lamps are all off ever goes missing on the wall, the group tile is an off card like
+  any other and the question is the general one — see "Open", where `Off` and `Unknown` sharing
+  `surfaceContainer` is still open for every tile at once.
 
 ## Open
 
@@ -889,14 +978,22 @@ out wrong. None of them can be settled from a screenshot.
   well, so today the two fire together; that is a coincidence of settings, not a design.
 - The ×8 in "Stale". Tying it to each poll's own interval is right; eight of them is a guess, and the
   number that matters is how long a device can be quiet before somebody would want to know.
-- Whether a **stale group** should reach the tile's paint, or only the tab mark. `mood` is a function
+- Whether a **stale group** should reach the tile's paint, or only the heading mark. `mood` is a function
   of `isOn` and the error and nothing else, so a group that has stopped polling still paints every
   tile in it as confidently on. Commit 3 makes the signal trustworthy enough to be worth asking; it
   does not answer it, and wiring it in is a spec change rather than a bug fix.
 - What a tile should look like when `isOn` is null. Today `Unknown` and `Off` share
   `surfaceContainer`, so a lamp the panel knows nothing about is indistinguishable from one it knows
-  is off — the strings tell them apart and the colours do not. Commit 4 pulls the null-state bulbs
-  out of the circles, which is the same problem answered for one tile type only.
+  is off — the strings tell them apart and the colours do not. The lights group answers it for one
+  tile type only, by keeping the null-state bulbs out of the group and giving them a tile that says
+  "unknown" in words.
+- **Whether the eight glyphs need one family**, now that the Tabler bulb sits in the mosaic beside
+  Material's `mode_fan` and `vacuum` rather than alone in a disc row. "Move the other seven" is not
+  available — Tabler has no covering icon and no light strip — so the choices are the bulb back to
+  Material, against the recorded reason it is Tabler's, or three glyphs hand-drawn. Whoever owns the
+  mockups decides; see "The size, and the family question that is still open".
+- **Whether 48 dp is the right glyph size**, which only the hallway can say. It is reasoned from the
+  size the disc's lamp was already defended at, not measured at four metres.
 - The tablet is locked with a PIN and locks itself on screen-off. Nothing in the panel handles that
   — the wall goes to a lock screen rather than to the panel, and the Domonap takeover's behaviour
   over a locked screen is unverified. See `docs/domonap.md`.
@@ -926,7 +1023,7 @@ for the whole of it, the portrait lock included — that is a device setting, no
 
 **What the order bought.** The shell first, because it is the only part with behaviour to get wrong
 and it is worth having green before anything visual moves. 3 before 4, because the group line and
-the tab marks both read staleness and grouping the bulbs on top of a signal known to be wrong means
+the heading marks both read staleness and grouping the bulbs on top of a signal known to be wrong means
 doing it twice. 5 before 6, because a glyph takes its tile's content colour and drawing seven of
 them against a palette about to be replaced is drawing them twice. 3 stayed its own commit because
 it is the only fix among six features, and a correction folded into a feature is a correction nobody

@@ -173,21 +173,27 @@ paints differently from a current one.
 
 ---
 
-## 6 · `fix(panel): the unlit lamp takes the colour every other off tile takes`
+## 6 · MOOT — `fix(panel): the unlit lamp takes the colour every other off tile takes`
 
-[`BulbCircle`](../../app/src/main/kotlin/ru/domovoy/panel/BulbTile.kt#L166) draws `Off`/`Unknown` as
-`surfaceContainer` → **`onSurfaceVariant`**, while [`tileColors`](../../app/src/main/kotlin/ru/domovoy/panel/TileCard.kt#L237)
-draws the same mood as `surfaceContainer` → **`onSurface`**. `docs/ui.md` says the disc wears "the
-mood colours every card wears" and that "the lamp takes the on-colour of whichever it is sitting
-on". It does not. The one glyph the doc is worried about anybody finding got the weaker of the two
-on-colours, in the one state the doc says is unsettled.
+**There is no `BulbCircle` to fix.** The lamp row became one group tile (PLAN.md T4), so the
+divergent `when` this item was about is gone with it and every tile on the wall reads `tileColors`.
+Nothing here is left to build.
 
-One word in one `when`. It is not the tone change the doc holds in reserve for that open question
-and does not settle it — it only stops the disc from being a second answer to a question the cards
-already answered.
+**It is moot rather than settled**, and the difference matters: this item never argued for a tone,
+only against having two answers. The open question it deferred to — `Off` and `Unknown` sharing
+`surfaceContainer` — is still open, for every tile at once, and is in "Where this disagrees with
+ui.md" below.
 
-**Test.** The circle's colours come from `mood` like everything else; assert the pair rather than
-the composable.
+<details><summary>The item as it stood, kept for the record</summary>
+
+`BulbCircle` drew `Off`/`Unknown` as `surfaceContainer` → **`onSurfaceVariant`**, while
+[`tileColors`](../../app/src/main/kotlin/ru/domovoy/panel/TileCard.kt) drew the same mood as
+`surfaceContainer` → **`onSurface`**. `docs/ui.md` said the disc wore "the mood colours every card
+wears" and that "the lamp takes the on-colour of whichever it is sitting on". It did not. The one
+glyph the doc was worried about anybody finding got the weaker of the two on-colours, in the one
+state the doc says is unsettled.
+
+</details>
 
 ---
 
@@ -222,7 +228,13 @@ first: it decides what the strings *are* before this decides what language they 
 
 ---
 
-## 9 · `feat(panel): a marked room that scrolled off still says so`
+## 9 · RESOLVED — `feat(panel): a marked room that scrolled off still says so`
+
+**Done, by the second of the two options below.** The tab strip is gone: rooms are sections down one
+scroll and the mark is on the heading, where it travels with the room and cannot scroll off the end
+of anything. Nothing is left of this item to build — do not build the indicator.
+
+<details><summary>The item as it stood, kept for the record</summary>
 
 Rule 2 of the tab shell says the mark is "visible from Главная without opening the room". Rule 4
 says Ванная, Балкон and Гардероб scroll off the end of the strip. For those three rooms the two
@@ -234,22 +246,28 @@ The cheapest honest fix is an indicator at the scrolled-off end of the strip; th
 admitting the strip cannot hold fourteen rooms and giving room navigation a different shape, which
 is a bigger change than this list wants.
 
+</details>
+
 ---
 
 ## 10 · `feat(panel): decide what a tile's body does`
 
 Three rules on one wall today, none of them written down:
 
-- a bulb in the circle row is tappable across its whole 72 dp;
-- the same bulb broken out into a named tile is tappable only in the 64 dp switch, because
-  `TileCard(onClick = …)` is null for every device tile;
-- a launcher tile takes the whole card.
+- a device tile is tappable only in its 64 dp switch, because `TileCard(onClick = …)` is null for
+  every one of them;
+- a launcher tile takes the whole card;
+- and so does a lights group tile, which is the newest of the three and was written to the launcher's
+  rule rather than to a rule.
 
-So on a 376 dp air conditioner about 83 % of the surface is inert, and the two halves of the bulb
-split behave differently from each other. Refusing the body may well be right — an accidental
-elbow should not switch the flat off — but it is currently an accident rather than a decision.
-Pick one rule, write it in `TileCard`'s doc beside the `onClick` null comment that already explains
-the launcher's dead tap, and make the bulb's two shapes agree.
+So on a 251 dp air conditioner most of the surface is inert while the tile beside it is live end to
+end. Refusing the body may well be right — an accidental elbow should not switch the flat off — but
+it is currently an accident rather than a decision. Pick one rule and write it in `TileCard`'s doc
+beside the `onClick` null comment that already explains the launcher's dead tap.
+
+_Half of this item has already gone away on its own:_ the row of discs used to be tappable across
+its whole 72 dp while the same bulb as a named tile was not, and the discs are gone (PLAN.md T4).
+The two shapes a bulb comes in agree now — both are cards, and both take the tap in the switch.
 
 ---
 
@@ -318,8 +336,8 @@ disagreement is explicit rather than discovered later:
   item 5.
 - **`Off` and `Unknown` sharing `surfaceContainer`,** justified in ui.md by "there is no second
   neutral to give them". There are five already written out in both schemes —
-  `surfaceContainerLow`, `High`, `Highest`, `surfaceDim`, `surfaceBright` — and ui.md's own reserve
-  fix for the unlit disc is exactly that move. The stated principle is that the paint must not undo
+  `surfaceContainerLow`, `High`, `Highest`, `surfaceDim`, `surfaceBright` — and the reserve fix
+  ui.md held for the unlit disc was exactly that move. The stated principle is that the paint must not undo
   what the strings were careful about; here it does, and the material to fix it is already in the
   palette. Not given an item of its own above because it wants to land with item 4, which is what
   decides what the neutral family is carrying.

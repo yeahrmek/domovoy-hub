@@ -10,7 +10,8 @@ import kotlin.time.Duration
  * Calls [onIdle] once [timeout] has passed with nothing arriving on [touches], and again after
  * each later spell of quiet.
  *
- * This is the panel going back to Главная by itself. A phone app may stay where you left it; a wall
+ * This is the panel going back to Главная by itself — which, now that the rooms are one scroll
+ * rather than a strip of tabs, means back to the top. A phone app may stay where you left it; a wall
  * panel is walked up to by someone who did not leave it there, and one showing Балкон because that
  * is where the last person got to is showing the wrong room to everyone after them.
  *
@@ -20,7 +21,7 @@ import kotlin.time.Duration
  *
  * The wait starts when this does, not at the first touch, so a panel nobody has touched since it
  * booted is on Главная. Each touch cancels the wait in flight and starts a new one, so the count
- * that matters is time since the hand left, not time since the tab was chosen.
+ * that matters is time since the hand left, not time since somebody scrolled.
  */
 suspend fun resetAfterIdle(
     touches: Flow<Unit>,

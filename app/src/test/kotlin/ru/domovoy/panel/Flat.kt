@@ -142,9 +142,9 @@ internal object Flat {
 
     /**
      * Коридор's four lamps and Зал's two. Three of Коридор's report a value, and the fourth has
-     * never reported one at all — which is the bulb that leaves the row of circles and draws as its
-     * own named tile. That split is the whole point of the lights group, so a fixture without a
-     * `Never` bulb in it would screenshot the easy half of it.
+     * never reported one at all — which is the bulb that stays out of the room's lights group and
+     * draws as its own named tile. That split is the whole point of the lights group, so a fixture
+     * without a `Never` bulb in it would screenshot the easy half of it.
      */
     val bulbs = BulbPanelState(
         tiles = listOf(

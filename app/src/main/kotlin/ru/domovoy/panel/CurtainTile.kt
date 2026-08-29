@@ -1,19 +1,12 @@
 package ru.domovoy.panel
 
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
 import java.time.Instant
-import kotlin.math.roundToInt
 
 /**
  * One curtain: its name, how far open it is, and how old that reading is. When [error] is set the
@@ -31,20 +24,15 @@ fun CurtainTile(
     // The curtain has no switch to read a mood off, so its position is the mood: open at all is on,
     // fully shut is off, and never reported is unknown — which is the same three answers the
     // status line above it already gives, in the same order.
+    // The only tile with a slider and no switch, and the anatomy says so out loud rather than by
+    // leaving a slot unfilled — see [controls]. Its glyph is the one on the wall that carries state
+    // rather than labelling a type: the flat's curtain says what it is doing from across the room.
     TileCard(
+        anatomy = anatomy(tile, now, error),
         hue = hue(tile),
         mood = mood(tile.openPercent?.let { it > 0 }, error),
-        span = HALF_SPAN,
         modifier = modifier,
-    ) {
-        Column(modifier = Modifier.fillMaxWidth().padding(12.dp)) {
-            // The one glyph on the wall that carries state rather than labelling a type: the flat's
-            // curtain says what it is doing from across the room. See [curtainGlyph].
-            TileHeading(glyph = glyph(tile), name = tile.name, span = HALF_SPAN)
-            Text(
-                text = statusLine(tile, now, error),
-                style = MaterialTheme.typography.bodySmall,
-            )
+        level = {
             val bounds = tile.bounds
             if (bounds != null) {
                 // The dragged position is local: the tile behind it only changes on the next poll,
@@ -58,8 +46,8 @@ fun CurtainTile(
                     hue = hue(tile),
                 )
             }
-        }
-    }
+        },
+    )
 }
 
 // A curtain that has never reported has no position to start the handle from; the bottom of its
@@ -75,7 +63,8 @@ internal fun statusLine(
     now: Instant,
     error: String?,
 ): String {
-    val position = tile.openPercent?.let { "${it.roundToInt()}% open" } ?: "unknown"
+    // The same string the tile promotes, plus the word for a curtain that has never reported.
+    val position = promoted(tile) ?: "unknown"
     val age = ageLabel(tile.lastUpdated, now)
     return if (error == null) "$position · $age" else "$position · $age · not updating: $error"
 }

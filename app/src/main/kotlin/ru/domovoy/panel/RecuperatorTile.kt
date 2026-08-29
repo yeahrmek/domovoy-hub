@@ -1,16 +1,8 @@
 package ru.domovoy.panel
 
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
 import ru.domovoy.core.Reading
 import java.time.Instant
 import java.util.Locale
@@ -38,40 +30,18 @@ fun RecuperatorTile(
     groupError: String? = null,
     onToggle: (String) -> Unit = {},
 ) {
-    // Asked once and passed to both: the tile's width and where its glyph sits are the same
-    // decision, and a tile whose card is half the panel while its heading is laid out for a third
-    // is the one way these two could disagree.
-    val span = span(tile)
+    // The card no longer needs the span — one radius, one anatomy, one height — and the grid still
+    // asks [span] for the width, which is the one width in the panel decided by content.
     TileCard(
+        anatomy = anatomy(tile, now, groupError),
         hue = hue(tile),
         mood = mood(tile.isOn, tile.error),
-        span = span,
         modifier = modifier,
         border = groupFailureBorder(groupError),
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                TileHeading(glyph = glyph(tile), name = tile.name, span = span)
-                Text(
-                    text = statusLine(tile, now, groupError),
-                    style = MaterialTheme.typography.bodySmall,
-                )
-                // Absent when the device reported neither reading, rather than a second line
-                // saying "unknown" twice over.
-                climateLine(tile, now)?.let { climate ->
-                    Text(text = climate, style = MaterialTheme.typography.bodySmall)
-                }
-            }
-            Switch(
-                checked = tile.isOn == true,
-                onCheckedChange = { onToggle(tile.id) },
-                modifier = Modifier.touchable(),
-            )
-        }
-    }
+        toggle = {
+            Switch(checked = tile.isOn == true, onCheckedChange = { onToggle(tile.id) })
+        },
+    )
 }
 
 /**
@@ -125,8 +95,8 @@ internal fun climateLine(
     now: Instant,
 ): String? {
     if (tile.temperature == null && tile.humidity == null) return null
-    return "${measured(tile.temperature, CELSIUS)} · ${ageLabel(tile.temperatureLastUpdated, now)} · " +
-        "${measured(tile.humidity, PERCENT)} · ${ageLabel(tile.humidityLastUpdated, now)}"
+    return "${measured(tile.temperature, DEGREES)} · ${ageLabel(tile.temperatureLastUpdated, now)} · " +
+        "${measured(tile.humidity, PERCENT_SIGN)} · ${ageLabel(tile.humidityLastUpdated, now)}"
 }
 
 /**
@@ -135,13 +105,17 @@ internal fun climateLine(
  * against the Smart Life app showing the same device, which is where `330 = 33.0 %RH` and
  * `279 = 27.9 °C` come from. That check is the only source, and it is a weaker one than the
  * `scale` a test can assert against the recorded thing model.
+ *
+ * Reachable from [promoted], which promotes the temperature this line ages — one formatter for the
+ * pair, so the two cannot come out rounded differently.
  */
-private const val CELSIUS = "°C"
-private const val PERCENT = "%"
+internal const val DEGREES = "°C"
+
+internal const val PERCENT_SIGN = "%"
 
 // Locale.ROOT, not the tablet's: the panel prints one spelling of a number, and a tablet set to
 // ru-RU would otherwise render 29.3 as "29,3" on a line whose every other word is English.
-private fun measured(
+internal fun measured(
     value: Double?,
     unit: String,
 ): String = value?.let { String.format(Locale.ROOT, "%.1f %s", it, unit) } ?: "unknown"

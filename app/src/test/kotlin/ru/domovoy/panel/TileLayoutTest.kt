@@ -3,11 +3,14 @@ package ru.domovoy.panel
 import org.junit.jupiter.api.Test
 import ru.domovoy.R
 import ru.domovoy.core.Bounds
+import ru.domovoy.core.ColorSetting
 import ru.domovoy.core.Reading
 import java.time.Instant
 import kotlin.test.assertEquals
+import kotlin.test.assertNotEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 /**
  * The three decisions in the mosaic that have a right and a wrong answer. They live out here rather
@@ -22,31 +25,53 @@ class TileLayoutTest {
     private val now = Instant.ofEpochSecond(1_786_000_000)
 
     @Test
-    fun `a recuperator reporting a temperature is a hero tile`() {
-        // Three columns of the six, because it has a second line to put there — see climateLine,
+    fun `a recuperator reporting a temperature is a wide tile`() {
+        // Four columns of the twelve, because it has a second line to put there — see climateLine,
         // which is the same condition rather than a second one that can drift away from it.
         val tile = recuperator(temperature = 29.3, humidity = 32.2)
 
         assertNotNull(climateLine(tile, now))
-        assertEquals(3, span(tile))
+        assertEquals(4, span(tile))
     }
 
     @Test
-    fun `a recuperator reporting only a humidity is still a hero tile`() {
-        // Either value on its own is a climate line, so either value on its own is a hero tile.
+    fun `a recuperator reporting only a humidity is still a wide tile`() {
+        // Either value on its own is a climate line, so either value on its own is a wide tile.
         val tile = recuperator(temperature = null, humidity = 32.2)
 
         assertNotNull(climateLine(tile, now))
+        assertEquals(4, span(tile))
+    }
+
+    @Test
+    fun `a recuperator reporting neither is a narrow tile`() {
+        // A wide tile holding one line of "on · 2 min ago" is a hole in the wall.
+        val tile = recuperator(temperature = null, humidity = null)
+
+        assertNull(climateLine(tile, now))
         assertEquals(3, span(tile))
     }
 
     @Test
-    fun `a recuperator reporting neither is a medium tile`() {
-        // A hero tile holding one line of "on · 2 min ago" is a hole in the wall.
-        val tile = recuperator(temperature = null, humidity = null)
+    fun `a recuperator with nothing to report but a failure is wide anyway`() {
+        // The reason it stopped updating is a vendor string of unbounded length, and it is the one
+        // status line on the wall long enough to run past what a tile reserves for it. The tile
+        // with the most to say gets the width to say it — the same rule the climate line has.
+        val tile = recuperator(temperature = null, humidity = null, isOn = null, error = "timeout")
 
         assertNull(climateLine(tile, now))
-        assertEquals(2, span(tile))
+        assertEquals(4, span(tile))
+    }
+
+    @Test
+    fun `the group's failure does not move a recuperator's span`() {
+        // It fails all five at once, so letting it move spans would re-lay the whole room out every
+        // time Tuya blinked. The span answers from the tile and from nothing passed beside it.
+        val tile = recuperator(temperature = null, humidity = null)
+
+        assertEquals(3, span(tile))
+        assertTrue(statusLine(tile, now, groupError = "HTTP 500").contains("HTTP 500"))
+        assertEquals(3, span(tile))
     }
 
     @Test
@@ -135,12 +160,374 @@ class TileLayoutTest {
     }
 
     @Test
-    fun `a bulb tile's glyph is the lamp, and only ever the lamp`() {
-        // The bulb is not the curtain: its glyph labels a type and carries no state. A named bulb
-        // tile is by construction the bulb the panel has no state for — bulbGroup breaks out
-        // exactly the null ones — and the state of every other lamp is said by the disc it sits on.
-        assertEquals(R.drawable.ic_bulb, glyph(bulb(isOn = null)))
+    fun `a room's lamps are one light tile, whatever they are doing`() {
+        // The group tile is in the family of the seven it stands for, and its hue does not move
+        // with them any more than a single lamp's does.
+        assertEquals(TileHue.Light, hue(lamps(on = 7, off = 0)))
+        assertEquals(TileHue.Light, hue(lamps(on = 0, off = 7)))
     }
+
+    @Test
+    fun `a group with any lamp lit is on, and one with none is off`() {
+        // What somebody walking past reads off the colour is whether there is light in that room;
+        // how many of the seven are lit is said exactly, in words, at wall size.
+        assertEquals(TileMood.On, mood(lamps(on = 1, off = 6), error = null))
+        assertEquals(TileMood.On, mood(lamps(on = 7, off = 0), error = null))
+        assertEquals(TileMood.Off, mood(lamps(on = 0, off = 7), error = null))
+    }
+
+    @Test
+    fun `a group whose poll failed is failing, however many of its lamps were lit`() {
+        // Failing outranks the count for the same reason it outranks a tile's own isOn: those seven
+        // values are what the panel last read and nobody has confirmed since.
+        assertEquals(TileMood.Failing, mood(lamps(on = 7, off = 0), error = "HTTP 500"))
+        assertEquals(TileMood.Failing, mood(lamps(on = 0, off = 7), error = "HTTP 500"))
+    }
+
+    @Test
+    fun `a group tile promotes how many of its lamps are on`() {
+        assertEquals("5 on", promoted(lamps(on = 5, off = 2)))
+        // Not an absence: every lamp in the group reported, and they reported off. The only group
+        // with nothing to say is the one with no lamps, and that one has no tile.
+        assertEquals("0 on", promoted(lamps(on = 0, off = 3)))
+    }
+
+    @Test
+    fun `a group tile is named for how many lamps it holds`() {
+        assertEquals("7 lamps", anatomy(lamps(on = 5, off = 2), now, null, notUpdating = false, open = false).name)
+        assertEquals("1 lamp", anatomy(lamps(on = 1, off = 0), now, null, notUpdating = false, open = false).name)
+    }
+
+    @Test
+    fun `a group tile says what its tap will do`() {
+        // The one detail line on the wall that describes a gesture rather than a reading, and the
+        // only mark the closed tile carries that it has seven devices behind it.
+        val group = lamps(on = 5, off = 2)
+        assertEquals("tap to see them", anatomy(group, now, null, notUpdating = false, open = false).detail)
+        assertEquals("tap to close", anatomy(group, now, null, notUpdating = false, open = true).detail)
+    }
+
+    @Test
+    fun `opening a group changes nothing it says about the lamps`() {
+        // The count, the value and the age stay on the wall while the seven are open — the tile is
+        // not replaced by what it opens, and no reading is behind the tap.
+        val group = lamps(on = 5, off = 2)
+        val closed = anatomy(group, now, null, notUpdating = false, open = false)
+        val open = anatomy(group, now, null, notUpdating = false, open = true)
+
+        assertEquals(closed.copy(detail = open.detail), open)
+    }
+
+    @Test
+    fun `a group tile that stopped updating says so once, for all of its lamps`() {
+        // One `/v1.0/user/info` call is behind every bulb in the flat, so this is one tile's line
+        // rather than seven — and it is what the seven discs' shared line used to say.
+        val status = anatomy(lamps(on = 5, off = 2), now, "HTTP 500", notUpdating = true, open = false).status
+
+        assertEquals(bulbGroupLine(lamps(on = 5, off = 2), now, notUpdating = true, error = "HTTP 500"), status)
+        assertTrue(status.contains("not updating: HTTP 500"))
+    }
+
+    @Test
+    fun `a group tile offers a finger nothing but the tap that opens it`() {
+        // Deliberately no master switch: Yandex has no group action, so one would be seven requests
+        // behind one finger with one status line to report the mixture. The lamps keep their own
+        // switches, one tap further in.
+        assertEquals(TileControls.None, controls(lamps(on = 5, off = 2)))
+    }
+
+    @Test
+    fun `a bulb tile's glyph is the lamp, and only ever the lamp`() {
+        // The bulb is not the curtain: its glyph labels a type and carries no state. A lamp is a
+        // lamp whether it is standing on its own or opened out of its room's group, and the group
+        // tile wears the same one — so the two cannot come out as different lamps.
+        assertEquals(R.drawable.ic_bulb, glyph(bulb(isOn = null)))
+        assertEquals(R.drawable.ic_bulb, glyph(lamps(on = 5, off = 2)))
+    }
+
+    @Test
+    fun `every tile on the wall resolves to a glyph, and every launcher to its own`() {
+        // Seven tile types and two apps, and the failure this catches is a device arriving with no
+        // art: `painterResource(0)` throws, and the tile it was going to be drawn on takes the whole
+        // panel down with it. Asserted as ids rather than as pictures — what the drawables look like
+        // is the screenshots' job, that there *is* one for everything is this one's.
+        assertNotEquals(0, glyph(ac(isOn = true)))
+        assertNotEquals(0, glyph(recuperator(temperature = 29.3, humidity = 32.2)))
+        assertNotEquals(0, glyph(bulb(isOn = true)))
+        assertNotEquals(0, glyph(lamps(on = 5, off = 2)))
+        assertNotEquals(0, glyph(strip(isOn = true)))
+        assertNotEquals(0, glyph(curtain(openPercent = 100.0)))
+
+        // The launcher is the one whose glyph is keyed on an id, so it is the one that can drift:
+        // the catalogue is where a third app gets added and `glyph(LauncherTileState)` is where it
+        // would be forgotten. Driven through `launcherTiles` so the two cannot be listed apart.
+        val launchers = launcherTiles { true }.associateBy { it.packageName }
+        assertEquals(R.drawable.ic_video_camera_front, glyph(launchers.getValue("com.domonap.app")))
+        assertEquals(R.drawable.ic_vacuum, glyph(launchers.getValue("com.xiaomi.smarthome")))
+    }
+
+    // --- What one tile promotes ------------------------------------------------------------
+    //
+    // One value per tile, at the size the wall is read at, and the rest of the line demoted. The
+    // table below is every tile type against every state of the value it would promote, because
+    // the failure this catches is a tile quietly having nothing to promote — which is a tile with
+    // a hole where the number goes.
+
+    @Test
+    fun `an air conditioner promotes its target temperature`() {
+        assertEquals("22 °C", promoted(ac(isOn = true)))
+    }
+
+    @Test
+    fun `an air conditioner in a unit nobody named promotes the bare number`() {
+        // The degree sign is printed only for the unit the vendor actually named; hanging it on a
+        // number whose unit was not reported would be the panel inventing it.
+        assertEquals("22", promoted(ac(isOn = true, unit = "unit.temperature.kelvin")))
+    }
+
+    @Test
+    fun `an air conditioner with no target promotes nothing`() {
+        // Null rather than the word "unknown" set at display size. Nothing is dropped — the status
+        // line still says "unknown", which is where it has always been said — but a tile does not
+        // shout a value nobody has taken.
+        assertNull(promoted(ac(isOn = true, targetTemperature = null)))
+    }
+
+    @Test
+    fun `a curtain promotes how far open it is`() {
+        assertEquals("40% open", promoted(curtain(openPercent = 40.0)))
+        assertEquals("0% open", promoted(curtain(openPercent = 0.0)))
+    }
+
+    @Test
+    fun `a curtain with no position promotes nothing`() {
+        assertNull(promoted(curtain(openPercent = null)))
+    }
+
+    @Test
+    fun `a light strip promotes its brightness`() {
+        assertEquals("60%", promoted(strip(isOn = true)))
+        assertEquals("60", promoted(strip(isOn = true, unit = "unit.lux")))
+    }
+
+    @Test
+    fun `a light strip with no brightness promotes nothing`() {
+        assertNull(promoted(strip(isOn = true, brightnessPercent = null)))
+    }
+
+    @Test
+    fun `a recuperator promotes the temperature it measures`() {
+        // The temperature and not the humidity: it is the one of the two a person standing in the
+        // hallway is deciding something about.
+        assertEquals("29.3 °C", promoted(recuperator(temperature = 29.3, humidity = 32.2)))
+    }
+
+    @Test
+    fun `a recuperator reporting only humidity promotes nothing`() {
+        // Still a half tile — span asks climateLine, which either value satisfies — and still with
+        // an empty promoted slot, because the value it promotes is the one it does not have.
+        assertNull(promoted(recuperator(temperature = null, humidity = 32.2)))
+        assertNull(promoted(recuperator(temperature = null, humidity = null)))
+    }
+
+    @Test
+    fun `a bulb promotes nothing, in every state it has`() {
+        // A bulb is on or off and carries no number, and a *named* bulb tile is by construction the
+        // one the panel has no state for at all. There is nothing here to promote and inventing one
+        // would be the wall's loudest type spent on the least it knows.
+        listOf(true, false, null).forEach { state -> assertNull(promoted(bulb(isOn = state))) }
+    }
+
+    @Test
+    fun `a launcher promotes nothing, installed or not`() {
+        // It reads nothing about the flat, so it has no reading to promote — the same reason it is
+        // the one tile that takes no `now`.
+        assertNull(promoted(launcher(openable = true)))
+        assertNull(promoted(launcher(openable = false)))
+    }
+
+    @Test
+    fun `what a tile promotes does not move with its mood`() {
+        // The same split the hue/mood pair already makes: what a tile promotes is a property of the
+        // reading, and whether that reading is trustworthy is mood's answer. A failing poll leaves
+        // the last value on the wall — that is the whole of why the tile keeps showing it — so the
+        // promoted value must not empty out underneath it.
+        assertEquals("22 °C", promoted(ac(isOn = null)))
+        assertEquals(
+            "29.3 °C",
+            promoted(recuperator(temperature = 29.3, humidity = 32.2, isOn = null, error = "timeout")),
+        )
+    }
+
+    @Test
+    fun `the promoted value is the same string the status line prints for it`() {
+        // The two cannot drift apart, because they are one function: the status line is what ages
+        // the value, so it has to name the value it is aging, and a tile printing "22 °C" over
+        // "on · 3 min ago · 23 °C · 81 d ago" would be one tile disagreeing with itself.
+        val ac = ac(isOn = true)
+        assertTrue(statusLine(ac, now, error = null).contains(promoted(ac)!!))
+        val curtain = curtain(openPercent = 40.0)
+        assertTrue(statusLine(curtain, now, error = null).contains(promoted(curtain)!!))
+        val strip = strip(isOn = true)
+        assertTrue(statusLine(strip, now, error = null).contains(promoted(strip)!!))
+        val recuperator = recuperator(temperature = 29.3, humidity = 32.2)
+        assertTrue(climateLine(recuperator, now)!!.contains(promoted(recuperator)!!))
+    }
+
+    @Test
+    fun `a tile with no value to promote still says unknown in words`() {
+        // Null promotes nothing; it does not take the word away. The status line is where "unknown"
+        // has always been said and it goes on saying it.
+        assertTrue(statusLine(ac(isOn = true, targetTemperature = null), now, error = null).contains("unknown"))
+        assertTrue(statusLine(curtain(openPercent = null), now, error = null).contains("unknown"))
+        assertTrue(statusLine(strip(isOn = true, brightnessPercent = null), now, error = null).contains("unknown"))
+    }
+
+    // --- The five slots ----------------------------------------------------------------------
+    //
+    // One anatomy, six tile types, and the failure this catches is a kind quietly re-flowing: a
+    // tile type that stops answering for a slot is a tile that lays itself out around what it
+    // happens to have, which is the four ragged heights the anatomy replaced. So the table below is
+    // every type against every state that could empty a slot, and it asserts what each one answers
+    // rather than that it answered at all.
+
+    @Test
+    fun `every tile type fills the art, the name and the status slot, in every state it has`() {
+        // These three are the slots that can never be empty: something drew the tile, something
+        // named it, and CLAUDE.md requires every tile to be able to say how old its reading is.
+        everyTile().forEach { anatomy ->
+            assertNotEquals(0, anatomy.art)
+            assertTrue(anatomy.name.isNotBlank(), "a tile with no name: $anatomy")
+            assertTrue(anatomy.status.isNotBlank(), "a tile with no status line: $anatomy")
+        }
+    }
+
+    @Test
+    fun `an empty promoted slot is an answer and stays an answer`() {
+        // A bulb is on or off and carries no number; a launcher reads nothing about the flat at
+        // all. Both leave the slot empty rather than setting the word "unknown" at 44sp — and the
+        // card reserves it either way, which is what keeps their bottom edges on the strip's line.
+        assertNull(anatomy(bulb(isOn = true), now, error = null).promoted)
+        assertNull(anatomy(launcher(openable = true)).promoted)
+        assertEquals("22 °C", anatomy(ac(isOn = true), now, error = null).promoted)
+        assertEquals("40% open", anatomy(curtain(openPercent = 40.0), now, error = null).promoted)
+        assertEquals("60%", anatomy(strip(isOn = true), now, error = null).promoted)
+        assertEquals(
+            "29.3 °C",
+            anatomy(recuperator(temperature = 29.3, humidity = 32.2), now, groupError = null).promoted,
+        )
+    }
+
+    @Test
+    fun `only the strip and the recuperator have a second status line`() {
+        // The two readings on the wall that carry an age of their own — the strip's colour and the
+        // recuperator's climate. The other four answer null, and the slot they leave empty is the
+        // same slot, reserved to the same height.
+        assertNotNull(anatomy(strip(isOn = true, color = warmWhite), now, error = null).detail)
+        assertNotNull(
+            anatomy(recuperator(temperature = 29.3, humidity = 32.2), now, groupError = null).detail,
+        )
+        assertNull(anatomy(ac(isOn = true), now, error = null).detail)
+        assertNull(anatomy(curtain(openPercent = 40.0), now, error = null).detail)
+        assertNull(anatomy(bulb(isOn = true), now, error = null).detail)
+        assertNull(anatomy(launcher(openable = true)).detail)
+        // And a strip that reported no colour at all has no second line either, which is the one
+        // case where a kind's second line is absent rather than the kind's answer being null.
+        assertNull(anatomy(strip(isOn = true), now, error = null).detail)
+    }
+
+    @Test
+    fun `what a tile offers a finger is its type's, and its vendor's bounds`() {
+        // The switch and the slider are two axes of one answer, because they sit in two different
+        // places on the card. A curtain is the pairing a single "has controls" boolean could not
+        // have said: a slider and no switch, since "shut" is a position and not a power state.
+        assertEquals(TileControls.ToggleAndLevel, controls(ac(isOn = true)))
+        assertEquals(TileControls.ToggleAndLevel, controls(strip(isOn = true)))
+        assertEquals(TileControls.Level, controls(curtain(openPercent = 40.0)))
+        assertEquals(TileControls.Toggle, controls(recuperator(temperature = 29.3, humidity = 32.2)))
+        assertEquals(TileControls.Toggle, controls(bulb(isOn = true)))
+        assertEquals(TileControls.None, controls(launcher(openable = true)))
+    }
+
+    @Test
+    fun `a tile whose vendor never sent bounds gets no slider`() {
+        // A slider over an invented range is the same lie as "unknown" at display size: the panel
+        // would be offering to set a value between limits nobody reported.
+        assertEquals(TileControls.Toggle, controls(ac(isOn = true, bounds = null)))
+        assertEquals(TileControls.Toggle, controls(strip(isOn = true, bounds = null)))
+        assertEquals(TileControls.None, controls(curtain(openPercent = 40.0, bounds = null)))
+    }
+
+    @Test
+    fun `what a tile offers a finger does not move with its mood`() {
+        // Same split as hue and mood: a failing air conditioner is still a switch and a slider. The
+        // tile goes rose and keeps its controls, because the poll failing is not the vendor
+        // withdrawing the capability.
+        listOf(true, false, null).forEach { state ->
+            assertEquals(TileControls.ToggleAndLevel, controls(ac(isOn = state)))
+            assertEquals(TileControls.Toggle, controls(bulb(isOn = state)))
+        }
+        assertEquals(
+            TileControls.Toggle,
+            controls(recuperator(temperature = null, humidity = null, isOn = null, error = "timeout")),
+        )
+        assertEquals(TileControls.None, controls(launcher(openable = false)))
+    }
+
+    @Test
+    fun `the anatomy says exactly what the tile's own functions say`() {
+        // It composes them rather than re-deriving them, so a tile cannot print one string at the
+        // top of the card and a differently-rounded one underneath.
+        val ac = ac(isOn = true)
+        assertEquals(statusLine(ac, now, error = "HTTP 500"), anatomy(ac, now, "HTTP 500").status)
+        assertEquals(promoted(ac), anatomy(ac, now, error = null).promoted)
+        assertEquals(glyph(ac), anatomy(ac, now, error = null).art)
+        val recuperator = recuperator(temperature = 29.3, humidity = 32.2)
+        assertEquals(climateLine(recuperator, now), anatomy(recuperator, now, groupError = null).detail)
+        val launcher = launcher(openable = false)
+        assertEquals(statusLine(launcher), anatomy(launcher).status)
+    }
+
+    /**
+     * Every tile type, in every state that could empty one of its slots: both bounds, all three
+     * on/off answers, a failing poll and a missing app.
+     */
+    private fun everyTile(): List<TileAnatomy> {
+        val errors = listOf(null, "HTTP 500")
+        val states = listOf(true, false, null)
+        return errors.flatMap { error ->
+            states.flatMap { state ->
+                listOf(true, false).flatMap { hasBounds ->
+                    val bounds = if (hasBounds) BOUNDS else null
+                    listOf(
+                        anatomy(ac(isOn = state, bounds = bounds), now, error),
+                        anatomy(ac(isOn = state, targetTemperature = null, bounds = bounds), now, error),
+                        anatomy(curtain(openPercent = null, bounds = bounds), now, error),
+                        anatomy(curtain(openPercent = 40.0, bounds = bounds), now, error),
+                        anatomy(strip(isOn = state, bounds = bounds), now, error),
+                        anatomy(strip(isOn = state, color = warmWhite, bounds = bounds), now, error),
+                        anatomy(bulb(isOn = state), now, error),
+                        anatomy(recuperator(temperature = 29.3, humidity = 32.2, isOn = state), now, error),
+                        anatomy(recuperator(temperature = null, humidity = null, isOn = state), now, error),
+                        anatomy(launcher(openable = true)),
+                        anatomy(launcher(openable = false)),
+                        // The group tile in all four of the states it has: open or closed, being
+                        // read or not.
+                        anatomy(lamps(on = 5, off = 2), now, error, notUpdating = false, open = false),
+                        anatomy(lamps(on = 5, off = 2), now, error, notUpdating = true, open = true),
+                        anatomy(lamps(on = 0, off = 1), now, error, notUpdating = false, open = true),
+                    )
+                }
+            }
+        }
+    }
+
+    private val warmWhite = ColorSetting(
+        instance = "temperature_k",
+        value = 4500.0,
+        lastUpdated = Reading.At(now),
+        stateChangedAt = Reading.At(now),
+    )
 
     private fun recuperator(
         temperature: Double?,
@@ -163,16 +550,32 @@ class TileLayoutTest {
         error = error,
     )
 
-    private fun ac(isOn: Boolean?) = AcTileState(
+    private fun ac(
+        isOn: Boolean?,
+        targetTemperature: Double? = 22.0,
+        unit: String = "unit.temperature.celsius",
+        bounds: Bounds? = BOUNDS,
+    ) = AcTileState(
         id = "ac-01",
         name = "Кондиционер",
         room = "Зал",
         isOn = isOn,
         powerLastUpdated = Reading.At(now),
-        targetTemperature = 22.0,
-        bounds = Bounds(min = 16.0, max = 30.0, precision = 1.0),
-        unit = "unit.temperature.celsius",
+        targetTemperature = targetTemperature,
+        bounds = bounds,
+        unit = unit,
         temperatureLastUpdated = Reading.At(now),
+    )
+
+    /**
+     * A room's lamps, built through [bulbGroup] rather than by hand: the group tile's whole content
+     * is that function's answer, and a fixture that filled in `on` itself could disagree with it.
+     */
+    private fun lamps(
+        on: Int,
+        off: Int,
+    ) = bulbGroup(
+        (1..on).map { bulb(isOn = true) } + (1..off).map { bulb(isOn = false) },
     )
 
     private fun bulb(isOn: Boolean?) = BulbTileState(
@@ -184,25 +587,34 @@ class TileLayoutTest {
         stateChangedAt = Reading.At(now),
     )
 
-    private fun strip(isOn: Boolean?) = LightStripTileState(
+    private fun strip(
+        isOn: Boolean?,
+        brightnessPercent: Double? = 60.0,
+        unit: String = "unit.percent",
+        color: ColorSetting? = null,
+        bounds: Bounds? = BOUNDS,
+    ) = LightStripTileState(
         id = "strip-01",
         name = "Лента",
         room = "Коридор",
         isOn = isOn,
         powerLastUpdated = Reading.At(now),
-        brightnessPercent = 60.0,
-        bounds = Bounds(min = 1.0, max = 100.0, precision = 1.0),
-        unit = "unit.percent",
+        brightnessPercent = brightnessPercent,
+        bounds = bounds,
+        unit = unit,
         brightnessLastUpdated = Reading.At(now),
-        color = null,
+        color = color,
     )
 
-    private fun curtain(openPercent: Double?) = CurtainTileState(
+    private fun curtain(
+        openPercent: Double?,
+        bounds: Bounds? = BOUNDS,
+    ) = CurtainTileState(
         id = "curtain-01",
         name = "Штора",
         room = "Зал",
         openPercent = openPercent,
-        bounds = Bounds(min = 0.0, max = 100.0, precision = 1.0),
+        bounds = bounds,
         lastUpdated = Reading.At(now),
         stateChangedAt = Reading.At(now),
     )
@@ -213,4 +625,13 @@ class TileLayoutTest {
         room = null,
         openable = openable,
     )
+
+    private companion object {
+        /**
+         * Whatever range a vendor reported. The numbers do not matter to anything here — what
+         * matters is the difference between a tile that has one and a tile that does not, which is
+         * the difference between a slider and no slider.
+         */
+        val BOUNDS = Bounds(min = 0.0, max = 100.0, precision = 1.0)
+    }
 }

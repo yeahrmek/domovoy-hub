@@ -3,52 +3,70 @@ package ru.domovoy.panel
 import androidx.annotation.DrawableRes
 import ru.domovoy.R
 import java.time.Instant
+import kotlin.math.roundToInt
 
 /**
  * The number of columns the mosaic is laid out on.
  *
- * Six, and measured rather than guessed: the wall tablet is 1600 px at 340 dpi, so the panel is
- * **753 dp** wide in the portrait it is mounted in. The brief's first draft was four columns from
- * a 10" tablet nobody had measured, and on the real wall that made a hero tile 753 dp holding a
- * name, a temperature and a slider — the switch stranded 700 dp from the value it switches. Six
- * puts the hero at 376 dp and everything else within reach of it.
+ * Twelve, and it is a divisor rather than a width: the wall tablet is 1600 px at 340 dpi, so the
+ * panel is **753 dp** wide in the portrait it is mounted in, and twelve columns is what lets both
+ * tile widths below divide it exactly. No tile is ever one column.
+ *
+ * **It was six, and six meant the widest tile was half the wall.** Two columns of anything is a
+ * phone proportion — the reference smart-home app is two columns of a 411 dp phone, and copying the
+ * count instead of the size gave this panel 376 dp tiles: a name, a value and a slider spread over
+ * half a wall, with a great deal of nothing between them. Three across and four across is the
+ * proportion a 753 dp panel actually has room for.
  *
  * Portrait is the only width this has to hold: the tablet is mounted vertically and its
  * auto-rotate is off. If that ever changes, this is the number that has to change with it.
  */
-internal const val COLUMNS = 6
+internal const val COLUMNS = 12
 
 /**
- * Half the panel, 376 dp: everything with a slider on it, and the recuperator that reports climate.
+ * A third of the panel, 251 dp: everything with a slider on it, and the recuperator that reports
+ * climate. **Three of these fill a row exactly**, which is the point.
  *
- * Two of these fill a row exactly, which is the point. Named for the geometry rather than for the
- * tile — "hero" stopped meaning anything once the curtain and the strips joined the air conditioner
- * at this width, and they joined it because at a third of the panel their status lines wrapped and
- * two strips side by side came out different heights.
+ * Named for being the wider of the two rather than for a fraction, because the fraction has moved
+ * once already — this was `HALF_SPAN` at 376 dp — and the tiles that take it are the tiles with
+ * more to say, whatever fraction of the wall that turns out to be.
  */
-internal const val HALF_SPAN = 3
+internal const val WIDE_SPAN = 4
 
 /**
- * A third of the panel, 251 dp: a name, one line and a switch. The bulbs, the launchers, and a
- * recuperator with no climate to report. Three of these fill a row.
+ * A quarter of the panel, 188 dp: a name, a status line and a switch. The bulbs, the launchers, and
+ * a recuperator with nothing beyond its speeds to report. **Four of these fill a row exactly.**
+ *
+ * 188 dp was measured once before and rejected — the launcher's one line wrapped onto two at that
+ * width (docs/ui.md). It is not a rejection any more: under one anatomy every tile reserves the
+ * same block of status lines whether it fills them or not, so a line that wraps costs nothing that
+ * was not already spent. What that rejection was really about was two tiles of the same kind coming
+ * out different heights, and that cannot happen now.
  */
-internal const val THIRD_SPAN = 2
+internal const val NARROW_SPAN = 3
 
 /**
  * How wide one recuperator is: the only span in the panel decided by content rather than by type.
  *
- * Half the panel when the device reports climate, because there is a second line to put there; a
- * third when it reports neither, because a half-width tile holding one line of "on · 2 min ago" is
- * a hole in the wall.
+ * Wide when the device has a second line to put there, narrow when it does not — a wide tile
+ * holding one line of "on · 2 min ago" is a hole in the wall.
  *
- * Asked of [climateLine] rather than of `temperature != null || humidity != null` on purpose: the
- * span exists to hold that line, so the two cannot drift apart. [Instant] is irrelevant to the
- * answer — the line is present or absent whatever the ages are — so any instant does.
+ * **Two things count as a second line**, and both are asked of the function that produces them
+ * rather than re-derived here, so that the width and what goes in it cannot drift apart:
+ *
+ * - [climateLine], the temperature and humidity it measures. [Instant] is irrelevant to whether
+ *   that line exists — it is present or absent whatever the ages are — so any instant does.
+ * - **Its own error.** A recuperator that is not updating says why, and the reason is a vendor
+ *   string of unbounded length; at 188 dp it is the one status line on the wall long enough to run
+ *   past what a tile reserves for it. The tile with the most to say gets the width to say it, which
+ *   is this function's whole rule.
+ *
+ * The group's error is deliberately not here. It fails all five at once, so letting it move spans
+ * would re-lay the whole room out every time Tuya blinked.
  */
-internal fun span(tile: RecuperatorTileState): Int = if (climateLine(tile, Instant.EPOCH) == null) {
-    THIRD_SPAN
-} else {
-    HALF_SPAN
+internal fun span(tile: RecuperatorTileState): Int {
+    val hasSecondLine = climateLine(tile, Instant.EPOCH) != null || tile.error != null
+    return if (hasSecondLine) WIDE_SPAN else NARROW_SPAN
 }
 
 /**
@@ -90,6 +108,23 @@ internal fun mood(
 }
 
 /**
+ * A room's lamps together: **on when any of them is lit**, off when none is.
+ *
+ * A group tile is one card standing for seven devices, and the thing somebody walking past a
+ * hallway is reading off it is whether there is light in that room — not whether the majority of
+ * its lamps agree. How many of the seven are on is said exactly, at wall size, by [promoted]; the
+ * colour answers the coarser question the colour is good at.
+ *
+ * [TileMood.Unknown] is unreachable here by construction and that is [bulbGroup]'s doing: a bulb
+ * with no state at all is not in the group, so `on` is a count of lamps that all reported. The
+ * unknown ones are named tiles, where the word "unknown" is printed rather than implied.
+ */
+internal fun mood(
+    group: BulbGroup,
+    error: String?,
+): TileMood = mood(group.on > 0, error)
+
+/**
  * What kind of thing a tile is, which is the other half of its colour. One colour for everything
  * that is on makes a wall where the air conditioner and the bedroom lamp are the same object.
  *
@@ -127,6 +162,96 @@ internal fun hue(tile: CurtainTileState): TileHue = TileHue.Neutral
 
 internal fun hue(tile: LauncherTileState): TileHue = TileHue.Neutral
 
+/** A room's lamps are lamps. The group tile is in the same family as the seven it stands for. */
+internal fun hue(group: BulbGroup): TileHue = TileHue.Light
+
+/**
+ * The unit strings Yandex names, which is the only reason the panel is willing to print a degree
+ * sign or a percent sign. A number whose unit the vendor did not report is printed bare — hanging a
+ * unit on it would be the panel inventing one.
+ */
+private const val CELSIUS_UNIT = "unit.temperature.celsius"
+
+private const val PERCENT_UNIT = "unit.percent"
+
+/**
+ * The one value a tile says at the size the wall is read at, or null when it has none.
+ *
+ * **One per tile, and one only.** Before this the air conditioner promoted its target and nothing
+ * else on the wall promoted anything, so the curtain's position, the strip's brightness and the
+ * recuperator's temperature — the numbers somebody walking past is actually deciding something
+ * about — sat at 12sp inside a dot-separated run-on line with four ages. Which one of a tile's
+ * values that is is a decision with a right and a wrong answer, so it is out here beside [hue] and
+ * [span] where a test reaches it rather than inside six composables.
+ *
+ * **Null is an answer and not a gap.** A tile with no value to promote leaves the slot empty rather
+ * than setting the word "unknown" at display size: the loudest type on the wall spent on the least
+ * the panel knows. Nothing is dropped by that — the status line still prints "unknown", which is
+ * where that word has always been said, and the tile's colour still says [TileMood.Unknown]. This
+ * is the same shape [climateLine] and `colorLine` already have.
+ *
+ * **What is promoted does not move with [mood].** A failing poll leaves the last value on the wall —
+ * that is the whole reason the tile keeps showing it — so the promoted value must not empty out
+ * underneath a tile that has gone rose. Two axes again: this says *which* value, [mood] says how
+ * much to trust it.
+ *
+ * Six overloads for the same reason [hue] and [glyph] have them: the tile states are six unrelated
+ * data classes and there is no sealed type over them. Each is also the *only* formatter for that
+ * value — the status lines call these and add the word for absent — so a tile cannot print one
+ * number at the top and a differently-rounded one underneath.
+ */
+internal fun promoted(tile: AcTileState): String? {
+    val target = tile.targetTemperature?.roundToInt() ?: return null
+    return if (tile.unit == CELSIUS_UNIT) "$target °C" else "$target"
+}
+
+/**
+ * "40% open" rather than "40%": the curtain is the one tile whose number is meaningless without the
+ * word, and it is the same string its status line has always led with.
+ */
+internal fun promoted(tile: CurtainTileState): String? = tile.openPercent?.let { "${it.roundToInt()}% open" }
+
+internal fun promoted(tile: LightStripTileState): String? {
+    val percent = tile.brightnessPercent?.roundToInt() ?: return null
+    return if (tile.unit == PERCENT_UNIT) "$percent%" else "$percent"
+}
+
+/**
+ * The temperature and not the humidity, of the two the recuperator measures: it is the one somebody
+ * standing in the hallway is deciding something about, and the humidity keeps its place on
+ * [climateLine] with both ages.
+ *
+ * Formatted by [measured] rather than here, so the promoted value and the climate line cannot come
+ * out rounded differently — the same reason [span] asks [climateLine] instead of re-deriving it.
+ */
+internal fun promoted(tile: RecuperatorTileState): String? = tile.temperature?.let { measured(it, DEGREES) }
+
+/**
+ * Nothing, in every state a bulb has — and a *named* bulb tile is by construction the bulb the panel
+ * has no state for at all, since [bulbGroup] breaks out exactly the null ones. A lamp is on or off
+ * and carries no number; the wall's largest type spent on inventing one would be the row of discs'
+ * old problem in a new place.
+ */
+internal fun promoted(tile: BulbTileState): String? = null
+
+/** Nothing. It reads nothing about the flat — the same reason it is the one tile taking no `now`. */
+internal fun promoted(tile: LauncherTileState): String? = null
+
+/**
+ * How many of the room's lamps are lit — `5 on` — which is the one thing the group tile has that is
+ * worth the wall's largest type.
+ *
+ * It is the value the seven discs were incapable of saying: a row of circles made you count them,
+ * and counting seven of anything from four metres is not reading. The count of lamps is the tile's
+ * *name* rather than its value, because how many lamps a room has does not change and how many are
+ * on does.
+ *
+ * Never null, unlike every other tile's: a group tile only exists when there are lamps behind it,
+ * and `0 on` is a reading rather than an absence — every lamp in it reported, and they reported
+ * off.
+ */
+internal fun promoted(group: BulbGroup): String = "${group.on} on"
+
 /**
  * The glyph one tile wears, as a drawable in `res/drawable/`: eight of them exported to vector XML
  * rather than `material-icons-extended`, which is a large artifact for eight of them and a
@@ -147,10 +272,19 @@ internal fun glyph(tile: RecuperatorTileState): Int = R.drawable.ic_mode_fan
 /**
  * The outlined lamp, whatever the tile says — a constant like the other six, because the bulb's
  * state is carried by the colour it is drawn on and not by which lamp is drawn. It is the same lamp
- * a circle wears, so a named tile and a circle cannot come out as different lamps.
+ * the group tile wears, so a lamp on its own and a room's lamps together cannot come out as
+ * different lamps.
  */
 @DrawableRes
 internal fun glyph(tile: BulbTileState): Int = R.drawable.ic_bulb
+
+/**
+ * The same lamp again, and one of it. A group tile drawing seven small lamps would be the row of
+ * discs redrawn inside a card — the thing it replaces — and the count is already on the tile in
+ * words, where it can say "7" without anybody counting.
+ */
+@DrawableRes
+internal fun glyph(group: BulbGroup): Int = R.drawable.ic_bulb
 
 /**
  * `wb_iridescent` rather than `horizontal_rule`, which was the other candidate: the plain rule is a
@@ -202,3 +336,247 @@ internal fun curtainGlyph(openPercent: Double?): Int = if (openPercent != null &
 } else {
     R.drawable.ic_vertical_shades
 }
+
+/**
+ * What a tile puts in the **controls** slot: nothing, a switch, a slider, or both.
+ *
+ * The two are separate axes of one answer rather than four unrelated cases, because they sit in
+ * two different places on the card — the switch on the top line beside the art, the slider on its
+ * own band under it (see `TileCard`). A curtain has a slider and no switch, which is the pairing a
+ * single "has controls" boolean could not have said.
+ *
+ * It changes no layout on its own: **both bands are reserved on every tile whether they are filled
+ * or not**, which is what makes a bulb the same height as an air conditioner. What this is for is
+ * being *asserted* — a tile type that quietly stopped offering its slider is a tile that used to be
+ * drivable and now is not, and that is a change nobody would see in a screenshot of a wall where
+ * the geometry did not move.
+ */
+enum class TileControls {
+    /** Nothing to drive. The launcher, which only opens somebody else's app. */
+    None,
+
+    /** A switch and nothing else: the bulbs, the recuperators. */
+    Toggle,
+
+    /** A slider and nothing else: the curtain, which is a position and not a power state. */
+    Level,
+
+    /** Both: the air conditioner and the light strips. */
+    ToggleAndLevel,
+}
+
+/**
+ * What one tile offers to a finger, from its type and — for the three that have a slider — from
+ * whether the vendor reported the bounds that slider needs.
+ *
+ * A tile whose vendor never sent bounds gets no slider rather than one over an invented range: the
+ * same refusal [promoted] makes when it declines to set the word "unknown" at display size.
+ *
+ * Six overloads for the same reason [hue] and [glyph] have them — the tile states are six unrelated
+ * data classes and there is no sealed type over them.
+ */
+internal fun controls(tile: AcTileState): TileControls = if (tile.bounds == null) TileControls.Toggle else TileControls.ToggleAndLevel
+
+/** No switch: a curtain is a position, and "shut" is a position rather than a power state. */
+internal fun controls(tile: CurtainTileState): TileControls = if (tile.bounds == null) TileControls.None else TileControls.Level
+
+internal fun controls(tile: LightStripTileState): TileControls = if (tile.bounds == null) TileControls.Toggle else TileControls.ToggleAndLevel
+
+/**
+ * A switch and no slider. The fan speeds are three booleans on Tuya rather than a range, so there
+ * is nothing here a slider would be the honest control for — see [RecuperatorTileState.speeds].
+ */
+internal fun controls(tile: RecuperatorTileState): TileControls = TileControls.Toggle
+
+internal fun controls(tile: BulbTileState): TileControls = TileControls.Toggle
+
+/**
+ * Nothing. The tap is the whole tile — see [LauncherTile] — and it is the card that takes it, so
+ * there is no control inside the tile to put in this slot.
+ */
+internal fun controls(tile: LauncherTileState): TileControls = TileControls.None
+
+/**
+ * Nothing, on the launcher's rule and for the launcher's reason: the tap is the whole card, and
+ * what it does is open the lamps behind it.
+ *
+ * **Deliberately not a switch over all seven.** Yandex has no group action — one lamp is one call —
+ * so a master switch here would be seven HTTP requests behind one finger, each able to fail
+ * separately, with one status line to report the mixture. The lamps keep their own switches, on
+ * their own tiles, one tap further in.
+ */
+internal fun controls(group: BulbGroup): TileControls = TileControls.None
+
+/**
+ * **The five slots every tile on the wall fills, and the only five.**
+ *
+ * Before this there were five tile types with five internal rhythms: the air conditioner 169 dp
+ * tall with a dead area under its slider, the strip beside it shorter, the recuperator shorter
+ * again, the launchers shorter still. Ragged bottom edges across a mosaic, because there was a rule
+ * for how two tiles *of one kind* were laid out and no rule at all across kinds.
+ *
+ * So the anatomy is one data class, produced by one pure function per tile type, and `TileCard`
+ * draws it and decides nothing. Every slot is reserved on the card whether this answers with
+ * something or with null, which is what makes the heights agree: **an empty slot is empty, not
+ * absent**, and a kind cannot quietly re-flow into the space another kind is using.
+ *
+ * Out here rather than inside the composables for the reason [hue], [mood], [span] and [promoted]
+ * are: a decision no test can reach is a decision nobody checks, and "does this tile type still
+ * fill all five slots" is exactly the question a screenshot answers slowest.
+ */
+internal data class TileAnatomy(
+    /**
+     * **Art.** Top-left, the size every glyph on the wall is. A drawable today and photographs of
+     * the hardware one day — that is its own task and this slot is where it lands.
+     */
+    @DrawableRes val art: Int,
+    /** **Controls.** Which of the two bands the card reserves are filled. See [TileControls]. */
+    val controls: TileControls,
+    /** **Name.** What the device is called on the wall — never truncated, wrapped if it must be. */
+    val name: String,
+    /**
+     * **Promoted value.** The one number this tile says at wall distance, or null when it has
+     * none — see [promoted]. Null leaves the slot empty and does not collapse it.
+     */
+    val promoted: String?,
+    /**
+     * **Status line.** Everything CLAUDE.md requires a tile to be able to say and nobody reads from
+     * four metres: the on/off in words, every age, and the reason when a poll stopped landing.
+     */
+    val status: String,
+    /**
+     * The status slot's second line, for the two tiles that have a reading with an age of its own —
+     * the strip's colour and the recuperator's climate — plus the lights group, whose second line
+     * says what its tap does rather than what it read. Null for the rest. Part of the status slot
+     * rather than a sixth one: it is the same words at the same size, and the slot reserves room for
+     * it on every tile whether or not it arrives.
+     */
+    val detail: String?,
+)
+
+/**
+ * The air conditioner's five slots. [error] is its group's — one Yandex call feeds every tile in
+ * it — and reaches the status line, not the values: a failed poll leaves the last reading on the
+ * wall, which is the whole reason the tile keeps showing it.
+ */
+internal fun anatomy(
+    tile: AcTileState,
+    now: Instant,
+    error: String?,
+): TileAnatomy = TileAnatomy(
+    art = glyph(tile),
+    controls = controls(tile),
+    name = tile.name,
+    promoted = promoted(tile),
+    status = statusLine(tile, now, error),
+    detail = null,
+)
+
+internal fun anatomy(
+    tile: CurtainTileState,
+    now: Instant,
+    error: String?,
+): TileAnatomy = TileAnatomy(
+    art = glyph(tile),
+    controls = controls(tile),
+    name = tile.name,
+    promoted = promoted(tile),
+    status = statusLine(tile, now, error),
+    detail = null,
+)
+
+/** The strip's, whose second line is the colour it reports and cannot be driven — see [colorLine]. */
+internal fun anatomy(
+    tile: LightStripTileState,
+    now: Instant,
+    error: String?,
+): TileAnatomy = TileAnatomy(
+    art = glyph(tile),
+    controls = controls(tile),
+    name = tile.name,
+    promoted = promoted(tile),
+    status = statusLine(tile, now, error),
+    detail = colorLine(tile, now),
+)
+
+/**
+ * The recuperator's, whose second line is the climate it measures — the same line [span] asks about
+ * to decide how wide the tile is.
+ *
+ * [groupError] rather than `error`: this is the one tile with two kinds of bad news, and its own is
+ * already on [RecuperatorTileState]. Both reach the status line; only the group's draws an outline.
+ */
+internal fun anatomy(
+    tile: RecuperatorTileState,
+    now: Instant,
+    groupError: String?,
+): TileAnatomy = TileAnatomy(
+    art = glyph(tile),
+    controls = controls(tile),
+    name = tile.name,
+    promoted = promoted(tile),
+    status = statusLine(tile, now, groupError),
+    detail = climateLine(tile, now),
+)
+
+internal fun anatomy(
+    tile: BulbTileState,
+    now: Instant,
+    error: String?,
+): TileAnatomy = TileAnatomy(
+    art = glyph(tile),
+    controls = controls(tile),
+    name = tile.name,
+    promoted = promoted(tile),
+    status = statusLine(tile, now, error),
+    detail = null,
+)
+
+/**
+ * **The lights group's five slots**, which is one card standing for a room's whole set of lamps.
+ *
+ * The name is the count — `7 lamps` — the promoted value is how many of them are lit, and the
+ * status line is the one [bulbGroupLine] has always written: the count again, the count on, the
+ * oldest of their readings, and the reason the poll stopped landing. Saying the count in two places
+ * is the same thing the air conditioner does with its target: the status line is what *ages* a
+ * value, so it has to name the value it is ageing.
+ *
+ * [notUpdating] rather than an error alone, because a group can stop being read without any call
+ * having failed — see [notUpdating] — and this tile is where the whole group's bad news is said
+ * once instead of seven times.
+ *
+ * **The detail line is the one on this wall that describes a gesture rather than a reading**, and it
+ * is here because this is the one tile whose tap has something behind it that the card cannot show:
+ * the seven names. The launcher's status line already does the same job — "opens the app" — for the
+ * same reason, and a wall panel that hides seven devices behind an unmarked card is a wall panel
+ * that has hidden them.
+ */
+internal fun anatomy(
+    group: BulbGroup,
+    now: Instant,
+    error: String?,
+    notUpdating: Boolean,
+    /** Whether the lamps are showing under it, which is the only thing the tile says about itself. */
+    open: Boolean,
+): TileAnatomy = TileAnatomy(
+    art = glyph(group),
+    controls = controls(group),
+    name = lampCount(group),
+    promoted = promoted(group),
+    status = bulbGroupLine(group, now, notUpdating, error),
+    detail = if (open) "tap to close" else "tap to see them",
+)
+
+/**
+ * The launcher's, and the only one taking no `now`: nothing polls it, so it has no reading to age.
+ * It still fills all five slots — an empty promoted value and a status line that says outright that
+ * there is no state to read, which is the honest version of the age it does not have.
+ */
+internal fun anatomy(tile: LauncherTileState): TileAnatomy = TileAnatomy(
+    art = glyph(tile),
+    controls = controls(tile),
+    name = tile.name,
+    promoted = promoted(tile),
+    status = statusLine(tile),
+    detail = null,
+)

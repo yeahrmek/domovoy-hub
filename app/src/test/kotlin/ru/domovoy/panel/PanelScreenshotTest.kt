@@ -23,9 +23,7 @@ import org.robolectric.annotation.GraphicsMode
 import ru.domovoy.R
 import ru.domovoy.panelDarkScheme
 import ru.domovoy.panelLightScheme
-
-/** Главная, which is where the panel sits when nobody has touched it. See [resetAfterIdle]. */
-private const val HOME_TAB = 0
+import ru.domovoy.panelTypography
 
 /**
  * What the panel actually looks like, recorded as images.
@@ -39,11 +37,12 @@ private const val HOME_TAB = 0
  *   families and a plain off tile, in both schemes. Nothing has ever checked that the wall matches
  *   it, and the failure mode is a colour retouched in light drifting in dark, which is the half of
  *   the day nobody is looking at.
- * - **The geometry.** Six columns against 753 dp, halves and thirds, 22 and 18 dp corners, 72 dp
- *   circles. All of it is in docs/ui.md and in no assertion — and four columns was the first draft,
- *   thrown out only because somebody held the tablet up to it.
- * - **The two group rules that have a shape**: which bulbs leave the row of circles, and what a
- *   room's tab looks like when it has bad news.
+ * - **The geometry.** Twelve columns against 753 dp, thirds and quarters, one 22 dp corner, one
+ *   328 dp tile height across every kind. All of it is in docs/ui.md and in no assertion, and the
+ *   one thing an image says that no assertion here does is whether the bottom edges of two
+ *   different *kinds* of tile actually land on the same line.
+ * - **The two group rules that have a shape**: which bulbs stay out of their room's lights group,
+ *   and what a room's heading looks like when it has bad news.
  *
  * **Recording and checking.** The reference images live in `src/test/screenshots/` and are
  * committed. `verifyRoborazziDebug` compares against them and fails on a difference, writing the
@@ -67,8 +66,8 @@ private const val HOME_TAB = 0
  */
 @RunWith(RobolectricTestRunner::class)
 // The wall, in numbers: 1600 × 2560 px at 340 dpi is 753 × 1204 dp, portrait, which is the
-// orientation the tablet is mounted in. Six columns is sized from that 753 and from nothing else,
-// so a screenshot at any other width tests a panel that does not exist. `sdk = 36` is targetSdk;
+// orientation the tablet is mounted in. The column widths are sized from that 753 and from nothing
+// else, so a screenshot at any other width tests a panel that does not exist. `sdk = 36` is targetSdk;
 // the module compiles against 37 deliberately (see app/build.gradle.kts) but the runtime behaviour
 // under test is 36's.
 @Config(sdk = [36], qualifiers = "w753dp-h1204dp-port-340dpi")
@@ -81,50 +80,80 @@ class PanelScreenshotTest {
 
     @Test
     fun `the panel on Главная, light`() {
-        capture("panel-home-light", panelLightScheme) { Panel(selected = HOME_TAB) }
+        capture("panel-home-light", panelLightScheme) { Panel() }
     }
 
     @Test
     fun `the panel on Главная, dark`() {
         // The wall is on this scheme from 19:00 to 07:00 — half of every day, and the half nobody
         // is watching when it switches. It gets the same picture taken of it as light does.
-        capture("panel-home-dark", panelDarkScheme) { Panel(selected = HOME_TAB) }
+        capture("panel-home-dark", panelDarkScheme) { Panel() }
     }
 
+    // **A taller frame than the wall, and only here.** [TileMatrix] is thirteen colour swatches
+    // rather than a picture of the panel — the wall's own 1204 dp is what the two Главная captures
+    // are for, and it is load-bearing there. A tile is 328 dp tall now that every kind fills the
+    // same five slots, so five rows of them — four moods and the outlined case — come to 1656 dp,
+    // and in a 1204 dp frame the failing row and the outline simply fell off the bottom and were
+    // recorded as nothing at all. The width stays 753: these cards sit three across, which is the
+    // wall's own wide column.
     @Test
+    @Config(qualifiers = "w753dp-h1700dp-port-340dpi")
     fun `the tile colours, light`() {
         capture("tiles-light", panelLightScheme) { TileMatrix() }
     }
 
     @Test
+    @Config(qualifiers = "w753dp-h1700dp-port-340dpi")
     fun `the tile colours, dark`() {
         capture("tiles-dark", panelDarkScheme) { TileMatrix() }
     }
 
     @Test
     fun `the lights group`() {
-        // Коридор: three lamps the panel has a value for, drawn as circles under one line, and the
-        // fourth — which has never reported — broken out as its own named tile above them.
+        // Коридор: three lamps the panel has a value for, standing behind one group tile, and the
+        // fourth — which has never reported — as its own named tile beside it.
+        //
+        // Three cards at the quarter width they take on the wall, which is what this picture is for:
+        // the group tile has to come out the same 328 dp as the lamp next to it, and the thing that
+        // would say otherwise is a picture rather than an assertion. The open and closed states are
+        // both here because they differ by one line of text in a slot that is reserved either way —
+        // if opening a group ever moved the card's bottom edge, this is where it would show.
         val koridor = Flat.bulbs.tiles.filter { it.room == "Коридор" }
         val group = bulbGroup(koridor)
         capture("lights-group", panelLightScheme) {
-            Column {
+            Row {
                 group.brokenOut.forEach { tile ->
-                    BulbTile(tile = tile, now = Flat.NOW, error = null)
+                    BulbTile(tile = tile, now = Flat.NOW, error = null, modifier = Modifier.weight(1f))
                 }
-                BulbCircles(group = group, now = Flat.NOW)
+                BulbGroupTile(group = group, now = Flat.NOW, modifier = Modifier.weight(1f))
+                BulbGroupTile(group = group, now = Flat.NOW, open = true, modifier = Modifier.weight(1f))
+                // The wall's fourth column, left empty: these are quarter-width tiles and a row of
+                // three at a third each would be a picture of a width the panel does not use.
+                Spacer(modifier = Modifier.weight(1f))
             }
         }
     }
 
     @Test
-    fun `a room with bad news is marked on the strip`() {
-        // The bulbs' poll has failed, so every room holding a bulb wears the dot and the error
-        // colour on its title — from Главная, without opening the room. This is the panel's only
-        // word that somewhere behind a tab has gone quiet, and it is a shape as much as a colour:
-        // Samsung's blue light filter is on permanently on this tablet and warms every red on it.
-        capture("tabs-marked", panelLightScheme) {
-            Panel(selected = HOME_TAB, bulbs = Flat.bulbs.copy(error = "HTTP 401"))
+    fun `the two states of a heading, and the longest room name in the flat`() {
+        // The headings alone, with nothing else in the frame — the same reason [TileMatrix] draws
+        // cards rather than tiles. A capture of the whole panel would put the marked room several
+        // sections down its own scroll and out of the picture.
+        //
+        // The mark is a shape as much as a colour: Samsung's blue light filter warms every red on
+        // this tablet when it is on, which is what erodes an error colour against a neutral.
+        //
+        // "Маленькая детская" is the longest name in `ROOM_ORDER` and is here because the tab strip
+        // clipped `Гардеробная` mid-word — the failure this whole shape replaces. A heading is
+        // 753 dp wide and wraps rather than clips, so what this picture has to show is that the
+        // longest name the flat has does not need to.
+        capture("headings", panelLightScheme) {
+            Column {
+                SectionHeading(title = "Коридор", marked = false)
+                SectionHeading(title = "Спальня", marked = true)
+                SectionHeading(title = "Маленькая детская", marked = false)
+            }
         }
     }
 
@@ -139,7 +168,11 @@ class PanelScreenshotTest {
         content: @Composable () -> Unit,
     ) {
         compose.setContent {
-            MaterialTheme(colorScheme = scheme) {
+            // Both halves of the theme, as `MainActivity` passes them. The scheme alone would leave
+            // these pictures on Material's phone type scale while the wall is on the panel's own,
+            // which is a screenshot of a panel that does not exist — the same trap as capturing at
+            // a width the tablet is not.
+            MaterialTheme(colorScheme = scheme, typography = panelTypography) {
                 Surface { content() }
             }
         }
@@ -147,21 +180,17 @@ class PanelScreenshotTest {
     }
 
     @Composable
-    private fun Panel(
-        selected: Int,
-        bulbs: BulbPanelState = Flat.bulbs,
-    ) {
+    private fun Panel() {
         PanelRooms(
             acs = Flat.acs,
             curtains = Flat.curtains,
             strips = Flat.strips,
             recuperators = Flat.recuperators,
-            bulbs = bulbs,
+            bulbs = Flat.bulbs,
             launchers = Flat.launchers,
             now = Flat.NOW,
             yandexInterval = Flat.YANDEX_INTERVAL,
             tuyaInterval = Flat.TUYA_INTERVAL,
-            selected = selected,
         )
     }
 
@@ -181,14 +210,12 @@ class PanelScreenshotTest {
             TileMood.entries.forEach { mood ->
                 Row(modifier = Modifier.fillMaxWidth()) {
                     TileHue.entries.forEach { hue ->
-                        TileCard(hue = hue, mood = mood, span = HALF_SPAN, modifier = Modifier.weight(1f)) {
-                            TileHeading(
-                                glyph = R.drawable.ic_bulb,
-                                name = "$hue · $mood",
-                                span = HALF_SPAN,
-                                modifier = Modifier.padding(12.dp),
-                            )
-                        }
+                        TileCard(
+                            anatomy = swatch("$hue · $mood"),
+                            hue = hue,
+                            mood = mood,
+                            modifier = Modifier.weight(1f),
+                        )
                     }
                 }
             }
@@ -197,23 +224,31 @@ class PanelScreenshotTest {
             // to be told apart from the filled red above it.
             Row(modifier = Modifier.fillMaxWidth()) {
                 TileCard(
+                    anatomy = swatch("группа не читается"),
                     hue = TileHue.Climate,
                     mood = TileMood.On,
-                    span = HALF_SPAN,
                     modifier = Modifier.weight(1f),
                     border = groupFailureBorder("not updating"),
-                ) {
-                    TileHeading(
-                        glyph = R.drawable.ic_bulb,
-                        name = "группа не читается",
-                        span = HALF_SPAN,
-                        modifier = Modifier.padding(12.dp),
-                    )
-                }
-                // The row's other half, left empty: the outline is one case and not three, and a
-                // second card here would be a colour pair that does not exist.
-                Spacer(modifier = Modifier.weight(1f))
+                )
+                // The row's other two thirds, left empty: the outline is one case and not three,
+                // and a second card here would be a colour pair that does not exist.
+                Spacer(modifier = Modifier.weight(2f))
             }
         }
     }
+
+    /**
+     * One colour pair, in the anatomy every tile on the wall wears. It fills all five slots so that
+     * the picture is of the card the panel actually draws — a swatch with an empty promoted value
+     * and no status line would be 100 dp shorter than any real tile and would record a shape that
+     * does not exist.
+     */
+    private fun swatch(name: String) = TileAnatomy(
+        art = R.drawable.ic_bulb,
+        controls = TileControls.None,
+        name = name,
+        promoted = "22 °C",
+        status = "on · 2 min ago",
+        detail = null,
+    )
 }

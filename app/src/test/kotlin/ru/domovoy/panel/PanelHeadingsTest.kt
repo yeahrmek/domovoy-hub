@@ -10,9 +10,9 @@ import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 
 /**
- * The tab strip consumes exactly what [roomSections] returns — one tab per section, in that order,
- * with Главная in front and the roomless section last. The mark is the other half of it: with
- * twelve rooms behind twelve tabs, a room that stopped answering has to say so from the strip, or
+ * The scroll consumes exactly what [roomSections] returns — one heading per section, in that order,
+ * with Главная in front and the roomless section last. The mark is the other half of it: fourteen
+ * rooms is more than a screenful, so a room that stopped answering has to say so on its heading, or
  * Спальня can be dead for a day behind a Главная that looks fine.
  *
  * What marks a room is its group's poll — the call failed, or none has succeeded in eight
@@ -20,7 +20,7 @@ import kotlin.time.Duration.Companion.seconds
  * says when the *device* last reported, and a lamp nobody has touched in three weeks is not a
  * broken lamp.
  */
-class PanelTabsTest {
+class PanelHeadingsTest {
     private val yandex = 15.seconds
     private val tuya = 6.minutes
     private val now = Instant.ofEpochSecond(1_786_000_000)
@@ -36,10 +36,10 @@ class PanelTabsTest {
         )
 
     @Test
-    fun `главная is the first tab`() {
-        val tabs = panelTabs(sections(bulbs = listOf(bulb("light-01", "Спальня"))), GroupErrors(), polling, now, yandex, tuya)
+    fun `главная is the first heading`() {
+        val headings = panelHeadings(sections(bulbs = listOf(bulb("light-02", "Коридор"))), GroupErrors(), polling, now, yandex, tuya)
 
-        assertEquals("Главная", tabs.first().title)
+        assertEquals("Главная", headings.first().title)
     }
 
     @Test
@@ -52,34 +52,86 @@ class PanelTabsTest {
                     bulb("light-02", "Коридор"),
                     bulb("light-03", "Спальня"),
                     bulb("light-04", "Зал"),
+                    bulb("light-09", room = null),
                 ),
             )
 
-        val tabs = panelTabs(sections, GroupErrors(), polling, now, yandex, tuya)
+        val headings = panelHeadings(sections, GroupErrors(), polling, now, yandex, tuya)
 
         assertEquals(
             listOf("Главная", "Коридор", "Зал", "Спальня", "Ванная", "Без комнаты"),
-            tabs.map { it.title },
+            headings.map { it.title },
         )
-        // Not a re-sort of its own: the tabs are the sections, in the order that function produced.
-        assertEquals(sections.map { it.room }, tabs.drop(1).dropLast(1).map { it.section.room })
+        // Not a re-sort of its own: the headings are the sections, in the order that function
+        // produced. The roomless one is dropped from both sides — it is the last heading rather
+        // than one of the rooms, and the test above is where it is checked.
+        assertEquals(
+            sections.filter { it.room != null }.map { it.room },
+            headings.drop(1).dropLast(1).map { it.section.room },
+        )
     }
 
     @Test
-    fun `без комнаты is last and is there even when every other section is empty`() {
-        // Nothing on the wall at all: the panel still offers the section that holds whatever no
-        // vendor placed, rather than a strip with one tab on it.
-        val tabs = panelTabs(emptyList(), GroupErrors(), polling, now, yandex, tuya)
+    fun `без комнаты is last, and holds what no vendor placed`() {
+        val headings =
+            panelHeadings(
+                sections(
+                    bulbs =
+                    listOf(
+                        bulb("light-02", "Коридор"),
+                        bulb("light-01", "Спальня"),
+                        bulb("light-09", room = null),
+                    ),
+                ),
+                GroupErrors(),
+                polling,
+                now,
+                yandex,
+                tuya,
+            )
 
-        assertEquals(listOf("Главная", "Без комнаты"), tabs.map { it.title })
-        assertEquals(null, tabs.last().section.room)
+        assertEquals(listOf("Главная", "Коридор", "Спальня", "Без комнаты"), headings.map { it.title })
+        assertEquals(null, headings.last().section.room)
+        assertEquals(listOf("light-09"), headings.last().section.bulbs.map { it.id })
     }
 
     @Test
-    fun `a section carries its own tiles onto its tab`() {
-        val tabs = panelTabs(sections(bulbs = listOf(bulb("light-03", "Спальня"))), GroupErrors(), polling, now, yandex, tuya)
+    fun `a section with nothing under it gets no heading`() {
+        // The strip always carried Без комнаты, empty or not, so that a device no vendor placed
+        // could never fall off the wall — a tab that is not there is a room that cannot be opened.
+        // Stacked, that argument does not hold: a section's tiles are on the same scroll as its
+        // heading, so the only thing an empty heading can do is claim a room that has nothing in
+        // it. Whatever *is* unplaced still brings its own heading with it, which the test above is.
+        val headings = panelHeadings(emptyList(), GroupErrors(), polling, now, yandex, tuya)
 
-        val bedroom = tabs.single { it.title == "Спальня" }
+        assertEquals(emptyList(), headings.map { it.title })
+    }
+
+    @Test
+    fun `главная is dropped when the panel has nothing to put on it`() {
+        // Not a special case — Главная is a section like the rest and goes when it is empty. The
+        // panel that produces this is one where every group failed before it ever had a tile, and
+        // what stands on it then is `groupFailures`, which is not a section and does not come
+        // through here.
+        val headings =
+            panelHeadings(
+                sections(bulbs = listOf(bulb("light-03", "Спальня"))),
+                GroupErrors(),
+                polling,
+                now,
+                yandex,
+                tuya,
+            )
+
+        // The bedroom is neither a favourite room nor failing, so Главная has nothing to pull in.
+        assertEquals(listOf("Спальня"), headings.map { it.title })
+    }
+
+    @Test
+    fun `a section carries its own tiles under its heading`() {
+        val headings = panelHeadings(sections(bulbs = listOf(bulb("light-03", "Спальня"))), GroupErrors(), polling, now, yandex, tuya)
+
+        val bedroom = headings.single { it.title == "Спальня" }
         assertEquals(listOf("light-03"), bedroom.section.bulbs.map { it.id })
     }
 
@@ -87,9 +139,9 @@ class PanelTabsTest {
     fun `a room is marked when its group's poll failed`() {
         val sections = sections(bulbs = listOf(bulb("light-03", "Спальня")))
 
-        val tabs = panelTabs(sections, GroupErrors(bulbs = "HTTP 500"), polling, now, yandex, tuya)
+        val headings = panelHeadings(sections, GroupErrors(bulbs = "HTTP 500"), polling, now, yandex, tuya)
 
-        assertTrue(tabs.single { it.title == "Спальня" }.marked)
+        assertTrue(headings.single { it.title == "Спальня" }.marked)
     }
 
     @Test
@@ -98,8 +150,8 @@ class PanelTabsTest {
         // read it for three minutes, which is twelve missed polls — and only the poll knows that.
         val sections = sections(bulbs = listOf(bulb("light-03", "Спальня")))
 
-        val tabs =
-            panelTabs(
+        val headings =
+            panelHeadings(
                 sections,
                 GroupErrors(),
                 polling.copy(bulbs = polledSecondsAgo(180)),
@@ -108,7 +160,7 @@ class PanelTabsTest {
                 tuya,
             )
 
-        assertTrue(tabs.single { it.title == "Спальня" }.marked)
+        assertTrue(headings.single { it.title == "Спальня" }.marked)
     }
 
     @Test
@@ -124,10 +176,10 @@ class PanelTabsTest {
                 ),
             )
 
-        val tabs = panelTabs(sections, GroupErrors(), polling, now, yandex, tuya)
+        val headings = panelHeadings(sections, GroupErrors(), polling, now, yandex, tuya)
 
         assertFalse(
-            tabs.single { it.title == "Спальня" }.marked,
+            headings.single { it.title == "Спальня" }.marked,
             "a bulb Yandex has never reported is still being read; the poll is what says otherwise",
         )
     }
@@ -138,10 +190,10 @@ class PanelTabsTest {
         // since carries a three-week-old `last_updated` while every poll has read it fine.
         val sections = sections(bulbs = listOf(bulb("light-03", "Спальня", secondsAgo(21 * 86_400))))
 
-        val tabs = panelTabs(sections, GroupErrors(), polling, now, yandex, tuya)
+        val headings = panelHeadings(sections, GroupErrors(), polling, now, yandex, tuya)
 
         assertFalse(
-            tabs.single { it.title == "Спальня" }.marked,
+            headings.single { it.title == "Спальня" }.marked,
             "a steady lamp is not a broken one",
         )
     }
@@ -162,11 +214,11 @@ class PanelTabsTest {
                 ),
             )
 
-        val tabs = panelTabs(sections, GroupErrors(), polling, now, yandex, tuya)
+        val headings = panelHeadings(sections, GroupErrors(), polling, now, yandex, tuya)
 
         assertEquals(
             listOf("Балкон"),
-            tabs.filter { it.marked }.map { it.title },
+            headings.filter { it.marked }.map { it.title },
             "one recuperator's own timeout is one room's news",
         )
     }
@@ -176,8 +228,8 @@ class PanelTabsTest {
         // A launcher is polled by nothing, so no group's news is its news. Marking the коридор
         // because its интерком tile has no poll behind it would put a warning on every panel —
         // including before the first refresh has landed anywhere.
-        val tabs =
-            panelTabs(
+        val headings =
+            panelHeadings(
                 roomSections(
                     acs = emptyList(),
                     curtains = emptyList(),
@@ -193,8 +245,8 @@ class PanelTabsTest {
                 tuya,
             )
 
-        assertFalse(tabs.single { it.title == "Коридор" }.marked)
-        assertFalse(tabs.single { it.title == "Без комнаты" }.marked)
+        assertFalse(headings.single { it.title == "Коридор" }.marked)
+        assertFalse(headings.single { it.title == "Без комнаты" }.marked)
     }
 
     @Test
@@ -209,7 +261,7 @@ class PanelTabsTest {
                 ),
             )
 
-        val home = panelTabs(sections, GroupErrors(), polling, now, yandex, tuya).first().section
+        val home = panelHeadings(sections, GroupErrors(), polling, now, yandex, tuya).first().section
 
         assertEquals(listOf("light-02"), home.bulbs.map { it.id })
     }

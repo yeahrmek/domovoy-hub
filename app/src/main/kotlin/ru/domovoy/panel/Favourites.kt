@@ -11,12 +11,13 @@ import kotlin.time.Duration
 private val FAVOURITE_ROOMS = listOf("Коридор", "Зал")
 
 /**
- * What the first tab shows: every tile of [FAVOURITE_ROOMS], every launcher tile, and every tile
+ * What the first section shows: every tile of [FAVOURITE_ROOMS], every launcher tile, and every tile
  * anywhere whose group has stopped updating — see [notUpdating].
  *
  * The launchers are here because the intercom is why somebody walks up to this panel at all, and
- * the not-updating tiles because a mark on a room's tab has to lead somewhere — a tile the panel
- * has stopped reading appears on Главная itself, not only as a dot on a tab nobody opens.
+ * the not-updating tiles because a mark on a room's heading has to lead somewhere — a tile the panel
+ * has stopped reading appears at the top of the wall, not only as a dot beside a room name that is
+ * eleven sections down the scroll.
  *
  * What is *not* pulled in is a tile whose own reading is old. That age is the vendor's
  * `last_updated`, which says when the device reported and not whether anyone is still reading it;
@@ -24,7 +25,7 @@ private val FAVOURITE_ROOMS = listOf("Коридор", "Зал")
  * "Stale".
  *
  * The section comes back with `room = null`: Главная is not a room, and the tiles on it are still
- * in the rooms [roomSections] put them in. It is named by its tab, in [panelTabs].
+ * in the rooms [roomSections] put them in. It is named by its heading, in [panelHeadings].
  *
  * Nothing is duplicated by construction — a tile is in exactly one of [sections] — so the коридор's
  * launcher and the коридор's stale bulb each come through once, whichever rule caught them.
