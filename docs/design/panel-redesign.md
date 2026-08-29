@@ -4,9 +4,10 @@
 Not a re-argument of what is already decided — `docs/ui.md` is the record of that and this doc does
 not repeat it. Where the two disagree, this doc says so and says why.
 
-**Status: open, nothing scheduled.** Every item below is written to be implementable on its own, in
-the order given, one concern per commit. Items 1–5 change what the wall looks like; 6–12 are
-smaller. Item 13 is an "ask first" and the branch stops there until it is asked.
+**Status: item 1 landed with the wall typography, item 4 with the neutral surfaces, items 6 and 9
+dissolved; the rest are open.** Every item below is written to be implementable on its own, in the
+order given, one concern per commit. Items 1–5 change what the wall looks like; 6–12 are smaller.
+Item 13 is an "ask first" and the branch stops there until it is asked.
 
 Read `docs/ui.md` first. It already tracks nine open questions and most of them are not here; the
 two it holds open that this doc argues are decided are in "Where this disagrees with ui.md".
@@ -112,7 +113,23 @@ moved and we are mid-drag → bar holds; our own write came back → bar holds.
 
 ---
 
-## 4 · `feat(panel): a failing group keeps its colour`
+## 4 · DONE — `feat(panel): a failing group keeps its colour`
+
+**Landed inside `feat(panel): the surfaces stop carrying hue`**, which is where PLAN.md put it: the
+question "what does a group failure do to a tile" and the question "what does a tile's surface carry
+at all" have one answer between them, and answering them apart would have answered them differently.
+
+What was built, against what is written below: the split is `TilePaint` in `TileLayout.kt`, a pure
+function per tile type, so a group error reaches the border and a tile's own error reaches the mood
+— for **every** kind and not only the recuperator. The hue survives a group failure completely,
+because it is an accent now and the outline is the only thing that changes. The second
+inconsistency this item found — the tab mark dual-coded, the tile fill colour-only — is gone with the
+fill: the failing tile's mark is a shape *and* a colour, an `error` chip under the glyph.
+
+The boot case this item predicted it would dispose of is disposed of, and by more than it expected:
+an unpolled tile is not outlined either, it is the quietest step of the neutral ramp.
+
+<details><summary>The item as it stood, kept for the record</summary>
 
 **What is wrong.** `docs/ui.md` defends `Failing` as a filled `errorContainer` on the grounds that
 this palette's rose is muted rather than alarming. That answers the wrong objection.
@@ -145,6 +162,8 @@ An outline at boot is a wall saying "not read yet", which is what it means.
 **Test.** `mood` and `groupFailureBorder` are already the seam; what changes is which of the two a
 group error reaches. The existing tile tests cover the pairs — add the group/own distinction for
 every tile type, not only the recuperator.
+
+</details>
 
 ---
 
@@ -334,13 +353,12 @@ disagreement is explicit rather than discovered later:
 - **Whether a stale group should reach the tile's paint.** ui.md calls it a spec change rather than
   a bug fix. `AGENTS.md`'s rule about a tile that cannot say when it was last read decides it. See
   item 5.
-- **`Off` and `Unknown` sharing `surfaceContainer`,** justified in ui.md by "there is no second
-  neutral to give them". There are five already written out in both schemes —
-  `surfaceContainerLow`, `High`, `Highest`, `surfaceDim`, `surfaceBright` — and the reserve fix
-  ui.md held for the unlit disc was exactly that move. The stated principle is that the paint must not undo
-  what the strings were careful about; here it does, and the material to fix it is already in the
-  palette. Not given an item of its own above because it wants to land with item 4, which is what
-  decides what the neutral family is carrying.
+- ~~**`Off` and `Unknown` sharing `surfaceContainer`,**~~ **settled with item 4, as this said it
+  should be.** The ramp carries the mood and only the mood: `On` `surfaceContainerHighest`,
+  `Failing` `High`, `Off` the base, `Unknown` `Lowest`. Four steps, four moods, and the paint no
+  longer undoes what the strings were careful about. What it cost is written down in ui.md under
+  "Watch on the wall": `Lowest` is past the background in both schemes, and a launcher is `Unknown`
+  for ever.
 
 ## What is not in this list, and why
 

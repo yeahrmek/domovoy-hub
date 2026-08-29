@@ -35,7 +35,7 @@ fun LightStripTile(
     TileCard(
         anatomy = anatomy(tile, now, error),
         hue = hue(tile),
-        mood = mood(tile.isOn, error),
+        paint = paint(tile, error),
         modifier = modifier,
         toggle = {
             Switch(checked = tile.isOn == true, onCheckedChange = { onToggle(tile.id) })

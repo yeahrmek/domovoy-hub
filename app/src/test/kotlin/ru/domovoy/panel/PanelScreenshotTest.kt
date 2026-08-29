@@ -195,14 +195,16 @@ class PanelScreenshotTest {
     }
 
     /**
-     * Every colour a tile can be: the three hues across, the four moods down, plus the outlined
-     * case that only the recuperators have — a filled red tile is *this device*, an outlined one is
-     * all five.
+     * Every way a tile can be painted: the three hues across, the four moods down, plus the outlined
+     * case — which every kind of tile has now rather than only the recuperators. **The four rows are
+     * four steps of one neutral ramp and the columns differ only in their accents**, which is the
+     * whole of what this picture is here to hold: a card that goes back to being filled with its
+     * family's container shows up here as three coloured rows before it shows up anywhere else.
      *
      * [TileCard] directly rather than one real tile of each kind, because the thing being recorded
-     * is the twelve-plus-one colour pairs and nothing else. A grid of real tiles would take the
-     * same picture with four sliders and eleven status lines in front of it, and would change every
-     * time one of those did.
+     * is the twelve-plus-one pairs and nothing else. A grid of real tiles would take the same
+     * picture with four sliders and eleven status lines in front of it, and would change every time
+     * one of those did.
      */
     @Composable
     private fun TileMatrix() {
@@ -213,25 +215,26 @@ class PanelScreenshotTest {
                         TileCard(
                             anatomy = swatch("$hue · $mood"),
                             hue = hue,
-                            mood = mood,
+                            paint = TilePaint(mood, groupFailing = false),
                             modifier = Modifier.weight(1f),
                         )
                     }
                 }
             }
-            // The group failure outline, on a tile that is otherwise ordinary. It is the one piece
-            // of tile paint that is a border rather than a fill, and the only reason it exists is
-            // to be told apart from the filled red above it.
+            // The group failure outline, on a tile that is otherwise ordinary and stays ordinary:
+            // the surface, the glyph, the promoted value and the mark all go on saying what they
+            // said, and the border is the only thing that is new. That is the picture — the tile
+            // beside it in the `On · Climate` cell above should differ from this one by a red line
+            // and by nothing else.
             Row(modifier = Modifier.fillMaxWidth()) {
                 TileCard(
                     anatomy = swatch("группа не читается"),
                     hue = TileHue.Climate,
-                    mood = TileMood.On,
+                    paint = TilePaint(TileMood.On, groupFailing = true),
                     modifier = Modifier.weight(1f),
-                    border = groupFailureBorder("not updating"),
                 )
                 // The row's other two thirds, left empty: the outline is one case and not three,
-                // and a second card here would be a colour pair that does not exist.
+                // and a second card here would be a pair that does not exist.
                 Spacer(modifier = Modifier.weight(2f))
             }
         }

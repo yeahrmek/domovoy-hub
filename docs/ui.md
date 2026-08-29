@@ -397,50 +397,66 @@ This is a pure function of the room sections. It gets a test.
   of a kiosk tablet is not a design input, and on a wall that shows two rooms' worth of amber and
   blue, a palette that changes when somebody changes the launcher background is a panel that stops
   meaning what it meant yesterday.
-- **A tile's colour has two axes, not one: what kind of thing it is, and what state it is in.** One
-  colour for everything that is on makes a wall where the air conditioner and the bedroom lamp are
-  the same object. So:
-  - **Domain** picks the role — climate (air conditioners, recuperators) takes `primaryContainer`,
-    light (bulbs, strips) takes `tertiaryContainer`, everything else (curtains, launchers) takes
-    `secondaryContainer`. Three families and no more; a fourth hue on a wall read from four metres
-    is decoration rather than information.
-  - **State** picks whether the domain colour is used at all. `On` fills with the domain container;
-    `Off` and `Unknown` are `surfaceContainer` whatever the domain, because an unlit lamp is not
-    warm and a stopped recuperator is not cool.
-- `hue(...)` is the domain half and lives in `TileLayout.kt` beside `mood` and `span` — a pure
-  function per tile type, out where a test reaches it. The composable maps the `(hue, mood)` pair to
-  a role pair and does no thinking of its own, exactly as it already does for `mood` alone.
+- **A tile's colour still has two axes — but only one of them is the surface.** The domain fills the
+  *accents* and the state fills the *card*, and the two swapped places in `feat(panel): the surfaces
+  stop carrying hue`. Before that, domain filled the card: climate `primaryContainer`, light
+  `tertiaryContainer`, everything else `secondaryContainer`, anything failing `errorContainer`. On
+  the wall that read as a patchwork of colour blocks rather than as a set of tiles — a deep blue air
+  conditioner, a dark amber strip, and two full saturated red rectangles among twelve — against a
+  reference that paints every tile the same neutral dark grey and spends its whole colour budget on
+  three small marks.
+  - **Domain picks the accent**, through one table, `tileAccent`: climate `primary`, light
+    `tertiary`, everything else `secondary`. Four things wear it — the 48 dp glyph, the promoted
+    value, the on mark, and the slider fill. Three families and no more; a fourth hue on a wall read
+    from four metres is decoration rather than information. The accent and not the container,
+    because all four are drawn *on* a neutral surface and have to show against it: worst ratio 5.0
+    in light and 7.2 in dark, on 44sp type that needs 3.
+  - **State picks the step of the neutral ramp** the card sits on, through `surface`: `On`
+    `surfaceContainerHighest`, `Failing` `High`, `Off` `surfaceContainer`, `Unknown` `Lowest`. One
+    content colour, `onSurface`, on all four — they are all neutral surfaces now.
+  - **The mark is the third thing**, and it is where the colour budget went: a 20 dp dot in the
+    family accent when the device is on, the glyph on a filled `error` chip when this device's own
+    poll failed, and nothing at all otherwise. `mark` in `TileLayout.kt`.
+- `hue(...)` is the domain half and lives in `TileLayout.kt` beside `mood`, `surface`, `mark`,
+  `paint` and `span` — a pure function per tile type, out where a test reaches it. The composable
+  maps them to roles and does no thinking of its own.
 - **No hex literals in the panel package.** A hardcoded colour is a tile that is unreadable in one of
   the two themes, and the theme that breaks is the one nobody is looking at when they check. The
   schemes are the one place values are written, and they are in the theme, not in `panel/`. Done in
   commit 2 and grep-clean; it stays that way.
-- `Off` and `Unknown` share `surfaceContainer`. There is no second neutral to give them, and the
-  difference is said in words on the status line, where it was always said — "off" against
-  "unknown". What must not happen is either of them borrowing the *on* colour and claiming a reading
-  nobody has taken.
-- **`Failing` is a filled `errorContainer`, on every tile.** This reverses what commit 2 landed on,
-  and the reversal is the decision rather than the drift, so both halves are kept here.
+- **`Off` and `Unknown` are two different neutrals, and that is settled.** They shared
+  `surfaceContainer` until the surfaces went neutral, because there was said to be no second neutral
+  to give them; there were five all along — `surfaceContainerLowest`, `Low`, `High`, `Highest` and
+  the base — and the reason to spend them arrived when the ramp stopped being one family's
+  compromise and became the whole panel's mood axis. `Unknown` takes `Lowest`, which is the least
+  emphatic container in both schemes, so a device the panel has never read sits 2 L\* past the wall's
+  own background and reads as a hole rather than as a card. The words still say it too, where they
+  always did.
+- **`Failing` no longer fills the card**, which reverses commit 2's reversal and keeps what each of
+  them was right about. Both halves are kept here because the reversal is the decision rather than
+  the drift.
 
-  Commit 2 painted it red on the reasoning that a failing tile is showing a value nobody has
-  confirmed — true, and still why `mood` ranks `Failing` above `isOn`. It was pulled because one
-  unreachable vendor made the panel read as an emergency, and because the paint is loudest exactly
-  when it is least useful: at boot, before anything has been read, every tile fails at once.
+  Commit 2 painted it neutral, and that lost the signal: a failing tile that looks identical to a
+  working one puts the whole weight on a status line nobody reads from four metres. The commit after
+  it filled the whole card with `errorContainer`, and that cost the surface at the moment the
+  surface was most needed — on the wall it came out as two of the twelve tiles on Главная being full
+  saturated red rectangles, by a wide margin the loudest thing on the panel, spending the strongest
+  signal available on "this one is offline".
 
-  It comes back because the neutral treatment failed the other way. A failing tile that looks
-  identical to a working one puts the whole weight on a status line nobody reads from four metres,
-  and the point of the mosaic is that a wall is read by colour and shape before it is read by words.
-  A pale rose is also not what commit 2 tried: the error container at this palette's tone is close to
-  the neutral in weight, and a wall of it reads as *muted* rather than as alarm.
+  The third answer is the mark: the glyph on a filled `error` chip, 48 dp, at the top-left of the
+  tile. Loud, local, an eighth of the card, and it leaves the tile still saying what kind of thing
+  it is and what it last read.
 
-  **The boot case is known and accepted, not overlooked.** Until the first poll lands every tile on
-  Главная will be rose. _If that reads as alarm on the wall rather than as "nothing has been read
-  yet", the fix is to tell "never polled" apart from "stopped polling" — `lastPolledAt == null`
-  against a stale timestamp, both of which `Staleness.kt` already has — and leave the first one
-  neutral._ That is the third option that was on the table and was not taken; it is written down so
-  it does not have to be rediscovered.
-- The group's own failure keeps its outline as well as the fill — the border on the recuperators when
-  the inventory call failed. Five outlined tiles is one vendor, not five broken units, and that
-  distinction survives everything above.
+  **The boot case is answered rather than accepted.** Until the first poll lands every tile is
+  `Unknown` rather than rose — a wall of quiet unmarked cards, which is what "nothing has been read
+  yet" looks like. The `lastPolledAt == null` special case this doc held in reserve is not needed.
+- **A group's failure outlines and a tile's own failure fills** — `docs/design/panel-redesign.md`
+  item 4, landed with the neutral surfaces because it is the same question. One `/v1.0/user/info`
+  feeds every ac, curtain, strip and bulb in the flat, so one failed call used to repaint about 34 of
+  the 35 tiles in a single frame and erase the family coding exactly when somebody needed it. Now
+  every kind follows the rule the recuperator already had: the group's bad news is a 3 dp `error`
+  border and *nothing else* changes on the tile; the device's own bad news is the chip. `TilePaint`
+  carries both and is the seam a test reaches.
 - **Every tile on the wall is a card, so there is one colour table again.** The bulbs used to draw as
   72 dp discs reaching into `tileColors` through a `when` of their own, and that second copy had
   already drifted: the unlit disc took `onSurfaceVariant` where the card beside it took `onSurface`.
@@ -472,6 +488,11 @@ tone-90 version of the same thing. Every on-colour is ≥ 7:1 on its container i
 
 ### The roles, measured on the glass
 
+**This measured the mapping that has since been replaced** — the one where a tile's family filled its
+card. It is kept because the *method* is the record worth having, and because it is the only time
+anybody has fitted the wall's actual pixels against the scheme: whatever replaces the table has to
+be checked the same way. The roles a tile takes today are in the two bullets above.
+
 **Checked on the wall, 2026-08-17, both themes.** Every tile takes the role it should, and the
 check was done by *measuring the screencap* rather than by looking at it, because looking at it is
 the thing this tablet will not let anybody do — see the filter below. Each tile's pixels were fitted
@@ -495,6 +516,11 @@ and by the time the dark capture was taken both the ac and the breather had gone
 code path — the hue-to-role map is one `when` and is theme-blind, and it was proven in light — but
 they are two colours nobody has laid eyes on. Opening the curtain to see it would move the flat's
 curtain, which is not a thing to do for a screenshot without asking.
+
+_Both of those questions are gone rather than answered_: no tile is painted with a container any
+more, so an open curtain and a lit ac in dark are ordinary steps of the neutral ramp with accents on
+them. What has taken their place is one question of the same shape — nobody has seen the `Unknown`
+step on the glass, and it is the step that goes past the background.
 
 ### The filter cannot be turned off the way this doc said
 
@@ -955,9 +981,19 @@ out wrong. None of them can be settled from a screenshot.
 
 - **Does anyone work out that the sliders are draggable?** They have no handle. If not, the answer is
   a handle, not a thicker track.
-- **Does Главная read as alarm at boot?** Every tile is rose until the first poll lands. If it does,
-  tell `lastPolledAt == null` from a stale timestamp — `Staleness.kt` has both — and leave the
-  never-polled case neutral.
+- ~~**Does Главная read as alarm at boot?**~~ **Gone with the filled `errorContainer`.** Nothing is
+  rose at boot any more: an unread tile is the quietest step of the neutral ramp, which is what
+  "nothing has been read yet" looks like.
+- **Does an `Unknown` tile read as a hole or as a missing tile?** It is `surfaceContainerLowest`,
+  which is 2 L\* past the wall's own background in both schemes, so its card all but disappears and
+  only its words are left. That is the intended answer to "the panel has read nothing here" — but
+  **the launcher tiles are `Unknown` permanently**, nothing polls them, so Домофон is the quietest
+  card on the wall for ever. If that is wrong on the glass, the answer is not a lighter step for
+  everything: it is that a launcher's "no state to read" is a different thing from a device's
+  "never reported", and `mood` has no value for it today.
+- **Does a 20 dp on mark carry at four metres?** It is beside a switch that says the same thing on
+  five kinds and beside nothing at all on the curtain, the lights group and the launcher. If it does
+  not carry, it grows before it changes shape.
 - **Does the Tabler bulb look foreign beside seven Material Symbols?** If it does, move the other
   seven to Tabler rather than the bulb back to Material.
 - ~~**Can a finger find an _unlit_ lamp?**~~ **Dissolved by the group tile, not answered.** The
@@ -982,11 +1018,10 @@ out wrong. None of them can be settled from a screenshot.
   of `isOn` and the error and nothing else, so a group that has stopped polling still paints every
   tile in it as confidently on. Commit 3 makes the signal trustworthy enough to be worth asking; it
   does not answer it, and wiring it in is a spec change rather than a bug fix.
-- What a tile should look like when `isOn` is null. Today `Unknown` and `Off` share
-  `surfaceContainer`, so a lamp the panel knows nothing about is indistinguishable from one it knows
-  is off — the strings tell them apart and the colours do not. The lights group answers it for one
-  tile type only, by keeping the null-state bulbs out of the group and giving them a tile that says
-  "unknown" in words.
+- ~~What a tile should look like when `isOn` is null.~~ **Answered**: `Unknown` takes
+  `surfaceContainerLowest` and `Off` the base container, so the two are different cards and not only
+  different words. See "Theme". What is left of it is a wall check rather than a question — see
+  "Watch on the wall".
 - **Whether the eight glyphs need one family**, now that the Tabler bulb sits in the mosaic beside
   Material's `mode_fan` and `vacuum` rather than alone in a disc row. "Move the other seven" is not
   available — Tabler has no covering icon and no light strip — so the choices are the bulb back to

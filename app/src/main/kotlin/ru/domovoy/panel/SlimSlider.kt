@@ -13,7 +13,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 
 /**
@@ -81,7 +80,7 @@ internal fun SlimSlider(
     hue: TileHue,
     modifier: Modifier = Modifier,
 ) {
-    val filled = filledTrackColor(hue)
+    val filled = tileAccent(hue)
     val rest = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = REST_OF_TRACK_ALPHA)
     Slider(
         value = value,
@@ -112,17 +111,8 @@ internal fun SlimSlider(
     )
 }
 
-/**
- * The filled portion's colour: the tile's domain, on the same two axes as everything else on the
- * wall — see [tileColors], which is the same question asked of the card behind this.
- *
- * The *accent* of each family rather than its container, because that container is what the tile is
- * already painted with when it is on: a climate slider on a climate tile has to be the blue that
- * shows against pale blue, not that same pale blue again.
- */
-@Composable
-private fun filledTrackColor(hue: TileHue): Color = when (hue) {
-    TileHue.Climate -> MaterialTheme.colorScheme.primary
-    TileHue.Light -> MaterialTheme.colorScheme.tertiary
-    TileHue.Neutral -> MaterialTheme.colorScheme.secondary
-}
+// The filled portion's colour is [tileAccent] — the same table the glyph, the promoted value and
+// the on mark read, in `TileCard.kt`. It was a private copy of that `when` here, written when the
+// card behind this was painted with the family's *container* and the slider needed the accent to
+// show against it. The card is neutral now and every one of the four wants the same answer, so
+// there is one table again rather than two that happen to agree.

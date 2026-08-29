@@ -29,7 +29,9 @@ fun AcTile(
     TileCard(
         anatomy = anatomy(tile, now, error),
         hue = hue(tile),
-        mood = mood(tile.isOn, error),
+        // [error] is the *group's* — one Yandex call feeds every ac in the flat — so it outlines
+        // this tile rather than filling it. See [TilePaint].
+        paint = paint(tile, error),
         modifier = modifier,
         toggle = {
             Switch(checked = tile.isOn == true, onCheckedChange = { onToggle(tile.id) })

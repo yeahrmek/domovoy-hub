@@ -21,16 +21,15 @@ fun CurtainTile(
     error: String? = null,
     onSetOpen: (String, Double) -> Unit = { _, _ -> },
 ) {
-    // The curtain has no switch to read a mood off, so its position is the mood: open at all is on,
-    // fully shut is off, and never reported is unknown — which is the same three answers the
-    // status line above it already gives, in the same order.
+    // The curtain has no switch to read a mood off, so its position is the mood — which is [paint]'s
+    // answer now, out where a test reaches it, and [error] is its group's and outlines.
     // The only tile with a slider and no switch, and the anatomy says so out loud rather than by
     // leaving a slot unfilled — see [controls]. Its glyph is the one on the wall that carries state
     // rather than labelling a type: the flat's curtain says what it is doing from across the room.
     TileCard(
         anatomy = anatomy(tile, now, error),
         hue = hue(tile),
-        mood = mood(tile.openPercent?.let { it > 0 }, error),
+        paint = paint(tile, error),
         modifier = modifier,
         level = {
             val bounds = tile.bounds

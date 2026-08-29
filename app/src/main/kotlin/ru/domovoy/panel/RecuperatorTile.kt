@@ -15,10 +15,11 @@ import java.util.Locale
  * a tile that says "not updating" here means *this* recuperator, and the one next to it may be
  * perfectly current.
  *
- * This is the only tile with both kinds of bad news, and the two are drawn differently on purpose:
- * [RecuperatorTileState.error] is one device's and *fills* that tile, [groupError] is the inventory
- * call and *outlines* all five. Filling all five for a group failure would say five recuperators
- * broke; outlining the one that timed out would bury it among four that are fine.
+ * This is the only tile with both kinds of bad news at once, and the two are drawn differently on
+ * purpose: [RecuperatorTileState.error] is one device's and *fills* that tile's art with the error
+ * chip, [groupError] is the inventory call and *outlines* all five. Filling all five for a group
+ * failure would say five recuperators broke; outlining the one that timed out would bury it among
+ * four that are fine. Every other kind of tile follows the same rule now — see [TilePaint].
  *
  * Its width is the one span in the panel decided by content — see [span].
  */
@@ -35,9 +36,8 @@ fun RecuperatorTile(
     TileCard(
         anatomy = anatomy(tile, now, groupError),
         hue = hue(tile),
-        mood = mood(tile.isOn, tile.error),
+        paint = paint(tile, groupError),
         modifier = modifier,
-        border = groupFailureBorder(groupError),
         toggle = {
             Switch(checked = tile.isOn == true, onCheckedChange = { onToggle(tile.id) })
         },

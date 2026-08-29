@@ -26,7 +26,7 @@ fun BulbTile(
     TileCard(
         anatomy = anatomy(tile, now, error),
         hue = hue(tile),
-        mood = mood(tile.isOn, error),
+        paint = paint(tile, error),
         modifier = modifier,
         toggle = {
             Switch(checked = tile.isOn == true, onCheckedChange = { onToggle(tile.id) })
@@ -63,9 +63,10 @@ fun BulbGroupTile(
     now: Instant,
     modifier: Modifier = Modifier,
     /**
-     * The bulb group's error: the one poll behind all of them failed. The tile goes rose and its
-     * status line names the reason — said once for the whole group rather than once per lamp,
-     * because one `/v1.0/user/info` call is behind every one of them.
+     * The bulb group's error: the one poll behind all of them failed. The tile takes the group
+     * outline and its status line names the reason — said once for the whole group rather than once
+     * per lamp, because one `/v1.0/user/info` call is behind every one of them. It is *only* the
+     * group's: a lights group has no failure of its own to fill with.
      */
     error: String? = null,
     /** Whether that poll has stopped landing at all, with or without a call having failed. */
@@ -77,7 +78,7 @@ fun BulbGroupTile(
     TileCard(
         anatomy = anatomy(group, now, error, notUpdating, open),
         hue = hue(group),
-        mood = mood(group, error),
+        paint = paint(group, error),
         modifier = modifier,
         onClick = onOpen,
     )

@@ -24,30 +24,38 @@ import androidx.compose.ui.unit.sp
  * different tones and cannot drift apart when one of them is retouched. The error ramp is
  * Material's, untouched: red is the one thing on this panel that must look like everybody else's.
  *
- * **What the three tile families land on**, which is the thing this file exists to get right —
- * climate takes `primaryContainer`, light takes `tertiaryContainer`, and everything else takes
- * `secondaryContainer` (see `TileHue`). Measured as CIE ΔE against each other and against the
- * `surfaceContainer` that every *off* tile wears:
+ * **No tile is painted with a family colour any more, and that is the change this file's table used
+ * to describe.** Climate took `primaryContainer`, light `tertiaryContainer`, everything else
+ * `secondaryContainer`, and anything failing a full `errorContainer` — twelve container roles doing
+ * the wall's colouring, which came out as a patchwork of colour blocks with two saturated red
+ * rectangles in it. The family moved to the *accents* and the surfaces went neutral: see
+ * `tileColors`, `tileAccent` and `surface` in `panel/`. The three container ramps are still what
+ * this file generates and are not retuned; what reads them changed.
  *
- * | | light | dark |
+ * So the roles that carry the wall now are these, and the numbers worth having are their **contrast
+ * on the neutral steps they are written on** rather than ΔE between fields that no longer exist:
+ *
+ * | Role | What wears it | Weakest ratio on any of the four steps |
  * | --- | --- | --- |
- * | climate / light | 37 | 75 |
- * | climate / neutral | 16 | 26 |
- * | light / neutral | 35 | 51 |
- * | neutral / off | 20 | 19 |
- * | climate / off | 13 | 36 |
- * | light / off | 26 | 48 |
+ * | `primary` | climate's glyph, value, mark and slider | 5.0 light / 7.2 dark |
+ * | `tertiary` | light's, the same four | 5.0 / 7.2 |
+ * | `secondary` | the neutral family's, the same four | 5.0 / 7.2 |
+ * | `onSurface` | every word on every tile | 13.3 / 9.6 |
+ * | `error` | the failing chip and the group outline | 5.1 / 7.2, and it carries `onError` at 6.5 / 7.7 |
  *
- * The neutral family is told apart by **lightness rather than by hue**, and that is deliberate
- * twice over. It is the family defined by being neither of the other two, so a hue of its own would
- * be a third seed the brief did not ask for — and it could not have one anyway: sRGB holds no more
- * than ~16 chroma of blue at tone 90, so a second blue at the container tone comes out as the first
- * one. Its container sits at tone 75 instead of Material's 90, which is what buys the 16 and 20
- * above; at tone 90 it was 12 from climate and 6 from a plain off tile, and 6 on a wall is one
- * colour.
+ * All of them clear 4.5, and the promoted value they are largest on is 44sp type that needs 3.
  *
- * Contrast holds everywhere it has to: every on-colour is at least 7:1 against the container it is
- * written on, in both schemes, and the weakest ratio in either is `outline` on `surface` at 4.3.
+ * The neutral family is told apart by **lightness rather than by hue**, and that answer is now the
+ * whole panel's rather than one family's compromise. It was deliberate twice over here: the neutral
+ * family is defined by being neither of the other two, so a hue of its own would be a third seed the
+ * brief did not ask for — and it could not have one anyway, since sRGB holds no more than ~16 chroma
+ * of blue at tone 90 and a second blue at the container tone comes out as the first one. What is
+ * told apart by lightness now is the *mood*, on the five `surfaceContainer` steps, and `secondary`
+ * is what is left of the neutral family — an accent beside the other two rather than a container.
+ *
+ * `secondaryContainer` at tone 75 is what that compromise bought and nothing reads it today. It
+ * stays written out for the reason the `fixed` roles below do: an unstyled Material component that
+ * reaches for it must not fall through to the baseline violet.
  *
  * No dynamic colour anywhere. The wallpaper of a kiosk tablet is not a design input, and on a wall
  * showing two rooms' worth of amber and blue, a palette that moves when somebody changes the

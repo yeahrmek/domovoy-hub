@@ -171,17 +171,19 @@ class TileLayoutTest {
     fun `a group with any lamp lit is on, and one with none is off`() {
         // What somebody walking past reads off the colour is whether there is light in that room;
         // how many of the seven are lit is said exactly, in words, at wall size.
-        assertEquals(TileMood.On, mood(lamps(on = 1, off = 6), error = null))
-        assertEquals(TileMood.On, mood(lamps(on = 7, off = 0), error = null))
-        assertEquals(TileMood.Off, mood(lamps(on = 0, off = 7), error = null))
+        assertEquals(TileMood.On, mood(lamps(on = 1, off = 6)))
+        assertEquals(TileMood.On, mood(lamps(on = 7, off = 0)))
+        assertEquals(TileMood.Off, mood(lamps(on = 0, off = 7)))
     }
 
     @Test
-    fun `a group whose poll failed is failing, however many of its lamps were lit`() {
-        // Failing outranks the count for the same reason it outranks a tile's own isOn: those seven
-        // values are what the panel last read and nobody has confirmed since.
-        assertEquals(TileMood.Failing, mood(lamps(on = 7, off = 0), error = "HTTP 500"))
-        assertEquals(TileMood.Failing, mood(lamps(on = 0, off = 7), error = "HTTP 500"))
+    fun `a group whose poll failed keeps its count's mood and takes the outline`() {
+        // It used to be Failing, which meant a filled red card. One `/v1.0/user/info` is behind
+        // every lamp in the flat, so that one failure filled every light tile on the wall red at
+        // once — the wall stopped saying which family anything belonged to at exactly the moment
+        // somebody needed to work out what broke. The group's bad news outlines now.
+        assertEquals(TilePaint(TileMood.On, groupFailing = true), paint(lamps(on = 7, off = 0), "HTTP 500"))
+        assertEquals(TilePaint(TileMood.Off, groupFailing = true), paint(lamps(on = 0, off = 7), "HTTP 500"))
     }
 
     @Test
@@ -264,6 +266,104 @@ class TileLayoutTest {
         val launchers = launcherTiles { true }.associateBy { it.packageName }
         assertEquals(R.drawable.ic_video_camera_front, glyph(launchers.getValue("com.domonap.app")))
         assertEquals(R.drawable.ic_vacuum, glyph(launchers.getValue("com.xiaomi.smarthome")))
+    }
+
+    // --- What the surface carries, and what the marks do -------------------------------------
+    //
+    // A tile's card is on the neutral ramp and on nothing else: the family is an accent now — the
+    // glyph, the promoted value, the slider fill, the on mark — and the surface is free to carry
+    // one thing. What it carries is the mood, so the table below is every mood against the step it
+    // takes, and the failure it catches is two moods quietly sharing a step again.
+
+    @Test
+    fun `a tile's surface is decided by its mood and by nothing else`() {
+        // The signature is half the assertion — `surface` cannot see a hue — and the rest is that
+        // the four moods come out as four different steps. Off and Unknown shared `surfaceContainer`
+        // until now, so a lamp the panel knew nothing about was the same colour as one it knew was
+        // off, and only the words told them apart.
+        val steps = TileMood.entries.map { surface(it) }
+
+        assertEquals(steps.size, steps.toSet().size, "two moods on one step: $steps")
+    }
+
+    @Test
+    fun `a lit tile is raised, a tile nobody has read is sunk, and a failing one is above both`() {
+        // One ordering, and it is how much the tile is asserting: a lit device is the exception
+        // worth seeing on a wall of off ones, a failing one wants the eye more than a quiet one,
+        // and a tile with no reading at all asserts the least of the four.
+        assertTrue(surface(TileMood.On) > surface(TileMood.Failing))
+        assertTrue(surface(TileMood.Failing) > surface(TileMood.Off))
+        assertTrue(surface(TileMood.Off) > surface(TileMood.Unknown))
+    }
+
+    @Test
+    fun `the marks are the on indicator and the failure, and nothing else is marked`() {
+        // The whole colour budget of a tile, after the fields went neutral: a small saturated mark
+        // for a device that is on, a filled one for a device whose own poll failed, and nothing at
+        // all for the two states where the panel has no news.
+        assertEquals(TileMark.Family, mark(TileMood.On))
+        assertEquals(TileMark.Failure, mark(TileMood.Failing))
+        assertEquals(TileMark.None, mark(TileMood.Off))
+        assertEquals(TileMark.None, mark(TileMood.Unknown))
+    }
+
+    // --- The two kinds of bad news ------------------------------------------------------------
+    //
+    // `docs/design/panel-redesign.md` item 4. A group's failure outlines and a tile's own failure
+    // fills, and the reason is arithmetic: one Yandex call feeds every ac, curtain, strip and bulb
+    // in the flat, so one failed `/v1.0/user/info` used to repaint about 34 of the 35 tiles in a
+    // single frame. The recuperator had the split right already and was the only tile that did.
+
+    @Test
+    fun `a group failure outlines every kind of tile and leaves its mood alone`() {
+        // Every type, not only the recuperator: the hue has to survive a group failure, because
+        // "which of these is the air conditioner" is the question somebody is asking when they walk
+        // up to a wall that has gone wrong.
+        assertEquals(TilePaint(TileMood.On, groupFailing = true), paint(ac(isOn = true), "HTTP 500"))
+        assertEquals(TilePaint(TileMood.Off, groupFailing = true), paint(bulb(isOn = false), "HTTP 500"))
+        assertEquals(TilePaint(TileMood.On, groupFailing = true), paint(strip(isOn = true), "HTTP 500"))
+        assertEquals(
+            TilePaint(TileMood.On, groupFailing = true),
+            paint(curtain(openPercent = 40.0), "HTTP 500"),
+        )
+        assertEquals(
+            TilePaint(TileMood.On, groupFailing = true),
+            paint(recuperator(temperature = 29.3, humidity = 32.2), "HTTP 500"),
+        )
+        assertEquals(TilePaint(TileMood.On, groupFailing = true), paint(lamps(on = 3, off = 2), "HTTP 500"))
+    }
+
+    @Test
+    fun `a tile's own failure fills and does not outline`() {
+        // The recuperator is the only device with a per-device error — state costs one Tuya call
+        // each — and the launcher's missing app is the other tile-sized failure on the wall.
+        assertEquals(
+            TilePaint(TileMood.Failing, groupFailing = false),
+            paint(recuperator(temperature = null, humidity = null, isOn = true, error = "timeout"), null),
+        )
+        assertEquals(TilePaint(TileMood.Failing, groupFailing = false), paint(launcher(openable = false)))
+        assertEquals(TilePaint(TileMood.Unknown, groupFailing = false), paint(launcher(openable = true)))
+    }
+
+    @Test
+    fun `a recuperator with both kinds of bad news says both`() {
+        // Filled and outlined at once. Five outlined tiles is one vendor; the filled one among them
+        // is the unit that actually stopped answering, and burying it would be the worse mistake.
+        assertEquals(
+            TilePaint(TileMood.Failing, groupFailing = true),
+            paint(recuperator(temperature = null, humidity = null, isOn = true, error = "timeout"), "HTTP 500"),
+        )
+    }
+
+    @Test
+    fun `a curtain that is open at all is on, whatever is failing around it`() {
+        // The curtain has no switch to read a mood off, so its position is the mood — the same
+        // three answers its status line gives, in the same order. It used to be worked out inside
+        // the composable, where no test could reach it.
+        assertEquals(TileMood.On, paint(curtain(openPercent = 40.0), null).mood)
+        assertEquals(TileMood.Off, paint(curtain(openPercent = 0.0), null).mood)
+        assertEquals(TileMood.Unknown, paint(curtain(openPercent = null), null).mood)
+        assertEquals(TileMood.On, paint(curtain(openPercent = 40.0), "HTTP 500").mood)
     }
 
     // --- What one tile promotes ------------------------------------------------------------
