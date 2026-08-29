@@ -110,6 +110,79 @@ same sliders, same switches, **same tile heights and same bottom edges**. *Inten
 already reserves 64 dp, so 48 fits where 24 sat and no tile grows — which is precisely the check
 that says T6 is an art change and not a layout change.
 
+## On the tablet — 2026-08-29 23:29
+
+Added after the fact. The five task runs above were **JVM-only**; Roborazzi renders through
+Robolectric and is a layout and palette check, not a picture of the Galaxy Tab. `installDebug` was
+then run on the wall tablet (SM-T875, `R52RC042MSH`) and the panel captured with `screencap` at
+23:29 and scrolled to its end. Three captures, in `build/` (gitignored, not committed).
+
+A screencap answers layout questions. It cannot answer legibility at four metres — that still needs
+a person in the hallway, and the T1 and T6 assumptions below stand unmeasured.
+
+### Confirmed on glass
+
+- **The anatomy survives real Roboto.** The failure I called most likely — the tablet wrapping a
+  status line one line further than Robolectric, so heights stop agreeing — **did not happen**.
+  Bottom edges align within every row in all three captures.
+- **Real device names are longer than the fixtures and they fit.** `Кондиционер в зале`,
+  `Подсветка в зале`, `Детская ванная` on one line; `Бризер данина комната` wraps to two rather than
+  clipping.
+- **T2's acceptance criterion holds on the wall.** The scroll reaches `Без комнаты`, and `Гардероб`
+  and `Кабинет` — two of the rooms that were off the end of the tab strip entirely — are reachable
+  and unclipped.
+- **48 dp glyphs render and read**; no tile grew for them, as the JVM capture predicted.
+- Vertical fill: content runs the full height with the next room's heading below the fold.
+
+### The blue light filter is back on, and that is T5's premise returning
+
+`settings get system blue_light_filter` → **1**, at 23:29, inside the 19:00–07:00 dark window.
+Sampled off the capture:
+
+| | `PanelTheme.kt` asks | on the wall tonight | T0's filter-on capture |
+| --- | --- | --- | --- |
+| background | `#111318` | `#402F13` | `#402F13` |
+| `surfaceContainer` (AC, off) | — | `#4A3A1D` | `#4A3A1D` |
+| light container (lit) | `#663E00` | `#845200` | `#845200` |
+
+**Byte-identical to the numbers T0 measured with the filter on.** The wall is one brown; background,
+neutral container and lit amber differ by lightness alone.
+
+This matters because of *how* T5 was dropped. T0 turned the filter off, saw the palette land exactly,
+and concluded the palette was never wrong — which is true. But the filter's standing state on this
+tablet is **on**; that is a measured fact from 2026-08-16, and it is 1 again now. T0 wrote its own
+condition: _"If the filter goes back on at night, the panel needs a palette that survives it — that
+is the same work T5 described, and it should be re-opened deliberately rather than assumed."_ That
+condition is met tonight.
+
+**I have not built T5 and did not touch it** — it is dropped and I was told not to. Nor did I change
+the filter: T0 is explicit that an agent must not change device display settings. This is a report,
+and re-opening T5 is a deliberate decision that is not mine to make.
+
+### The blue family is still unverified on the wall — third capture running
+
+Every climate tile in all three captures is `off`: the air conditioner, and all four `Бризер`. So no
+`primaryContainer` was drawn tonight either. T0 already flagged this about its own two captures
+(_"No climate tile was on in either capture, so the blue family is still unverified on the wall"_),
+and that remains exactly true. Whatever is decided about the filter, **nobody has yet seen a lit blue
+tile on this tablet.**
+
+### New, from real content rather than fixtures
+
+- **Single-tile rooms waste most of the width.** A room whose only device is one lamp gets one 188 dp
+  tile and ~565 dp of empty wall beside it, and most of the fourteen rooms are that. T2 fixed the
+  empty *bottom half*; on real data a horizontal version of the same problem is now the dominant
+  visual. Neither T2 nor T3 owns it — it is a question about what a one-device room should look like.
+- **`0 on` at 44sp** is what a room whose single lamp is off promotes. It is a lot of wall for that
+  fact, and it is the promoted-value rule working exactly as T1 specified.
+- **The redundancy I flagged is starker on real content** than in the fixtures: `16 °C` above
+  `off · 14 h ago · 16 °C · 14 h ago`; `1 on` above `1 lamp · 1 on · never read`.
+- **An air conditioner that is `off` still promotes its target, `16 °C`.** Deliberate — `promoted()`
+  does not move with `mood`, so a tile keeps its last value — but a setpoint for a unit that is off
+  reads as a temperature the room is at. Worth a decision.
+- The panel is not immersive: Samsung's status bar and navigation bar frame it. Pre-existing, not
+  touched by this work.
+
 ## Assumptions
 
 - **`PLAN.md` was committed first** (`bea50c2`). It arrived untracked, and the T6 agent ran in an
@@ -136,9 +209,11 @@ that says T6 is an art change and not a layout change.
 
 ## What I skipped, and why
 
-- **T5 — dropped, as instructed.** Not built, not started, no agent given it. T0 answered it on
-  2026-08-29: the blue light filter was the whole problem. The standing caveat in T0 stands — if the
-  filter goes back on permanently, T5 is re-opened deliberately.
+- **T5 — dropped, as instructed.** Not built, not started, no agent given it. **But see "On the
+  tablet": the filter is on again tonight and the wall reads as one brown, which is the exact
+  condition T0 attached to its own answer.** T5 stays dropped until somebody re-opens it
+  deliberately; this report only records that the state it was dropped on is not the state the
+  tablet is in.
 - **T0** is not an agent task and was already answered.
 - **T6's first two options were reported and stopped, per the task's own instruction.** Photographing
   the hardware and sourcing renders both need assets an agent cannot produce (and the second brings
