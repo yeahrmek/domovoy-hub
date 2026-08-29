@@ -222,6 +222,38 @@ tab mark doing its job and looks alarming anyway.
    failed, or when every reading in it is stale. Without this the tabs hide eleven rooms, and Спальня
    can be dead for a day behind a Главная that looks fine. The mark is on the tab, so it is visible
    from Главная without opening the room.
+
+   **The mark is a `•` after the title _and_ the title in the error colour — both, not either.**
+   Commit 1 wrote it as a character *rather than* a colour, because there was no palette to trust in
+   both themes; commit 5 wrote both schemes out and that stopped being true, so the colour is here
+   now. The dot stays for two reasons that are this wall's rather than general principle. Colour
+   alone is not a signal everyone can perceive, and this dot is the panel's only word that a room
+   has gone quiet. And **Samsung's blue light filter is on permanently on this tablet** and tints
+   the whole screen warm, which is exactly what erodes a red against a neutral — that has bitten
+   here once already, on the bulbs, where a lit and an unlit lamp composited to two browns told
+   apart by lightness (see "Icons"). The answer is the same both times: the shape carries the state
+   and the colour reinforces it.
+
+   **A tab that is marked _and_ selected says both things, and that is deliberate.** Material's
+   `Tab` defaults *both* of its content colours to the strip's own — confirmed by reading `Tab`'s
+   signature out of material3's `classes.jar` on this BOM, not from the docs — so on this panel
+   "which tab is open" has only ever been said by the indicator underneath and never by the label
+   colour. So the error colour is given to a marked tab whether or not it is the open one, and the
+   indicator is left alone at `primary`. Neither signal loses: an error-coloured title with the
+   selection bar still under it.
+
+   **Measured on the glass, 2026-08-29, filter on, both themes**, with the network dropped so that
+   Yandex failed for real. The strip composited as `#F9E8CD` in light and `#402F13` in dark, both
+   the values the bulb work recorded for a filter that is genuinely on, so these are real readings.
+   A marked title came out `#C23F18` in light and `#F5B492` in dark against an unmarked `#366E82`
+   and `#B7C1CD` — **ΔE 91 apart in light and 40 in dark**, where the filter costs 6 and 5 of that
+   respectively. This is not a distinction the filter is going to erode; the tiles live at 13 to 19.
+   A marked title against the strip behind it is 4.3:1 in light and 7.2:1 in dark **as composited**,
+   against 6.2:1 and 10.9:1 as designed. _The light figure is marginally under WCAG's 4.5:1 for text
+   this size, and it is the filter rather than the palette:_ an **unmarked** tab measures 4.7:1
+   through the same filter against 6.2:1 designed, so the filter costs every label on this strip
+   about the same and the mark is not what put it there. If it is ever worth fixing it is a palette
+   change and not a tab-strip one.
 3. **Group failures stay above everything.** `groupFailures` today prints the groups that failed
    before they ever had a tile. Those have no room to be marked in — a group with no tiles is in no
    room — so that line stays at the top of Главная, unchanged.
@@ -673,13 +705,14 @@ picked, and "Icons" describes it rather than the bare lamp commit 6 built. Check
 measurements and the one thing they turned up — an unlit disc is ΔE 4 from the panel behind it — are
 in that section.
 
-**2 · The tab mark could be a colour now, and its comment is wrong until it is.**
-[`PanelRooms.kt`](../app/src/main/kotlin/ru/domovoy/panel/PanelRooms.kt) says the mark is a `•`
-character "because a colour is the one thing a tile cannot be trusted to have in both themes yet".
-That was true when commit 1 wrote it and stopped being true at commit 5, which is where the panel
-got a palette that works in both. The comment is misleading whether or not the mark changes, so the
-smallest honest version of this is to fix the comment; the fuller one is to make the mark carry the
-error colour like everything else that fails.
+~~2 · The tab mark could be a colour now, and its comment is wrong until it is.~~ **Done** — the
+fuller version of it: a marked tab keeps its `•` and takes the error colour as its content colour,
+and the comment in [`PanelRooms.kt`](../app/src/main/kotlin/ru/domovoy/panel/PanelRooms.kt) now says
+that instead of the commit-1 reasoning it had outlived. The dot was kept rather than replaced, and
+the selected-and-marked case was decided rather than left to Material's defaults; both are in "The
+tab shell", rule 2, with what they measured on the glass. No test changed — `marked` was already
+decided in `PanelTabs.kt` and already covered, and what this commit changed is only what the
+composable paints with the boolean it is handed.
 
 ~~3 · Commit 7, the tab strip's 64 dp.~~ Done, #20.
 
