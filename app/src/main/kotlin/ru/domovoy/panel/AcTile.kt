@@ -16,10 +16,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import java.time.Instant
-import kotlin.math.roundToInt
-
-/** The one unit the flat's air conditioners report their target in. */
-private const val CELSIUS = "unit.temperature.celsius"
 
 /**
  * One air conditioner: its name, whether it is on, what it is set to, and how old each of those
@@ -40,16 +36,15 @@ fun AcTile(
             Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Column(modifier = Modifier.weight(1f)) {
                     TileHeading(glyph = glyph(tile), name = tile.name, span = HALF_SPAN)
-                    // The hero tile, and the target is the reason: it is what somebody walking past
-                    // reads without stopping, so it is set at display size rather than buried in
-                    // the status line, which keeps saying how old it is.
-                    Text(
-                        text = temperatureLabel(tile),
-                        style = MaterialTheme.typography.displaySmall,
-                    )
+                    // The target is what somebody walking past reads without stopping, so it is set
+                    // at display size rather than buried in the status line, which keeps saying how
+                    // old it is. Which value that is is [promoted]'s answer, and it is null — no
+                    // line at all rather than "unknown" at display size — for an ac that has never
+                    // reported a target.
+                    PromotedValue(promoted(tile))
                     Text(
                         text = statusLine(tile, now, error),
-                        style = MaterialTheme.typography.bodySmall,
+                        style = MaterialTheme.typography.bodyMedium,
                     )
                 }
                 Switch(
@@ -99,15 +94,11 @@ internal fun statusLine(
             false -> "off"
             null -> "unknown"
         }
+    // The same string the tile promotes, plus the word for a target nobody has reported. One
+    // formatter for both, so the value at the top of the tile and the value being aged underneath
+    // it cannot disagree.
     val line =
         "$power · ${ageLabel(tile.powerLastUpdated, now)} · " +
-            "${temperatureLabel(tile)} · ${ageLabel(tile.temperatureLastUpdated, now)}"
+            "${promoted(tile) ?: "unknown"} · ${ageLabel(tile.temperatureLastUpdated, now)}"
     return if (error == null) line else "$line · not updating: $error"
-}
-
-// The degree sign is printed only for the unit the ac actually named. Hanging "°C" on a number
-// whose unit the vendor did not report would be the panel inventing it.
-private fun temperatureLabel(tile: AcTileState): String {
-    val target = tile.targetTemperature?.roundToInt() ?: return "unknown"
-    return if (tile.unit == CELSIUS) "$target °C" else "$target"
 }

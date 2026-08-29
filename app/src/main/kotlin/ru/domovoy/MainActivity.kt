@@ -80,7 +80,15 @@ class MainActivity : ComponentActivity() {
             // The panel's own palette, and the system's own answer to which of the two. The tablet
             // switches itself at 19:00 and back at 07:00, so this is the wall going dark for the
             // night rather than a setting anybody touches. No dynamic colour: see [PanelTheme].
-            MaterialTheme(colorScheme = if (isSystemInDarkTheme()) panelDarkScheme else panelLightScheme) {
+            //
+            // And the panel's own type scale, in the same call, because a `MaterialTheme` given only
+            // a scheme runs on Material's baseline typography — a scale drawn for a phone held 30 cm
+            // from the face, which is what put every status line on this wall at 12sp. See
+            // [panelTypography], which also records what it assumes about reading distance.
+            MaterialTheme(
+                colorScheme = if (isSystemInDarkTheme()) panelDarkScheme else panelLightScheme,
+                typography = panelTypography,
+            ) {
                 Surface {
                     Panel(secrets)
                 }

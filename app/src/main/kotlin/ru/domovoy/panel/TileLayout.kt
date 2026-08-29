@@ -3,6 +3,7 @@ package ru.domovoy.panel
 import androidx.annotation.DrawableRes
 import ru.domovoy.R
 import java.time.Instant
+import kotlin.math.roundToInt
 
 /**
  * The number of columns the mosaic is laid out on.
@@ -126,6 +127,78 @@ internal fun hue(tile: LightStripTileState): TileHue = TileHue.Light
 internal fun hue(tile: CurtainTileState): TileHue = TileHue.Neutral
 
 internal fun hue(tile: LauncherTileState): TileHue = TileHue.Neutral
+
+/**
+ * The unit strings Yandex names, which is the only reason the panel is willing to print a degree
+ * sign or a percent sign. A number whose unit the vendor did not report is printed bare — hanging a
+ * unit on it would be the panel inventing one.
+ */
+private const val CELSIUS_UNIT = "unit.temperature.celsius"
+
+private const val PERCENT_UNIT = "unit.percent"
+
+/**
+ * The one value a tile says at the size the wall is read at, or null when it has none.
+ *
+ * **One per tile, and one only.** Before this the air conditioner promoted its target and nothing
+ * else on the wall promoted anything, so the curtain's position, the strip's brightness and the
+ * recuperator's temperature — the numbers somebody walking past is actually deciding something
+ * about — sat at 12sp inside a dot-separated run-on line with four ages. Which one of a tile's
+ * values that is is a decision with a right and a wrong answer, so it is out here beside [hue] and
+ * [span] where a test reaches it rather than inside six composables.
+ *
+ * **Null is an answer and not a gap.** A tile with no value to promote leaves the slot empty rather
+ * than setting the word "unknown" at display size: the loudest type on the wall spent on the least
+ * the panel knows. Nothing is dropped by that — the status line still prints "unknown", which is
+ * where that word has always been said, and the tile's colour still says [TileMood.Unknown]. This
+ * is the same shape [climateLine] and `colorLine` already have.
+ *
+ * **What is promoted does not move with [mood].** A failing poll leaves the last value on the wall —
+ * that is the whole reason the tile keeps showing it — so the promoted value must not empty out
+ * underneath a tile that has gone rose. Two axes again: this says *which* value, [mood] says how
+ * much to trust it.
+ *
+ * Six overloads for the same reason [hue] and [glyph] have them: the tile states are six unrelated
+ * data classes and there is no sealed type over them. Each is also the *only* formatter for that
+ * value — the status lines call these and add the word for absent — so a tile cannot print one
+ * number at the top and a differently-rounded one underneath.
+ */
+internal fun promoted(tile: AcTileState): String? {
+    val target = tile.targetTemperature?.roundToInt() ?: return null
+    return if (tile.unit == CELSIUS_UNIT) "$target °C" else "$target"
+}
+
+/**
+ * "40% open" rather than "40%": the curtain is the one tile whose number is meaningless without the
+ * word, and it is the same string its status line has always led with.
+ */
+internal fun promoted(tile: CurtainTileState): String? = tile.openPercent?.let { "${it.roundToInt()}% open" }
+
+internal fun promoted(tile: LightStripTileState): String? {
+    val percent = tile.brightnessPercent?.roundToInt() ?: return null
+    return if (tile.unit == PERCENT_UNIT) "$percent%" else "$percent"
+}
+
+/**
+ * The temperature and not the humidity, of the two the recuperator measures: it is the one somebody
+ * standing in the hallway is deciding something about, and the humidity keeps its place on
+ * [climateLine] with both ages.
+ *
+ * Formatted by [measured] rather than here, so the promoted value and the climate line cannot come
+ * out rounded differently — the same reason [span] asks [climateLine] instead of re-deriving it.
+ */
+internal fun promoted(tile: RecuperatorTileState): String? = tile.temperature?.let { measured(it, DEGREES) }
+
+/**
+ * Nothing, in every state a bulb has — and a *named* bulb tile is by construction the bulb the panel
+ * has no state for at all, since [bulbGroup] breaks out exactly the null ones. A lamp is on or off
+ * and carries no number; the wall's largest type spent on inventing one would be the row of discs'
+ * old problem in a new place.
+ */
+internal fun promoted(tile: BulbTileState): String? = null
+
+/** Nothing. It reads nothing about the flat — the same reason it is the one tile taking no `now`. */
+internal fun promoted(tile: LauncherTileState): String? = null
 
 /**
  * The glyph one tile wears, as a drawable in `res/drawable/`: eight of them exported to vector XML

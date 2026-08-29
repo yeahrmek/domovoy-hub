@@ -48,7 +48,7 @@ fun BulbTile(
                 TileHeading(glyph = glyph(tile), name = tile.name, span = THIRD_SPAN)
                 Text(
                     text = statusLine(tile, now, error),
-                    style = MaterialTheme.typography.bodySmall,
+                    style = MaterialTheme.typography.bodyMedium,
                 )
             }
             Switch(
@@ -117,7 +117,7 @@ fun BulbCircles(
         }
         Text(
             text = bulbGroupLine(group, now, notUpdating, error),
-            style = MaterialTheme.typography.bodySmall,
+            style = MaterialTheme.typography.bodyMedium,
             modifier = Modifier.padding(top = CIRCLE_GAP),
         )
     }

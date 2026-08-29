@@ -8,6 +8,7 @@ import java.time.Instant
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 /**
  * The three decisions in the mosaic that have a right and a wrong answer. They live out here rather
@@ -142,6 +143,123 @@ class TileLayoutTest {
         assertEquals(R.drawable.ic_bulb, glyph(bulb(isOn = null)))
     }
 
+    // --- What one tile promotes ------------------------------------------------------------
+    //
+    // One value per tile, at the size the wall is read at, and the rest of the line demoted. The
+    // table below is every tile type against every state of the value it would promote, because
+    // the failure this catches is a tile quietly having nothing to promote — which is a tile with
+    // a hole where the number goes.
+
+    @Test
+    fun `an air conditioner promotes its target temperature`() {
+        assertEquals("22 °C", promoted(ac(isOn = true)))
+    }
+
+    @Test
+    fun `an air conditioner in a unit nobody named promotes the bare number`() {
+        // The degree sign is printed only for the unit the vendor actually named; hanging it on a
+        // number whose unit was not reported would be the panel inventing it.
+        assertEquals("22", promoted(ac(isOn = true, unit = "unit.temperature.kelvin")))
+    }
+
+    @Test
+    fun `an air conditioner with no target promotes nothing`() {
+        // Null rather than the word "unknown" set at display size. Nothing is dropped — the status
+        // line still says "unknown", which is where it has always been said — but a tile does not
+        // shout a value nobody has taken.
+        assertNull(promoted(ac(isOn = true, targetTemperature = null)))
+    }
+
+    @Test
+    fun `a curtain promotes how far open it is`() {
+        assertEquals("40% open", promoted(curtain(openPercent = 40.0)))
+        assertEquals("0% open", promoted(curtain(openPercent = 0.0)))
+    }
+
+    @Test
+    fun `a curtain with no position promotes nothing`() {
+        assertNull(promoted(curtain(openPercent = null)))
+    }
+
+    @Test
+    fun `a light strip promotes its brightness`() {
+        assertEquals("60%", promoted(strip(isOn = true)))
+        assertEquals("60", promoted(strip(isOn = true, unit = "unit.lux")))
+    }
+
+    @Test
+    fun `a light strip with no brightness promotes nothing`() {
+        assertNull(promoted(strip(isOn = true, brightnessPercent = null)))
+    }
+
+    @Test
+    fun `a recuperator promotes the temperature it measures`() {
+        // The temperature and not the humidity: it is the one of the two a person standing in the
+        // hallway is deciding something about.
+        assertEquals("29.3 °C", promoted(recuperator(temperature = 29.3, humidity = 32.2)))
+    }
+
+    @Test
+    fun `a recuperator reporting only humidity promotes nothing`() {
+        // Still a half tile — span asks climateLine, which either value satisfies — and still with
+        // an empty promoted slot, because the value it promotes is the one it does not have.
+        assertNull(promoted(recuperator(temperature = null, humidity = 32.2)))
+        assertNull(promoted(recuperator(temperature = null, humidity = null)))
+    }
+
+    @Test
+    fun `a bulb promotes nothing, in every state it has`() {
+        // A bulb is on or off and carries no number, and a *named* bulb tile is by construction the
+        // one the panel has no state for at all. There is nothing here to promote and inventing one
+        // would be the wall's loudest type spent on the least it knows.
+        listOf(true, false, null).forEach { state -> assertNull(promoted(bulb(isOn = state))) }
+    }
+
+    @Test
+    fun `a launcher promotes nothing, installed or not`() {
+        // It reads nothing about the flat, so it has no reading to promote — the same reason it is
+        // the one tile that takes no `now`.
+        assertNull(promoted(launcher(openable = true)))
+        assertNull(promoted(launcher(openable = false)))
+    }
+
+    @Test
+    fun `what a tile promotes does not move with its mood`() {
+        // The same split the hue/mood pair already makes: what a tile promotes is a property of the
+        // reading, and whether that reading is trustworthy is mood's answer. A failing poll leaves
+        // the last value on the wall — that is the whole of why the tile keeps showing it — so the
+        // promoted value must not empty out underneath it.
+        assertEquals("22 °C", promoted(ac(isOn = null)))
+        assertEquals(
+            "29.3 °C",
+            promoted(recuperator(temperature = 29.3, humidity = 32.2, isOn = null, error = "timeout")),
+        )
+    }
+
+    @Test
+    fun `the promoted value is the same string the status line prints for it`() {
+        // The two cannot drift apart, because they are one function: the status line is what ages
+        // the value, so it has to name the value it is aging, and a tile printing "22 °C" over
+        // "on · 3 min ago · 23 °C · 81 d ago" would be one tile disagreeing with itself.
+        val ac = ac(isOn = true)
+        assertTrue(statusLine(ac, now, error = null).contains(promoted(ac)!!))
+        val curtain = curtain(openPercent = 40.0)
+        assertTrue(statusLine(curtain, now, error = null).contains(promoted(curtain)!!))
+        val strip = strip(isOn = true)
+        assertTrue(statusLine(strip, now, error = null).contains(promoted(strip)!!))
+        val recuperator = recuperator(temperature = 29.3, humidity = 32.2)
+        assertTrue(climateLine(recuperator, now)!!.contains(promoted(recuperator)!!))
+    }
+
+    @Test
+    fun `a tile with no value to promote still says unknown in words`() {
+        // Null promotes nothing; it does not take the word away. The status line is where "unknown"
+        // has always been said and it goes on saying it.
+        assertTrue(statusLine(ac(isOn = true, targetTemperature = null), now, error = null).contains("unknown"))
+        assertTrue(statusLine(curtain(openPercent = null), now, error = null).contains("unknown"))
+        assertTrue(statusLine(strip(isOn = true, brightnessPercent = null), now, error = null).contains("unknown"))
+    }
+
     private fun recuperator(
         temperature: Double?,
         humidity: Double?,
@@ -163,15 +281,19 @@ class TileLayoutTest {
         error = error,
     )
 
-    private fun ac(isOn: Boolean?) = AcTileState(
+    private fun ac(
+        isOn: Boolean?,
+        targetTemperature: Double? = 22.0,
+        unit: String = "unit.temperature.celsius",
+    ) = AcTileState(
         id = "ac-01",
         name = "Кондиционер",
         room = "Зал",
         isOn = isOn,
         powerLastUpdated = Reading.At(now),
-        targetTemperature = 22.0,
+        targetTemperature = targetTemperature,
         bounds = Bounds(min = 16.0, max = 30.0, precision = 1.0),
-        unit = "unit.temperature.celsius",
+        unit = unit,
         temperatureLastUpdated = Reading.At(now),
     )
 
@@ -184,15 +306,19 @@ class TileLayoutTest {
         stateChangedAt = Reading.At(now),
     )
 
-    private fun strip(isOn: Boolean?) = LightStripTileState(
+    private fun strip(
+        isOn: Boolean?,
+        brightnessPercent: Double? = 60.0,
+        unit: String = "unit.percent",
+    ) = LightStripTileState(
         id = "strip-01",
         name = "Лента",
         room = "Коридор",
         isOn = isOn,
         powerLastUpdated = Reading.At(now),
-        brightnessPercent = 60.0,
+        brightnessPercent = brightnessPercent,
         bounds = Bounds(min = 1.0, max = 100.0, precision = 1.0),
-        unit = "unit.percent",
+        unit = unit,
         brightnessLastUpdated = Reading.At(now),
         color = null,
     )

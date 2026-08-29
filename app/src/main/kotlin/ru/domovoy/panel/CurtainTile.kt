@@ -13,7 +13,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import java.time.Instant
-import kotlin.math.roundToInt
 
 /**
  * One curtain: its name, how far open it is, and how old that reading is. When [error] is set the
@@ -41,9 +40,12 @@ fun CurtainTile(
             // The one glyph on the wall that carries state rather than labelling a type: the flat's
             // curtain says what it is doing from across the room. See [curtainGlyph].
             TileHeading(glyph = glyph(tile), name = tile.name, span = HALF_SPAN)
+            // How far open, at the size the hallway reads. It was 12sp inside the status line until
+            // now, which is the one number on this tile and the thing the slider under it sets.
+            PromotedValue(promoted(tile))
             Text(
                 text = statusLine(tile, now, error),
-                style = MaterialTheme.typography.bodySmall,
+                style = MaterialTheme.typography.bodyMedium,
             )
             val bounds = tile.bounds
             if (bounds != null) {
@@ -75,7 +77,8 @@ internal fun statusLine(
     now: Instant,
     error: String?,
 ): String {
-    val position = tile.openPercent?.let { "${it.roundToInt()}% open" } ?: "unknown"
+    // The same string the tile promotes, plus the word for a curtain that has never reported.
+    val position = promoted(tile) ?: "unknown"
     val age = ageLabel(tile.lastUpdated, now)
     return if (error == null) "$position · $age" else "$position · $age · not updating: $error"
 }

@@ -23,6 +23,7 @@ import org.robolectric.annotation.GraphicsMode
 import ru.domovoy.R
 import ru.domovoy.panelDarkScheme
 import ru.domovoy.panelLightScheme
+import ru.domovoy.panelTypography
 
 /** Главная, which is where the panel sits when nobody has touched it. See [resetAfterIdle]. */
 private const val HOME_TAB = 0
@@ -139,7 +140,11 @@ class PanelScreenshotTest {
         content: @Composable () -> Unit,
     ) {
         compose.setContent {
-            MaterialTheme(colorScheme = scheme) {
+            // Both halves of the theme, as `MainActivity` passes them. The scheme alone would leave
+            // these pictures on Material's phone type scale while the wall is on the panel's own,
+            // which is a screenshot of a panel that does not exist — the same trap as capturing at
+            // a width the tablet is not.
+            MaterialTheme(colorScheme = scheme, typography = panelTypography) {
                 Surface { content() }
             }
         }

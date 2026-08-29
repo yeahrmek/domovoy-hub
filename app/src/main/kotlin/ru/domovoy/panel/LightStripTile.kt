@@ -18,9 +18,6 @@ import androidx.compose.ui.unit.dp
 import java.time.Instant
 import kotlin.math.roundToInt
 
-/** The unit both of the flat's strips report their brightness in. */
-private const val PERCENT = "unit.percent"
-
 /** The two `color_setting` instances the recorded response carries, on the strips and on light-21. */
 private const val TEMPERATURE_K = "temperature_k"
 private const val RGB = "rgb"
@@ -45,14 +42,17 @@ fun LightStripTile(
             Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Column(modifier = Modifier.weight(1f)) {
                     TileHeading(glyph = glyph(tile), name = tile.name, span = HALF_SPAN)
+                    // The brightness, at the size the hallway reads: it is what the slider under
+                    // this sets and it was 12sp inside the status line until now.
+                    PromotedValue(promoted(tile))
                     Text(
                         text = statusLine(tile, now, error),
-                        style = MaterialTheme.typography.bodySmall,
+                        style = MaterialTheme.typography.bodyMedium,
                     )
                     // Its own line rather than a third pair on the status line: the colour carries
                     // its own age too, and all six values in one row is a line nobody reads.
                     colorLine(tile, now)?.let {
-                        Text(text = it, style = MaterialTheme.typography.bodySmall)
+                        Text(text = it, style = MaterialTheme.typography.bodyMedium)
                     }
                 }
                 Switch(
@@ -102,17 +102,11 @@ internal fun statusLine(
             false -> "off"
             null -> "unknown"
         }
+    // The same string the tile promotes, plus the word for a brightness nobody has reported.
     val line =
         "$power · ${ageLabel(tile.powerLastUpdated, now)} · " +
-            "${brightnessLabel(tile)} · ${ageLabel(tile.brightnessLastUpdated, now)}"
+            "${promoted(tile) ?: "unknown"} · ${ageLabel(tile.brightnessLastUpdated, now)}"
     return if (error == null) line else "$line · not updating: $error"
-}
-
-// The percent sign is printed only for the unit the strip actually named, as the ac's degree sign
-// is. Hanging "%" on a number whose unit the vendor did not report would be the panel inventing it.
-private fun brightnessLabel(tile: LightStripTileState): String {
-    val percent = tile.brightnessPercent?.roundToInt() ?: return "unknown"
-    return if (tile.unit == PERCENT) "$percent%" else "$percent"
 }
 
 /**

@@ -55,14 +55,18 @@ fun RecuperatorTile(
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 TileHeading(glyph = glyph(tile), name = tile.name, span = span)
+                // The temperature it measures, at the size the hallway reads. Null — and so no line
+                // at all — on a device reporting no temperature, which includes every third-width
+                // recuperator: those have no climate line to take it from either.
+                PromotedValue(promoted(tile))
                 Text(
                     text = statusLine(tile, now, groupError),
-                    style = MaterialTheme.typography.bodySmall,
+                    style = MaterialTheme.typography.bodyMedium,
                 )
                 // Absent when the device reported neither reading, rather than a second line
                 // saying "unknown" twice over.
                 climateLine(tile, now)?.let { climate ->
-                    Text(text = climate, style = MaterialTheme.typography.bodySmall)
+                    Text(text = climate, style = MaterialTheme.typography.bodyMedium)
                 }
             }
             Switch(
@@ -125,8 +129,8 @@ internal fun climateLine(
     now: Instant,
 ): String? {
     if (tile.temperature == null && tile.humidity == null) return null
-    return "${measured(tile.temperature, CELSIUS)} · ${ageLabel(tile.temperatureLastUpdated, now)} · " +
-        "${measured(tile.humidity, PERCENT)} · ${ageLabel(tile.humidityLastUpdated, now)}"
+    return "${measured(tile.temperature, DEGREES)} · ${ageLabel(tile.temperatureLastUpdated, now)} · " +
+        "${measured(tile.humidity, PERCENT_SIGN)} · ${ageLabel(tile.humidityLastUpdated, now)}"
 }
 
 /**
@@ -135,13 +139,17 @@ internal fun climateLine(
  * against the Smart Life app showing the same device, which is where `330 = 33.0 %RH` and
  * `279 = 27.9 °C` come from. That check is the only source, and it is a weaker one than the
  * `scale` a test can assert against the recorded thing model.
+ *
+ * Reachable from [promoted], which promotes the temperature this line ages — one formatter for the
+ * pair, so the two cannot come out rounded differently.
  */
-private const val CELSIUS = "°C"
-private const val PERCENT = "%"
+internal const val DEGREES = "°C"
+
+internal const val PERCENT_SIGN = "%"
 
 // Locale.ROOT, not the tablet's: the panel prints one spelling of a number, and a tablet set to
 // ru-RU would otherwise render 29.3 as "29,3" on a line whose every other word is English.
-private fun measured(
+internal fun measured(
     value: Double?,
     unit: String,
 ): String = value?.let { String.format(Locale.ROOT, "%.1f %s", it, unit) } ?: "unknown"

@@ -160,6 +160,28 @@ internal fun TileHeading(
     }
 }
 
+/**
+ * The one value a tile says at wall distance, or nothing at all when it has none.
+ *
+ * `displaySmall` — 44sp on this panel's scale, see `panelTypography` — because this is the line the
+ * whole type scale exists for: the 22 °C and the 33.5 % that CLAUDE.md says is the point of hanging
+ * a panel on a wall. Everything else on the tile is read standing at it.
+ *
+ * **Null draws nothing**, and that is [promoted]'s decision arriving intact. A tile with no value
+ * has an empty slot rather than the word "unknown" set at 44sp; the status line under it still says
+ * "unknown" in words and the tile's colour still says [TileMood.Unknown]. Written here rather than
+ * as a `let` at five call sites so that the size, and the choice to draw nothing, are one decision.
+ */
+@Composable
+internal fun PromotedValue(
+    value: String?,
+    modifier: Modifier = Modifier,
+) {
+    if (value != null) {
+        Text(text = value, style = MaterialTheme.typography.displaySmall, modifier = modifier)
+    }
+}
+
 /** The width of that outline: thick enough to read from across a hallway, thin enough to be one. */
 private val GROUP_FAILURE_OUTLINE = 3.dp
 

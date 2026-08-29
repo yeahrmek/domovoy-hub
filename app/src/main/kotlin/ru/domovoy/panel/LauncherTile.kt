@@ -40,7 +40,7 @@ fun LauncherTile(
     ) {
         Column(modifier = Modifier.fillMaxWidth().padding(12.dp)) {
             TileHeading(glyph = glyph(tile), name = tile.name, span = THIRD_SPAN)
-            Text(text = statusLine(tile), style = MaterialTheme.typography.bodySmall)
+            Text(text = statusLine(tile), style = MaterialTheme.typography.bodyMedium)
         }
     }
 }
