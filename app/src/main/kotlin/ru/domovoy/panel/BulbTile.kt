@@ -6,8 +6,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
@@ -39,25 +37,15 @@ fun BulbTile(
     error: String? = null,
     onToggle: (String) -> Unit = {},
 ) {
-    TileCard(hue = hue(tile), mood = mood(tile.isOn, error), span = THIRD_SPAN, modifier = modifier) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                TileHeading(glyph = glyph(tile), name = tile.name, span = THIRD_SPAN)
-                Text(
-                    text = statusLine(tile, now, error),
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-            }
-            Switch(
-                checked = tile.isOn == true,
-                onCheckedChange = { onToggle(tile.id) },
-                modifier = Modifier.touchable(),
-            )
-        }
-    }
+    TileCard(
+        anatomy = anatomy(tile, now, error),
+        hue = hue(tile),
+        mood = mood(tile.isOn, error),
+        modifier = modifier,
+        toggle = {
+            Switch(checked = tile.isOn == true, onCheckedChange = { onToggle(tile.id) })
+        },
+    )
 }
 
 /**

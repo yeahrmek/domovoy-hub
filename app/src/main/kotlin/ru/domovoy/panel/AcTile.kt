@@ -1,20 +1,12 @@
 package ru.domovoy.panel
 
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
 import java.time.Instant
 
 /**
@@ -31,28 +23,18 @@ fun AcTile(
     onToggle: (String) -> Unit = {},
     onSetTemperature: (String, Double) -> Unit = { _, _ -> },
 ) {
-    TileCard(hue = hue(tile), mood = mood(tile.isOn, error), span = HALF_SPAN, modifier = modifier) {
-        Column(modifier = Modifier.fillMaxWidth().padding(12.dp)) {
-            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Column(modifier = Modifier.weight(1f)) {
-                    TileHeading(glyph = glyph(tile), name = tile.name, span = HALF_SPAN)
-                    // The target is what somebody walking past reads without stopping, so it is set
-                    // at display size rather than buried in the status line, which keeps saying how
-                    // old it is. Which value that is is [promoted]'s answer, and it is null — no
-                    // line at all rather than "unknown" at display size — for an ac that has never
-                    // reported a target.
-                    PromotedValue(promoted(tile))
-                    Text(
-                        text = statusLine(tile, now, error),
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                }
-                Switch(
-                    checked = tile.isOn == true,
-                    onCheckedChange = { onToggle(tile.id) },
-                    modifier = Modifier.touchable(),
-                )
-            }
+    // The words, the art and which controls this tile offers, all from one pure function — see
+    // [TileAnatomy]. What is left here is the two things a data class cannot hold: the switch and
+    // the slider, which carry callbacks and a drag of their own.
+    TileCard(
+        anatomy = anatomy(tile, now, error),
+        hue = hue(tile),
+        mood = mood(tile.isOn, error),
+        modifier = modifier,
+        toggle = {
+            Switch(checked = tile.isOn == true, onCheckedChange = { onToggle(tile.id) })
+        },
+        level = {
             val bounds = tile.bounds
             if (bounds != null) {
                 // As on the curtain, the dragged value is local: the tile behind it only changes
@@ -67,8 +49,8 @@ fun AcTile(
                     hue = hue(tile),
                 )
             }
-        }
-    }
+        },
+    )
 }
 
 // An ac that has never reported a target has none to start the handle from; the bottom of its

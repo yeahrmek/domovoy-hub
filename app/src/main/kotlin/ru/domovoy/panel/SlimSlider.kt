@@ -17,10 +17,18 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 
 /**
- * How thick the bar is: 6 dp, fully rounded. Material's own is 16 dp with a tall handle beside it,
- * and on a 376 dp tile that control is the loudest thing on the tile — louder than the value it sets.
+ * How thick the bar is: 20 dp, fully rounded.
+ *
+ * **It was 6 dp and that was too thin to look like a control.** The reasoning behind 6 was sound and
+ * is kept — Material's own track is 16 dp with a tall handle beside it, and on a wide tile that
+ * assembly is louder than the value it sets — but 6 dp went past quiet and came out decorative: a
+ * hairline that reads as a rule between two lines of text rather than as something a finger takes
+ * hold of, which is a real cost on a slider that has no handle to announce itself either.
+ *
+ * 20 dp is still under Material's 16-plus-handle in total weight and is unmistakably a bar. The
+ * touch area is unchanged at 64 dp and always was — this is only what is drawn inside it.
  */
-private val TRACK_HEIGHT = 6.dp
+private val TRACK_HEIGHT = 20.dp
 
 /**
  * How present the unfilled part is. Low emphasis on purpose: the filled portion is the reading and

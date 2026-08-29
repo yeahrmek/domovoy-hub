@@ -37,9 +37,10 @@ import ru.domovoy.panelTypography
  *   families and a plain off tile, in both schemes. Nothing has ever checked that the wall matches
  *   it, and the failure mode is a colour retouched in light drifting in dark, which is the half of
  *   the day nobody is looking at.
- * - **The geometry.** Six columns against 753 dp, halves and thirds, 22 and 18 dp corners, 72 dp
- *   circles. All of it is in docs/ui.md and in no assertion — and four columns was the first draft,
- *   thrown out only because somebody held the tablet up to it.
+ * - **The geometry.** Twelve columns against 753 dp, thirds and quarters, one 22 dp corner, one
+ *   328 dp tile height across every kind, 72 dp circles. All of it is in docs/ui.md and in no
+ *   assertion, and the one thing an image says that no assertion here does is whether the bottom
+ *   edges of two different *kinds* of tile actually land on the same line.
  * - **The two group rules that have a shape**: which bulbs leave the row of circles, and what a
  *   room's heading looks like when it has bad news.
  *
@@ -65,8 +66,8 @@ import ru.domovoy.panelTypography
  */
 @RunWith(RobolectricTestRunner::class)
 // The wall, in numbers: 1600 × 2560 px at 340 dpi is 753 × 1204 dp, portrait, which is the
-// orientation the tablet is mounted in. Six columns is sized from that 753 and from nothing else,
-// so a screenshot at any other width tests a panel that does not exist. `sdk = 36` is targetSdk;
+// orientation the tablet is mounted in. The column widths are sized from that 753 and from nothing
+// else, so a screenshot at any other width tests a panel that does not exist. `sdk = 36` is targetSdk;
 // the module compiles against 37 deliberately (see app/build.gradle.kts) but the runtime behaviour
 // under test is 36's.
 @Config(sdk = [36], qualifiers = "w753dp-h1204dp-port-340dpi")
@@ -89,12 +90,21 @@ class PanelScreenshotTest {
         capture("panel-home-dark", panelDarkScheme) { Panel() }
     }
 
+    // **A taller frame than the wall, and only here.** [TileMatrix] is thirteen colour swatches
+    // rather than a picture of the panel — the wall's own 1204 dp is what the two Главная captures
+    // are for, and it is load-bearing there. A tile is 328 dp tall now that every kind fills the
+    // same five slots, so five rows of them — four moods and the outlined case — come to 1656 dp,
+    // and in a 1204 dp frame the failing row and the outline simply fell off the bottom and were
+    // recorded as nothing at all. The width stays 753: these cards sit three across, which is the
+    // wall's own wide column.
     @Test
+    @Config(qualifiers = "w753dp-h1700dp-port-340dpi")
     fun `the tile colours, light`() {
         capture("tiles-light", panelLightScheme) { TileMatrix() }
     }
 
     @Test
+    @Config(qualifiers = "w753dp-h1700dp-port-340dpi")
     fun `the tile colours, dark`() {
         capture("tiles-dark", panelDarkScheme) { TileMatrix() }
     }
@@ -190,14 +200,12 @@ class PanelScreenshotTest {
             TileMood.entries.forEach { mood ->
                 Row(modifier = Modifier.fillMaxWidth()) {
                     TileHue.entries.forEach { hue ->
-                        TileCard(hue = hue, mood = mood, span = HALF_SPAN, modifier = Modifier.weight(1f)) {
-                            TileHeading(
-                                glyph = R.drawable.ic_bulb,
-                                name = "$hue · $mood",
-                                span = HALF_SPAN,
-                                modifier = Modifier.padding(12.dp),
-                            )
-                        }
+                        TileCard(
+                            anatomy = swatch("$hue · $mood"),
+                            hue = hue,
+                            mood = mood,
+                            modifier = Modifier.weight(1f),
+                        )
                     }
                 }
             }
@@ -206,23 +214,31 @@ class PanelScreenshotTest {
             // to be told apart from the filled red above it.
             Row(modifier = Modifier.fillMaxWidth()) {
                 TileCard(
+                    anatomy = swatch("группа не читается"),
                     hue = TileHue.Climate,
                     mood = TileMood.On,
-                    span = HALF_SPAN,
                     modifier = Modifier.weight(1f),
                     border = groupFailureBorder("not updating"),
-                ) {
-                    TileHeading(
-                        glyph = R.drawable.ic_bulb,
-                        name = "группа не читается",
-                        span = HALF_SPAN,
-                        modifier = Modifier.padding(12.dp),
-                    )
-                }
-                // The row's other half, left empty: the outline is one case and not three, and a
-                // second card here would be a colour pair that does not exist.
-                Spacer(modifier = Modifier.weight(1f))
+                )
+                // The row's other two thirds, left empty: the outline is one case and not three,
+                // and a second card here would be a colour pair that does not exist.
+                Spacer(modifier = Modifier.weight(2f))
             }
         }
     }
+
+    /**
+     * One colour pair, in the anatomy every tile on the wall wears. It fills all five slots so that
+     * the picture is of the card the panel actually draws — a swatch with an empty promoted value
+     * and no status line would be 100 dp shorter than any real tile and would record a shape that
+     * does not exist.
+     */
+    private fun swatch(name: String) = TileAnatomy(
+        art = R.drawable.ic_bulb,
+        controls = TileControls.None,
+        name = name,
+        promoted = "22 °C",
+        status = "on · 2 min ago",
+        detail = null,
+    )
 }

@@ -235,7 +235,7 @@ internal val panelTypography = Typography(
     headlineMedium = baselineTypography.headlineMedium.copy(fontSize = 34.sp, lineHeight = 42.sp),
     headlineSmall = baselineTypography.headlineSmall.copy(fontSize = 28.sp, lineHeight = 36.sp),
     titleLarge = baselineTypography.titleLarge.copy(fontSize = 26.sp, lineHeight = 32.sp),
-    // The tile's name, on every tile: see `TileHeading`.
+    // The tile's name, on every tile: the fourth slot of `TileCard`'s anatomy.
     titleMedium = baselineTypography.titleMedium.copy(fontSize = 22.sp, lineHeight = 28.sp),
     titleSmall = baselineTypography.titleSmall.copy(fontSize = 18.sp, lineHeight = 24.sp),
     bodyLarge = baselineTypography.bodyLarge.copy(fontSize = 20.sp, lineHeight = 28.sp),

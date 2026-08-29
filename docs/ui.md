@@ -57,36 +57,72 @@ The baseline commits 1 and 2 replaced, kept so the diff stays legible:
 
 ## Tile sizes
 
-A **six-column** grid, laid out in halves and thirds. The span is a property of the tile type, not
-of the room:
+A **twelve-column** grid, laid out in thirds and quarters. The span is a property of the tile type,
+not of the room, and **every tile is 328 dp tall whatever its span** — see "One tile anatomy":
 
 | Tile | Count | Span | Width | What it shows |
 | --- | --- | --- | --- | --- |
-| Air conditioner | 3 | 3 (half) | 376 dp | Name, target temperature at display size, on/off, temperature slider, both ages |
-| Curtain | 1 | 3 (half) | 376 dp | Name, open percent, slider, age |
-| Light strip | 2 | 3 (half) | 376 dp | Name, on/off, brightness slider, colour, both ages |
-| Recuperator | 5 | 3 or 2 | 376 / 251 dp | Name, on/off, fan speeds, and — when it reports them — temperature and humidity. Up to four ages |
-| Bulb | many | 2 (third) | 251 dp | Not a grid cell once commit 3 lands. See "The lights group" below |
-| Launcher | 2 | 2 (third) | 251 dp | Name and one line. No age — there is no reading to age |
+| Air conditioner | 3 | 4 (wide) | 251 dp | Name, target temperature at display size, on/off, temperature slider, both ages |
+| Curtain | 1 | 4 (wide) | 251 dp | Name, open percent, slider, age |
+| Light strip | 2 | 4 (wide) | 251 dp | Name, on/off, brightness slider, colour, both ages |
+| Recuperator | 5 | 4 or 3 | 251 / 188 dp | Name, on/off, fan speeds, and — when it reports them — temperature and humidity. Up to four ages |
+| Bulb | many | 3 (narrow) | 188 dp | Not a grid cell unless it has never reported. See "The lights group" below |
+| Launcher | 2 | 3 (narrow) | 188 dp | Name and one line. No age — there is no reading to age |
 
-**Four columns was the first draft of this and the tablet threw it out.** Four came from a 10"
-tablet nobody had measured; the panel is 753 dp, so a full-width hero was 753 dp holding a name, a
-temperature and a slider, with the switch stranded 700 dp from the value it switches. The launcher
-at one column was 188 dp and wrapped its one line onto two.
+**This was six columns, halves and thirds, and the widest tile was half the wall.** Two columns of
+anything is a phone's proportion — the reference smart-home app is two columns of a 411 dp phone —
+and 376 dp for a name, a value and a slider left a great deal of nothing between them. Three across
+and four across is what a 753 dp panel has room for.
 
-**Halves and thirds, because both divide six.** This is the rule that matters, and it was learned
-rather than designed: a row fills instead of trailing dead cells, and — the part that is not
-obvious — two tiles of the same kind beside each other come out the same height. At a third of the
-panel the two light strips wrapped differently, one onto two lines and the other onto three, and
-stood side by side at visibly different sizes. Widths that do not divide the grid produce that, and
-it reads as breakage rather than as variety.
+**Four columns as a *grid* is still rejected and this is not that.** The first draft made `COLUMNS`
+itself 4, so a hero tile spanned all four and came out 753 dp with its switch stranded 700 dp from
+the value it switches. What is here is twelve columns with nothing ever one column wide. The other
+half of that old rejection — "the launcher at 188 dp wrapped its one line onto two" — has stopped
+being a defect: every tile now reserves the same block of status lines whether it fills them or
+not, so a line that wraps costs nothing that was not already spent.
+
+**Thirds and quarters, because both divide twelve.** This is the rule that matters, and it was
+learned rather than designed: a row fills instead of trailing dead cells. It used to carry a second
+job — two tiles of the same kind beside each other coming out the same height — and that job has
+been taken over by the anatomy, which makes tiles of *different* kinds agree as well.
 
 The recuperator is the densest tile the flat has and the only one whose span is decided by its
-content: **half when `climateLine` returns a line, a third when it returns null.** A device
-reporting neither temperature nor humidity has a second line that does not exist, and a half-width
-tile holding one line of "on · 2 min ago" is a hole in the wall. _Unexercised on this wall:_ all
-five recuperators report both values, so the third-width branch is covered by `TileLayoutTest` and
-has never been seen.
+content: **wide when it has a second line to put there, narrow when it has neither.** Two things
+count as a second line — `climateLine`, and its own error, whose vendor string is the longest thing
+any tile on this wall prints. A wide tile holding one line of "on · 2 min ago" is a hole in the
+wall; a narrow one holding six lines of failure is a tile that does not line up with anything.
+_Unexercised on this wall:_ all five recuperators report both values, so the narrow branch is
+covered by `TileLayoutTest` and has never been seen.
+
+### One tile anatomy
+
+Five slots, in this order, on every tile of every kind:
+
+| Slot | Reserved | What is in it |
+| --- | --- | --- |
+| Art and controls | 64 dp | The glyph, left; the switch, right, inside its 64 dp touch box |
+| Level | 64 dp | The slider, centred — the same 64 dp `SlimSlider`'s track slot measures |
+| Promoted value | 52 dp | One line of `displaySmall`, or nothing |
+| Name | 28 dp | One line of `titleMedium`, wrapped rather than truncated |
+| Status line | 96 dp | Four lines of `bodyMedium`: the status line, and the second line the strip and the recuperator have |
+
+**328 dp = 64 + 64 + 52 + 28 + 96 + 2 × 12 of padding**, and the same 328 for a bulb as for an air
+conditioner. Before this the mosaic had four heights — the air conditioner 169 dp with a dead area
+under its slider, the strip shorter, the recuperator shorter again, the launchers shorter still —
+because each kind laid itself out around whatever it happened to have.
+
+**An empty slot is empty, not absent.** A launcher has no switch, no slider and no value and
+reserves all three anyway. That is what buys bottom edges that line up across kinds, and it is the
+whole cost of it too: a bulb tile carries a 64 dp band where a slider would go.
+
+The reserve is **a minimum and not a ceiling**. A vendor error long enough to run past four lines
+makes that one tile taller rather than being clipped or ellipsised — the panel does not swallow the
+reason a thing is broken to keep a bottom edge straight. Nothing the flat has produced does that,
+and the tile that came closest is why the recuperator's span counts its error as a second line.
+
+What goes in the slots is one pure function per tile type — `anatomy(...)` in `TileLayout.kt`,
+returning a `TileAnatomy` — so "does this kind still fill all five" is a test rather than a picture.
+`TileCard` draws it and decides nothing.
 
 It is also the only tile with **an error of its own**. Every other group shares one — a failed
 `/v1.0/user/info` failed for all of them — but recuperator state costs one Tuya call per device, so
@@ -105,12 +141,13 @@ Sizes to hold to, since this is read and touched at arm's length from a wall:
   on the `Tab` raised it and the row came up 64.0 dp with them. **The strip is gone** and the
   measurement with it; the rooms are headings on a scroll, which nothing has to hit.
 - Bulb circles **72 dp**.
-- Grid gutter 8 dp, tile corner radius 22 dp on a half tile, 18 dp on a third, full round on bulbs.
-  The corner is derived from the span rather than passed beside it, so a tile's shape and its width
-  cannot disagree. On the wall the two radii are a real but subtle difference; nobody standing back
-  from it is going to name which is which.
+- Grid gutter 8 dp, **one tile corner radius of 22 dp**, full round on bulbs. It was two radii — 22
+  on a half tile and 18 on a third, derived from the span so that a tile's shape and its width could
+  not disagree — and that was a rule about widths at a time when the mosaic had four heights and no
+  anatomy. This doc already recorded that on the wall the two were "a real but subtle difference"
+  nobody standing back from it could name. One anatomy, one shape.
 - **The panel is 753 dp wide.** 1600 px at 340 dpi, portrait, which is the orientation it hangs in.
-  This is what six columns is sized from. Landscape would be 1204 dp and the panel is not laid out
+  This is what the column widths are sized from. Landscape would be 1204 dp and the panel is not laid out
   for it: **auto-rotate is off on the tablet** (`accelerometer_rotation` 0) rather than
   `screenOrientation` being set in the manifest, so a settings reset puts landscape back and the
   mosaic will be wrong until it is turned off again.
@@ -530,8 +567,11 @@ status line.
 
 - **Outlined, 24 dp**, tinted with the tile's content colour so the glyph and the text agree by
   construction and cannot drift apart in one theme.
-- On a half tile the icon sits on the first line beside the name; on a third tile it sits above it,
-  which is what the mockups showed and what stops a 251 dp tile from spending its width on a glyph.
+- **Top-left of the tile, on its own line, on every kind and every span.** It used to sit beside the
+  name on a half tile and above it on a third — a rule that existed because a 251 dp tile spending
+  its width on a glyph had none left for the name. The anatomy answers that instead: art and the
+  switch share the top line, and the name is at the bottom with the words, so there is no width to
+  compete for and no second arrangement to get wrong.
 - **A bulb circle is a filled disc carrying the mood, with the same outlined lamp on every one of
   them.** A 72 dp disc holding a 48 dp `ic_bulb` and nothing else — no text at any size: the count
   and the age are on the group's one line underneath, which is what lets 28 lamps be a row rather
@@ -659,9 +699,9 @@ other direction.
 | All nine glyphs draw | Every one of them, and none is the empty box a bad path renders as |
 | `vacuum`, `video_camera_front` — the two unverified names | Both real artwork on the tablet: an upright vacuum, and a camera with a face in it |
 | The curtain's pair | Visibly different at 24 dp — four tight slats shut, three gathered ones open |
-| Half beside, third above | `Кондиционер`/`Подсветка`/`Бризер`/`Шторы` beside the name, `Домофон`/`Пылесос` above it |
+| Half beside, third above | `Кондиционер`/`Подсветка`/`Бризер`/`Шторы` beside the name, `Домофон`/`Пылесос` above it. **Superseded:** the anatomy puts every glyph top-left, and this row records the build that was on the glass that day |
 | The bulb circles | 48 dp lamp alone in its 72 dp cell, no container in either state — a filled `tertiary` lamp for a lit one, an outlined `onSurfaceVariant` lamp for an unlit one |
-| Track height | 13 px = **6.1 dp**, both schemes |
+| Track height | 13 px = **6.1 dp**, both schemes. **Superseded:** the track is 20 dp now — 6 read as a hairline rather than as something to take hold of. Unmeasured on the glass at the new height |
 | Touch area | **64.0 dp** on both sliders, dumped as `SeekBar` |
 | Slider colours, light | Fill `#0561A2` = `primary` on the ac, `#865301` = `tertiary` on the strip; rest `#D1B9A2` and `#C2C6CD`, both the 24 % composite to the byte |
 | Slider colours, dark | Fill `#FFB863` = `tertiary`; rest `#7B5F33` and `#44484E`, again the composite to the byte |
@@ -718,18 +758,22 @@ as a reading with a range behind it rather than as a control demanding to be ope
 a wall panel wants — the number is the point and the slider is how it is changed, not the other way
 round.
 
-- Built with Material 3's `Slider` and its slot overrides — a custom `track` at 6 dp and a `thumb`
-  that renders nothing. Not a hand-rolled draggable: the slot version keeps the drag behaviour, the
+- Built with Material 3's `Slider` and its slot overrides — a custom `track` at **20 dp** and a
+  `thumb` that renders nothing. It was 6 dp, and the reasoning behind 6 stands — Material's own is a
+  16 dp track with a tall handle beside it, and on a wide tile that assembly is louder than the value
+  it sets — but 6 went past quiet and came out decorative: a hairline that reads as a rule between
+  two lines of text rather than as something a finger takes hold of, which is a real cost on a slider
+  with no handle to announce itself either. Not a hand-rolled draggable: the slot version keeps the drag behaviour, the
   value semantics and the accessibility that a `Box` with a `pointerInput` would silently drop. An
   empty thumb is safe rather than clever: the slider wraps each slot in a `Box` of its own and
   measures that, so an empty one is a zero-size box and not a missing child. Both slots are annotated
   `ExperimentalMaterial3Api` on this BOM, opted in on the one function rather than module-wide —
   `build.gradle.kts` keeps the Expressive opt-in it already had and gained nothing.
-- **The touch area stays 64 dp tall** whatever the track looks like. A 6 dp visual is not a 6 dp
-  target, and this is the wall panel's rule that overrides the aesthetic one. It is the *track slot*
+- **The touch area stays 64 dp tall** whatever the track looks like. A drawn bar is not a target,
+  and this is the wall panel's rule that overrides the aesthetic one. It is the *track slot*
   that is 64 dp, with the bar drawn centred inside it, because the slider's height is the taller of
   its two slots and its drag handling covers exactly that — a `heightIn` on the outside would have
-  left the gesture on the 6 dp. _Measured:_ both sliders on Главная dump as **64.0 dp** tall, as
+  left the gesture on the bar. _Measured:_ both sliders on Главная dump as **64.0 dp** tall, as
   `android.widget.SeekBar`, which is also the value semantics surviving the override. The track
   measures 13 px = **6.1 dp** in both schemes, and both the fill and the rest-of-track composite to
   the byte — the full reading is in "The glyphs, measured on the glass" under "Icons", which is the
@@ -826,12 +870,17 @@ it is legible from four metres.
 
 Six images in `app/src/test/screenshots/`, committed, drawn by Robolectric and Roborazzi at the
 wall's own geometry — **753 × 1204 dp at 340 dpi, portrait**, which is the 1600 × 2560 px the tablet
-measured. A screenshot at any other width is a picture of a panel that does not exist, since six
-columns is sized from that 753 and from nothing else.
+measured. A screenshot at any other width is a picture of a panel that does not exist, since the
+column widths are sized from that 753 and from nothing else.
+
+The one exception is the swatch sheet, and only in *height*: `tiles-light` and `tiles-dark` are
+captured at 753 × 1700 dp. Thirteen swatches at 328 dp is 1656 dp of column, and in a 1204 dp frame
+the failing row and the outlined case fell off the bottom and were recorded as nothing at all. They
+are not a picture of the wall; the two Главная captures are, and those keep the wall's own frame.
 
 | Image | What it is for |
 | --- | --- |
-| `panel-home-light`, `panel-home-dark` | Главная whole, in both schemes: the spans, the corners, the mosaic as one thing |
+| `panel-home-light`, `panel-home-dark` | Главная whole, in both schemes: the spans, the corner, whether two kinds of tile actually end on the same line |
 | `tiles-light`, `tiles-dark` | Every `TileHue` × `TileMood` pair, plus the group-failure outline. This is the ΔE table in `PanelTheme.kt` made visible |
 | `lights-group` | The row of 72 dp circles, and the `Never` bulb broken out above it |
 | `headings` | A plain heading, a marked one, and the longest room name in the flat at heading size |

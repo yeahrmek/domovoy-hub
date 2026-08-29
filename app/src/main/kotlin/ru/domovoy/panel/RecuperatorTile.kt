@@ -1,16 +1,8 @@
 package ru.domovoy.panel
 
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
 import ru.domovoy.core.Reading
 import java.time.Instant
 import java.util.Locale
@@ -38,44 +30,18 @@ fun RecuperatorTile(
     groupError: String? = null,
     onToggle: (String) -> Unit = {},
 ) {
-    // Asked once and passed to both: the tile's width and where its glyph sits are the same
-    // decision, and a tile whose card is half the panel while its heading is laid out for a third
-    // is the one way these two could disagree.
-    val span = span(tile)
+    // The card no longer needs the span — one radius, one anatomy, one height — and the grid still
+    // asks [span] for the width, which is the one width in the panel decided by content.
     TileCard(
+        anatomy = anatomy(tile, now, groupError),
         hue = hue(tile),
         mood = mood(tile.isOn, tile.error),
-        span = span,
         modifier = modifier,
         border = groupFailureBorder(groupError),
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                TileHeading(glyph = glyph(tile), name = tile.name, span = span)
-                // The temperature it measures, at the size the hallway reads. Null — and so no line
-                // at all — on a device reporting no temperature, which includes every third-width
-                // recuperator: those have no climate line to take it from either.
-                PromotedValue(promoted(tile))
-                Text(
-                    text = statusLine(tile, now, groupError),
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-                // Absent when the device reported neither reading, rather than a second line
-                // saying "unknown" twice over.
-                climateLine(tile, now)?.let { climate ->
-                    Text(text = climate, style = MaterialTheme.typography.bodyMedium)
-                }
-            }
-            Switch(
-                checked = tile.isOn == true,
-                onCheckedChange = { onToggle(tile.id) },
-                modifier = Modifier.touchable(),
-            )
-        }
-    }
+        toggle = {
+            Switch(checked = tile.isOn == true, onCheckedChange = { onToggle(tile.id) })
+        },
+    )
 }
 
 /**

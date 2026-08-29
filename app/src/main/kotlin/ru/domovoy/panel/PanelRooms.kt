@@ -151,14 +151,14 @@ fun PanelRooms(
         if (polled && !wasPolled) scroll.scrollToItem(0)
         wasPolled = polled
     }
-    // The mosaic. Six columns against the 753 dp the wall tablet measured in portrait, which is
+    // The mosaic. Twelve columns against the 753 dp the wall tablet measured in portrait, which is
     // the orientation it is mounted in; the number lives in one place, [COLUMNS].
-    // The span of a tile is a property of its type and not of the room it is in: anything with
-    // a slider takes half the panel, anything that is a name and one line takes a third, and
-    // the recuperator is the only one that asks its own content — see [span]. Halves and thirds
-    // rather than a spread of widths because both divide six: a row fills, and two tiles of the
-    // same kind beside each other come out the same size instead of one wrapping and the other
-    // not, which is what the first pass on the tablet looked like.
+    // The span of a tile is a property of its type and not of the room it is in: anything with a
+    // slider takes a third of the panel, anything that is a name and a status line takes a quarter,
+    // and the recuperator is the only one that asks its own content — see [span]. Thirds and
+    // quarters rather than a spread of widths because both divide twelve: a row fills instead of
+    // trailing dead cells. It was halves and thirds until the tile anatomy landed, and half a wall
+    // for one air conditioner was a phone's two-column proportion drawn at wall size.
     LazyVerticalGrid(columns = GridCells.Fixed(COLUMNS), state = scroll, modifier = modifier) {
         // Above everything, including the first heading: the groups that failed before they ever
         // had a tile, which have no tile of their own to say it on and no room to be marked in.
@@ -183,7 +183,7 @@ fun PanelRooms(
             item(key = "heading:$room", span = { GridItemSpan(maxLineSpan) }) {
                 SectionHeading(title = room, marked = heading.marked)
             }
-            items(section.acs, key = { "$room/ac:${it.id}" }, span = { GridItemSpan(HALF_SPAN) }) { tile ->
+            items(section.acs, key = { "$room/ac:${it.id}" }, span = { GridItemSpan(WIDE_SPAN) }) { tile ->
                 AcTile(
                     tile = tile,
                     now = now,
@@ -192,10 +192,10 @@ fun PanelRooms(
                     onSetTemperature = onSetTemperature,
                 )
             }
-            items(section.curtains, key = { "$room/curtain:${it.id}" }, span = { GridItemSpan(HALF_SPAN) }) { tile ->
+            items(section.curtains, key = { "$room/curtain:${it.id}" }, span = { GridItemSpan(WIDE_SPAN) }) { tile ->
                 CurtainTile(tile = tile, now = now, error = curtains.error, onSetOpen = onSetOpen)
             }
-            items(section.strips, key = { "$room/strip:${it.id}" }, span = { GridItemSpan(HALF_SPAN) }) { tile ->
+            items(section.strips, key = { "$room/strip:${it.id}" }, span = { GridItemSpan(WIDE_SPAN) }) { tile ->
                 LightStripTile(
                     tile = tile,
                     now = now,
@@ -204,8 +204,9 @@ fun PanelRooms(
                     onSetBrightness = onSetBrightness,
                 )
             }
-            // The one span decided by content rather than by type: four columns when the device
-            // reports climate and has a second line to put there, two when it does not.
+            // The one span decided by content rather than by type: the wider column when the device
+            // has a second line to put there — a climate reading, or the reason it stopped
+            // updating — and the narrow one when it has neither. See [span].
             items(
                 section.recuperators,
                 key = { "$room/recuperator:${it.id}" },
@@ -224,7 +225,7 @@ fun PanelRooms(
             // as named third-width tiles: those are the ones worth reading. Asked once per section,
             // so that a room's row of circles and the tiles it did not take come from one answer.
             val group = bulbGroup(section.bulbs)
-            items(group.brokenOut, key = { "$room/bulb:${it.id}" }, span = { GridItemSpan(THIRD_SPAN) }) { tile ->
+            items(group.brokenOut, key = { "$room/bulb:${it.id}" }, span = { GridItemSpan(NARROW_SPAN) }) { tile ->
                 BulbTile(tile = tile, now = now, error = bulbs.error, onToggle = onToggleBulb)
             }
             // A room whose bulbs all broke out has no row, and neither has a room with no bulbs.
@@ -246,7 +247,7 @@ fun PanelRooms(
             items(
                 section.launchers,
                 key = { "$room/launcher:${it.packageName}" },
-                span = { GridItemSpan(THIRD_SPAN) },
+                span = { GridItemSpan(NARROW_SPAN) },
             ) { tile ->
                 LauncherTile(tile = tile, onOpen = onOpenApp)
             }

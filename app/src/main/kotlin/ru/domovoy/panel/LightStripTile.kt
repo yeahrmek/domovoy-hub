@@ -1,20 +1,12 @@
 package ru.domovoy.panel
 
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
 import java.time.Instant
 import kotlin.math.roundToInt
 
@@ -37,30 +29,18 @@ fun LightStripTile(
     onToggle: (String) -> Unit = {},
     onSetBrightness: (String, Double) -> Unit = { _, _ -> },
 ) {
-    TileCard(hue = hue(tile), mood = mood(tile.isOn, error), span = HALF_SPAN, modifier = modifier) {
-        Column(modifier = Modifier.fillMaxWidth().padding(12.dp)) {
-            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Column(modifier = Modifier.weight(1f)) {
-                    TileHeading(glyph = glyph(tile), name = tile.name, span = HALF_SPAN)
-                    // The brightness, at the size the hallway reads: it is what the slider under
-                    // this sets and it was 12sp inside the status line until now.
-                    PromotedValue(promoted(tile))
-                    Text(
-                        text = statusLine(tile, now, error),
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                    // Its own line rather than a third pair on the status line: the colour carries
-                    // its own age too, and all six values in one row is a line nobody reads.
-                    colorLine(tile, now)?.let {
-                        Text(text = it, style = MaterialTheme.typography.bodyMedium)
-                    }
-                }
-                Switch(
-                    checked = tile.isOn == true,
-                    onCheckedChange = { onToggle(tile.id) },
-                    modifier = Modifier.touchable(),
-                )
-            }
+    // The colour it reports is the second line of the status slot rather than more dots on the
+    // first — it carries an age of its own, and all six values in one run is a line nobody reads.
+    // Which is [anatomy]'s answer now; see [colorLine].
+    TileCard(
+        anatomy = anatomy(tile, now, error),
+        hue = hue(tile),
+        mood = mood(tile.isOn, error),
+        modifier = modifier,
+        toggle = {
+            Switch(checked = tile.isOn == true, onCheckedChange = { onToggle(tile.id) })
+        },
+        level = {
             val bounds = tile.bounds
             if (bounds != null) {
                 // As on the curtain and the ac, the dragged value is local: the tile behind it only
@@ -75,8 +55,8 @@ fun LightStripTile(
                     hue = hue(tile),
                 )
             }
-        }
-    }
+        },
+    )
 }
 
 // A strip that has never reported a brightness has none to start the handle from; the bottom of its
