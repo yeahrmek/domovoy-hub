@@ -643,6 +643,35 @@ status line.
   the circle's own content description, because at 72 dp there was no room for either in text — and
   every lamp has a tile with its name on it now.
 
+### The size, and the family question that is still open
+
+**A glyph is 48 dp everywhere on the wall.** `GLYPH_SIZE` in `TileCard.kt`, one number, and
+`TileGlyphTest` asserts the laid-out height against a literal 48 dp rather than against the constant —
+a test that reads the constant passes whatever the constant becomes. It was 24 dp, which is a phone's
+icon size measured for something held 30 cm from the face; the lamp on a bulb disc had been given 48
+for exactly the wall reason, and when the disc went the number survived it. The drawables are vectors,
+so 48 dp is redrawn and not resampled: a stroke at 2 of a 24 grid comes out at 4 dp. No tile changed
+height for it — the anatomy's art slot reserves 64 dp and 48 fits where 24 sat.
+
+**One family is not settled, and the way this doc said to settle it turns out not to be available.**
+Above: _"move the other seven, not the bulb back"_. Measured against Tabler 3.31.0's 4,936 outline
+icons, that direction has **no covering icon at all** — no `curtain`, `blind`, `shade`, `shutter`,
+`roller`, `awning` — so the curtain would lose the open/closed pair that is the one glyph here
+carrying state, and there is nothing for a light strip either. Three glyphs would have to be drawn in
+Tabler's construction, which is what "Adding or drawing a glyph" below warns against.
+
+Two premises above have also moved:
+
+- **The weight clash is smaller than it was written up as.** Material Symbols outlined at weight 400
+  strokes 80 of the 960 grid, which is 2 of 24 — Tabler's `stroke-width` exactly. What differs is
+  terminals: Tabler's round caps and joins against Material's square. All eight were rendered at
+  24/48/96 px on the dark surface to check.
+- **"The bulb never appears beside another glyph" is no longer true.** That was the reason the mix was
+  judged safe, and it held while the lamps were bare discs in their own row. The lamps are one group
+  tile now and its lamp sits in a mosaic beside `mode_fan` and `vacuum`.
+
+So the question is live again and is the mockups' owner's call, not an agent's. It is in **Open**.
+
 ### Adding or drawing a glyph
 
 A glyph here is an Android vector drawable — XML with path data, not an image file — in
@@ -958,6 +987,13 @@ out wrong. None of them can be settled from a screenshot.
   is off — the strings tell them apart and the colours do not. The lights group answers it for one
   tile type only, by keeping the null-state bulbs out of the group and giving them a tile that says
   "unknown" in words.
+- **Whether the eight glyphs need one family**, now that the Tabler bulb sits in the mosaic beside
+  Material's `mode_fan` and `vacuum` rather than alone in a disc row. "Move the other seven" is not
+  available — Tabler has no covering icon and no light strip — so the choices are the bulb back to
+  Material, against the recorded reason it is Tabler's, or three glyphs hand-drawn. Whoever owns the
+  mockups decides; see "The size, and the family question that is still open".
+- **Whether 48 dp is the right glyph size**, which only the hallway can say. It is reasoned from the
+  size the disc's lamp was already defended at, not measured at four metres.
 - The tablet is locked with a PIN and locks itself on screen-off. Nothing in the panel handles that
   — the wall goes to a lock screen rather than to the panel, and the Domonap takeover's behaviour
   over a locked screen is unverified. See `docs/domonap.md`.

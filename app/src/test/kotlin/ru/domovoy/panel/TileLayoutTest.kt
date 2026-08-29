@@ -245,6 +245,27 @@ class TileLayoutTest {
         assertEquals(R.drawable.ic_bulb, glyph(lamps(on = 5, off = 2)))
     }
 
+    @Test
+    fun `every tile on the wall resolves to a glyph, and every launcher to its own`() {
+        // Seven tile types and two apps, and the failure this catches is a device arriving with no
+        // art: `painterResource(0)` throws, and the tile it was going to be drawn on takes the whole
+        // panel down with it. Asserted as ids rather than as pictures — what the drawables look like
+        // is the screenshots' job, that there *is* one for everything is this one's.
+        assertNotEquals(0, glyph(ac(isOn = true)))
+        assertNotEquals(0, glyph(recuperator(temperature = 29.3, humidity = 32.2)))
+        assertNotEquals(0, glyph(bulb(isOn = true)))
+        assertNotEquals(0, glyph(lamps(on = 5, off = 2)))
+        assertNotEquals(0, glyph(strip(isOn = true)))
+        assertNotEquals(0, glyph(curtain(openPercent = 100.0)))
+
+        // The launcher is the one whose glyph is keyed on an id, so it is the one that can drift:
+        // the catalogue is where a third app gets added and `glyph(LauncherTileState)` is where it
+        // would be forgotten. Driven through `launcherTiles` so the two cannot be listed apart.
+        val launchers = launcherTiles { true }.associateBy { it.packageName }
+        assertEquals(R.drawable.ic_video_camera_front, glyph(launchers.getValue("com.domonap.app")))
+        assertEquals(R.drawable.ic_vacuum, glyph(launchers.getValue("com.xiaomi.smarthome")))
+    }
+
     // --- What one tile promotes ------------------------------------------------------------
     //
     // One value per tile, at the size the wall is read at, and the rest of the line demoted. The

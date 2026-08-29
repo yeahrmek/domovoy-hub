@@ -232,10 +232,23 @@ private fun Slot(
 }
 
 /**
- * How big a glyph is, everywhere it appears: 24 dp, which is the size the Material Symbols in
- * `res/drawable/` were exported at, so nothing is scaled.
+ * How big a glyph is, **everywhere on the wall**: 48 dp, twice the 24 dp the drawables in
+ * `res/drawable/` were exported at.
+ *
+ * 24 dp is a phone's icon size, measured for something held 30 cm from the face, and every glyph
+ * here was at it — against a lamp on a bulb disc that had already been given 48 dp for exactly this
+ * reason. The disc is gone and its lamp with it, but the number it was given survives it: the whole
+ * set is at the size the one piece of art sized for this wall was already at.
+ *
+ * Scaling costs nothing: these are vector drawables, so 48 dp is redrawn rather than resampled, and
+ * a stroke drawn at 2 of a 24 grid comes out at 4 dp — the whole glyph twice the size, which is what
+ * legibility at four metres wants and not a hairline stretched over more pixels.
+ *
+ * It is *only* the art that grew. Nothing here changes what a tile says, which colour it says it in,
+ * or how wide it is, and the anatomy's art slot already reserves 64 dp — so 48 fits where 24 sat and
+ * no tile changes height.
  */
-private val GLYPH_SIZE = 24.dp
+private val GLYPH_SIZE = 48.dp
 
 /**
  * One tile's glyph. Untinted here and therefore tinted by [Icon] with `LocalContentColor`, which
