@@ -50,7 +50,9 @@ The baseline commits 1 and 2 replaced, kept so the diff stays legible:
   one heading per `RoomSection`, in the order that function already produces, with the roomless
   section last under "Без комнаты".
 - Every tile prints a status line ending in `ageLabel(...)`, and appends `not updating: <error>` when
-  its group's poll failed. Still true: commit 2 was a re-skin and changed no string.
+  its group's poll failed. Commit 2 was a re-skin and changed no string. **No longer true:** a tile
+  prints *one* age, the oldest of the readings it is showing, and none at all while they are all
+  fresh — see "One age per tile". `ageLabel` is gone; `ageLine` answers null instead of "just now".
 - `MainActivity` wraps everything in a bare `MaterialTheme {}` — no colour scheme is passed, so the
   panel is on the Material baseline light palette in both system themes. **No longer true:** commit
   5 passes it one of the two schemes in `PanelTheme.kt`, chosen by `isSystemInDarkTheme()`.
@@ -62,11 +64,11 @@ not of the room, and **every tile is 328 dp tall whatever its span** — see "On
 
 | Tile | Count | Span | Width | What it shows |
 | --- | --- | --- | --- | --- |
-| Air conditioner | 3 | 4 (wide) | 251 dp | Name, target temperature at display size, on/off, temperature slider, both ages |
-| Curtain | 1 | 4 (wide) | 251 dp | Name, open percent, slider, age |
-| Light strip | 2 | 4 (wide) | 251 dp | Name, on/off, brightness slider, colour, both ages |
-| Recuperator | 5 | 4 or 3 | 251 / 188 dp | Name, on/off, fan speeds, and — when it reports them — temperature and humidity. Up to four ages |
-| Bulb | many | 3 (narrow) | 188 dp | Name, on/off, age. On the wall when it has never reported, or when its room's group has been opened. See "The lights group" below |
+| Air conditioner | 3 | 4 (wide) | 251 dp | Name, target temperature at display size, on/off, temperature slider, one age |
+| Curtain | 1 | 4 (wide) | 251 dp | Name, open percent, slider, one age |
+| Light strip | 2 | 4 (wide) | 251 dp | Name, on/off, brightness slider, colour, one age |
+| Recuperator | 5 | 4 or 3 | 251 / 188 dp | Name, on/off, fan speeds, and — when it reports them — temperature and humidity. One age for the four |
+| Bulb | many | 3 (narrow) | 188 dp | Name, on/off, one age. On the wall when it has never reported, or when its room's group has been opened. See "The lights group" below |
 | Lights group | 1 per room | 3 (narrow) | 188 dp | How many lamps the room has, how many are lit, the oldest of their ages. Opens the lamps |
 | Launcher | 2 | 3 (narrow) | 188 dp | Name and one line. No age — there is no reading to age |
 
@@ -90,7 +92,7 @@ been taken over by the anatomy, which makes tiles of *different* kinds agree as 
 The recuperator is the densest tile the flat has and the only one whose span is decided by its
 content: **wide when it has a second line to put there, narrow when it has neither.** Two things
 count as a second line — `climateLine`, and its own error, whose vendor string is the longest thing
-any tile on this wall prints. A wide tile holding one line of "on · 2 min ago" is a hole in the
+any tile on this wall prints. A wide tile holding one line of "on · no speed" is a hole in the
 wall; a narrow one holding six lines of failure is a tile that does not line up with anything.
 _Unexercised on this wall:_ all five recuperators report both values, so the narrow branch is
 covered by `TileLayoutTest` and has never been seen.
@@ -131,8 +133,10 @@ It is also the only tile with **an error of its own**. Every other group shares 
 because the fifth timed out. The mosaic keeps that distinction: the tile's own error colours the
 tile, the group's error colours all five.
 
-The AC keeps both of its ages: on `ac-01` the power and temperature capabilities were read 81 days
-apart, and collapsing them to one number would print a lie on the bigger of the two.
+The AC prints **the older** of its two ages: on `ac-01` the power and temperature capabilities were
+read 81 days apart, and the tile says "81 d ago" rather than the on/off's minute — see "One age per
+tile". It printed both until then, and what that refused is intact; what is gone is the second
+timestamp.
 
 Sizes to hold to, since this is read and touched at arm's length from a wall:
 
@@ -249,8 +253,46 @@ What survives from the first version: the vendor's `last_updated` is still what 
 "20 d ago" is an honest answer to how old a value is, and a bulb nobody has touched in three weeks
 should say so. It is simply not a health signal, and the two must not be the same number.
 
-The AC has two readings and the light strip has two; both still print both ages, because on `ac-01`
-they are 81 days apart and one number for the pair would have to lie about the older.
+The AC has two readings, the light strip three and the recuperator four. They print **one age each**,
+and it is the oldest of them — see below.
+
+### One age per tile
+
+**A tile says how old it is once, and only when it is worth saying.** The rule and its threshold are
+in `Staleness.kt` beside the poll's, because they are two halves of the same question and the panel
+must not answer them with one number.
+
+What was on the wall before it, on one recuperator:
+
+```
+on · 3 min ago · low + medium + high · 3 min ago
+26.4 °C · 3 min ago · 41.0 % · 3 min ago
+```
+
+Four timestamps on one tile, three of them the same. The AC printed `on · 1 min ago · 22 °C · 81 d
+ago`, the strip two ages plus `not controllable`. CLAUDE.md requires a tile to say how old its state
+is; it does not require it to say so once per field, and that run-on is most of what made this wall
+look busy beside the app it is judged against, which prints one short grey line under a name or
+nothing at all.
+
+- **One age, the oldest of the readings the tile is showing**, printed on the status line — the
+  second line carries none. The oldest and not the freshest, for the reason the lights group already
+  quoted its oldest lamp: a tile under-claims how current it is rather than hiding the reading that
+  stopped moving. So the recuperator above says `3 d ago` while its humidity is 26 s old.
+- **Under an hour, nothing is printed.** Yandex is read every 15 s and Tuya every 6 minutes, so a
+  reading younger than that has been confirmed by dozens of polls and "3 min ago" is a line nobody
+  acts on. An hour is a guess and is one constant, `WORTH_SAYING`; the vocabulary above it is hours,
+  days and `never read`, which is why "just now" and "N min ago" no longer exist.
+- **A value the tile does not have brings no age.** A capability that reported nothing prints
+  `unknown`, and `unknown · never read` was that fact twice. So a bulb with no state says `unknown`,
+  and an AC with no target says `off · unknown · 2 h ago` — the on/off's age, not the missing
+  temperature's 81 days.
+- The rest is untouched: `not controllable`, `no state to read`, `not installed`, `offline` and
+  `not updating: <reason>` all still print, and the promoted value is exactly what it was.
+
+_What this does not change:_ the vendor's `last_updated` is still what a tile prints, and the poll's
+own staleness is still what marks a heading. A tile that has gone quiet for under an hour says
+nothing about it — the room's heading is where that is said, and it is said about the poll.
 
 ### The recuperators before the first poll
 
@@ -263,7 +305,7 @@ minutes**. Seen on the wall on 2026-08-16: `Бризеры: not updating: Unable
 
 So the panel remembers who they are. `KnownRecuperators` keeps the last successful inventory — **id,
 name, room, and nothing else** — in the same encrypted store as the credentials, because device ids
-identify the flat. On a cold start those become tiles with no values on them: "unknown · never read",
+identify the flat. On a cold start those become tiles with no values on them: "unknown · unknown",
 no climate line, third-width, and the group stale until a refresh lands, which is what marks the
 heading and pulls them onto Главная.
 
@@ -281,7 +323,7 @@ A tablet with no usable keystore — restored backup, wiped key — remembers no
 Yandex tile already up, and cleared by itself at the next poll — the host resolved fine from the
 shell throughout, so it is the poll's cadence and not the network. After one successful inventory,
 a restart shows all five recuperators inside a second: named, in their rooms, third-width,
-"unknown · never read · unknown · never read", every room heading marked, and the whole set replaced by
+"unknown · unknown", every room heading marked, and the whole set replaced by
 real values 0.4 s later when the poll landed. `Бризер зал` then goes back to half-width with its
 climate line, and the marks clear.
 
@@ -1006,7 +1048,7 @@ out wrong. None of them can be settled from a screenshot.
 
 ## Open
 
-- Status strings are English today (`on`, `just now`, `not updating`) while room names arrive in
+- Status strings are English today (`on`, `never read`, `not updating`) while room names arrive in
   Russian from the vendors. The mosaic does not change that, and it should not be changed quietly as
   part of this work; if the panel is to speak one language it is its own commit.
 - Whether the 2-minute idle reset is right, or whether it should be the screen's own dim timeout.

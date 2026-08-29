@@ -105,11 +105,11 @@ class YandexPollTest {
             statusLine(curtains.tiles.single(), now, curtains.error),
         )
         assertEquals(
-            "off · 17 d ago · 18 °C · 98 d ago · not updating: ${acs.error}",
+            "off · 18 °C · 98 d ago · not updating: ${acs.error}",
             statusLine(acs.tiles.single { it.id == "ac-01" }, now, acs.error),
         )
         assertEquals(
-            "on · never read · 26% · never read · not updating: ${strips.error}",
+            "on · 26% · never read · not updating: ${strips.error}",
             statusLine(strips.tiles.single { it.id == "light-strip-01" }, now, strips.error),
         )
     }

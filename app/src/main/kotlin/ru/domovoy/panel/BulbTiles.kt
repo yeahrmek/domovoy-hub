@@ -7,7 +7,6 @@ import ru.domovoy.core.Device
 import ru.domovoy.core.DeviceKind
 import ru.domovoy.core.Reading
 import ru.domovoy.integrations.yandex.YandexClient
-import java.time.Duration
 import java.time.Instant
 
 /** What one bulb tile renders. */
@@ -98,23 +97,3 @@ private fun Device.toTile() = BulbTileState(
 
 /** How a failure reads on a tile; shared with the curtain group, which fails the same way. */
 internal fun Throwable.describe(): String = message?.takeIf { it.isNotBlank() } ?: this::class.simpleName.orEmpty()
-
-/**
- * How old a reading is, in the words the tile prints. A capability that never reported comes back
- * as "never read" — formatting its `0.0` as a date would show *1 Jan 1970*.
- */
-fun ageLabel(
-    reading: Reading,
-    now: Instant,
-): String = when (reading) {
-    Reading.Never -> "never read"
-    is Reading.At -> {
-        val seconds = Duration.between(reading.instant, now).seconds
-        when {
-            seconds < 60 -> "just now"
-            seconds < 3600 -> "${seconds / 60} min ago"
-            seconds < 86_400 -> "${seconds / 3600} h ago"
-            else -> "${seconds / 86_400} d ago"
-        }
-    }
-}

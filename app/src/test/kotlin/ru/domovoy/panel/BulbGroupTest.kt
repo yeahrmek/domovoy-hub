@@ -53,7 +53,7 @@ class BulbGroupTest {
 
         assertEquals("1 lamp", lampCount(group))
         assertEquals("1 on", promoted(group))
-        assertEquals("1 lamp · 1 on · just now", bulbGroupLine(group, now, notUpdating = false, error = null))
+        assertEquals("1 lamp · 1 on", bulbGroupLine(group, now, notUpdating = false, error = null))
     }
 
     @Test
@@ -67,7 +67,7 @@ class BulbGroupTest {
         assertEquals(7, group.lamps.size)
         assertEquals("7 lamps", lampCount(group))
         assertEquals("5 on", promoted(group))
-        assertEquals("7 lamps · 5 on · just now", bulbGroupLine(group, now, notUpdating = false, error = null))
+        assertEquals("7 lamps · 5 on", bulbGroupLine(group, now, notUpdating = false, error = null))
     }
 
     @Test
@@ -131,7 +131,7 @@ class BulbGroupTest {
         val group = bulbGroup(bulbs)
 
         assertEquals(1, group.on)
-        assertEquals("2 lamps · 1 on · just now", bulbGroupLine(group, now, notUpdating = false, error = null))
+        assertEquals("2 lamps · 1 on", bulbGroupLine(group, now, notUpdating = false, error = null))
     }
 
     @Test
@@ -160,13 +160,13 @@ class BulbGroupTest {
         val group = bulbGroup(listOf(bulb("light-01", isOn = true), bulb("light-02", isOn = false)))
 
         assertEquals(
-            "2 lamps · 1 on · just now · not updating: HTTP 500",
+            "2 lamps · 1 on · not updating: HTTP 500",
             bulbGroupLine(group, now, notUpdating = true, error = "HTTP 500"),
         )
         // Stale with nothing to name: the poll simply stopped landing, and there is no error to
         // quote — see notUpdating.
         assertEquals(
-            "2 lamps · 1 on · just now · not updating",
+            "2 lamps · 1 on · not updating",
             bulbGroupLine(group, now, notUpdating = true, error = null),
         )
     }

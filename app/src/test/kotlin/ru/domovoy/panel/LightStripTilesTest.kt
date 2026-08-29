@@ -64,7 +64,7 @@ class LightStripTilesTest {
         assertEquals("Зал", tile.room)
         assertEquals(true, tile.isOn)
         assertEquals(26.0, tile.brightnessPercent)
-        assertEquals("on · never read · 26% · never read", statusLine(tile, now, error = null))
+        assertEquals("on · 26% · never read", statusLine(tile, now, error = null))
     }
 
     @Test
@@ -108,7 +108,7 @@ class LightStripTilesTest {
         val tile = poll.strips.state.value.tiles.single { it.id == "light-strip-01" }
         assertEquals("temperature_k", tile.color?.instance)
         assertEquals(2700.0, tile.color?.value)
-        assertEquals("2700 K · never read · not controllable", colorLine(tile, now))
+        assertEquals("2700 K · not controllable", colorLine(tile))
     }
 
     @Test
@@ -124,7 +124,7 @@ class LightStripTilesTest {
         val color = assertNotNull(tile.color)
         assertNull(color.instance)
         assertNull(color.value)
-        assertEquals("unknown · never read · not controllable", colorLine(tile, now))
+        assertEquals("unknown · not controllable", colorLine(tile))
     }
 
     @Test
@@ -137,7 +137,7 @@ class LightStripTilesTest {
         poll.refresh()
 
         val tile = poll.strips.state.value.tiles.single { it.id == "light-strip-01" }
-        assertEquals("#FFFFF0 · never read · not controllable", colorLine(tile, now))
+        assertEquals("#FFFFF0 · not controllable", colorLine(tile))
     }
 
     @Test
@@ -149,7 +149,7 @@ class LightStripTilesTest {
 
         val tile = poll.strips.state.value.tiles.single { it.id == "light-strip-01" }
         assertNull(tile.color)
-        assertNull(colorLine(tile, now))
+        assertNull(colorLine(tile))
     }
 
     @Test
@@ -163,7 +163,7 @@ class LightStripTilesTest {
 
         val tile = poll.strips.state.value.tiles.single { it.id == "light-strip-01" }
         assertNull(tile.brightnessPercent)
-        assertEquals("on · never read · unknown · never read", statusLine(tile, now, error = null))
+        assertEquals("on · unknown · never read", statusLine(tile, now, error = null))
     }
 
     @Test
@@ -174,7 +174,7 @@ class LightStripTilesTest {
         poll.refresh()
 
         val tile = poll.strips.state.value.tiles.single { it.id == "light-strip-01" }
-        assertEquals("on · never read · 26 · never read", statusLine(tile, now, error = null))
+        assertEquals("on · 26 · never read", statusLine(tile, now, error = null))
     }
 
     @Test
@@ -186,7 +186,7 @@ class LightStripTilesTest {
 
         val tile = poll.strips.state.value.tiles.single { it.id == "light-strip-01" }
         assertNull(tile.isOn)
-        assertEquals("unknown · never read · 26% · never read", statusLine(tile, now, error = null))
+        assertEquals("unknown · 26% · never read", statusLine(tile, now, error = null))
     }
 
     @Test
@@ -285,7 +285,7 @@ class LightStripTilesTest {
         assertEquals(before, after.tiles)
         val tile = after.tiles.single { it.id == "light-strip-01" }
         assertEquals(
-            "on · never read · 26% · never read · not updating: ${after.error}",
+            "on · 26% · never read · not updating: ${after.error}",
             statusLine(tile, now, after.error),
         )
     }

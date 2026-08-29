@@ -46,7 +46,7 @@ data class BulbGroup(
  * answering a week ago.
  *
  * **No `now`.** Finding the oldest of a set of readings needs no clock; formatting one does, and
- * that is [ageLabel]'s job at the point of drawing, as on every other tile.
+ * that is [ageLine]'s job at the point of drawing, as on every other tile.
  *
  * A room with no bulbs comes back with nothing in it, which is nothing to draw rather than an empty
  * tile — as does a room whose every bulb broke out.
@@ -57,21 +57,12 @@ fun bulbGroup(bulbs: List<BulbTileState>): BulbGroup {
         lamps = lamps,
         brokenOut = brokenOut,
         on = lamps.count { it.isOn == true },
+        // [oldest] is shared with every other kind of tile now — one age per tile is the rule, and
+        // the group's was only the first of them. `isOn` and `last_updated` are different fields of
+        // one capability, so a Never turns up *inside* the group rather than only outside it: three
+        // of Коридор's four bulbs report a value with a `last_updated` of `0.0`.
         oldest = oldest(lamps.map { it.lastUpdated }),
     )
-}
-
-/**
- * The oldest of a set of readings, with [Reading.Never] older than any instant: a capability that
- * has never reported is the least fresh thing the group can be holding, and 33 of the 116 recorded
- * capabilities are exactly that. `isOn` and `last_updated` are different fields of the same
- * capability, so a `Never` turns up inside the group rather than only outside it — three of
- * Коридор's four bulbs report a value with a `last_updated` of `0.0`.
- */
-private fun oldest(readings: List<Reading>): Reading? = when {
-    readings.isEmpty() -> null
-    readings.any { it == Reading.Never } -> Reading.Never
-    else -> Reading.At(readings.filterIsInstance<Reading.At>().minOf { it.instant })
 }
 
 /**
@@ -98,14 +89,16 @@ internal fun bulbGroupLine(
     now: Instant,
     notUpdating: Boolean,
     error: String?,
-): String {
-    // A group with no lamps has no tile, so the fallback is never printed; Never is the honest
-    // answer for it anyway.
-    val age = ageLabel(group.oldest ?: Reading.Never, now)
-    val line = "${lampCount(group)} · ${group.on} on · $age"
-    return when {
-        !notUpdating -> line
-        error == null -> "$line · not updating"
-        else -> "$line · not updating: $error"
-    }
-}
+): String = listOfNotNull(
+    lampCount(group),
+    "${group.on} on",
+    // The one age this tile has always printed, now under the rule every tile follows: a room whose
+    // lamps were all read this morning says nothing about ages, and one lamp that stopped answering
+    // a week ago still makes the whole group say "7 d ago". See [ageLine].
+    ageLine(group.oldest, now),
+    when {
+        !notUpdating -> null
+        error == null -> "not updating"
+        else -> "not updating: $error"
+    },
+).joinToString(" · ")

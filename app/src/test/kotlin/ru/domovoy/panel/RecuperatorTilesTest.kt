@@ -51,7 +51,7 @@ class RecuperatorTilesTest {
     }
 
     @Test
-    fun `a tile shows whether the recuperator is on, its fan speed and the age of each reading`() = runTest {
+    fun `a tile shows whether the recuperator is on, its fan speed and one age for the four`() = runTest {
         enqueueRefresh()
         val poll = TuyaPoll(client())
 
@@ -64,14 +64,19 @@ class RecuperatorTilesTest {
         // All three speed booleans came back false, which is the device reporting no speed
         // running — not a device that failed to say.
         assertEquals(emptyList(), tile.speeds)
-        assertEquals("off · 3 d ago · no speed · 3 d ago", statusLine(tile, now(minutes = 0)))
+        // One age, and the oldest of the four datapoints this tile shows: the switch and the speed
+        // have not moved in three days while the humidity is 26 s old. The tile under-claims its
+        // freshness rather than quoting the newest of them — see StalenessTest.
+        assertEquals("off · no speed · 3 d ago", statusLine(tile, now(minutes = 0)))
     }
 
     @Test
-    fun `a tile shows the temperature and humidity, each with its own age`() = runTest {
+    fun `a tile shows the temperature and humidity on a line of their own, without ages`() = runTest {
         // These two are the only datapoints that move on their own, and they move at different
         // times: the humidity was 26 s old when the response was recorded and the temperature
-        // nearly 4 minutes. One age for the pair would be wrong about one of them.
+        // nearly 4 minutes. Both ages used to be printed here, next to the two on the line above —
+        // four timestamps on one tile, three of them the same number. They are folded into the one
+        // age the status line prints, which is the oldest of all four.
         enqueueRefresh()
         val poll = TuyaPoll(client())
 
@@ -80,7 +85,7 @@ class RecuperatorTilesTest {
         val tile = poll.recuperators.state.value.tiles.single { it.id == "xfj-01" }
         assertEquals(29.3, tile.temperature)
         assertEquals(32.2, tile.humidity)
-        assertEquals("29.3 °C · 3 min ago · 32.2 % · just now", climateLine(tile, now(minutes = 0)))
+        assertEquals("29.3 °C · 32.2 %", climateLine(tile))
     }
 
     @Test
@@ -95,7 +100,7 @@ class RecuperatorTilesTest {
 
         val tile = poll.recuperators.state.value.tiles.single { it.id == "xfj-01" }
         assertNull(tile.temperature)
-        assertEquals("unknown · never read · 32.2 % · just now", climateLine(tile, now(minutes = 0)))
+        assertEquals("unknown · 32.2 %", climateLine(tile))
     }
 
     @Test
@@ -109,9 +114,9 @@ class RecuperatorTilesTest {
         poll.refresh()
 
         val tile = poll.recuperators.state.value.tiles.single { it.id == "xfj-01" }
-        assertNull(climateLine(tile, now(minutes = 0)))
+        assertNull(climateLine(tile))
         // The tile is still there, and the line that carries its staleness is untouched.
-        assertEquals("off · 3 d ago · no speed · 3 d ago", statusLine(tile, now(minutes = 0)))
+        assertEquals("off · no speed · 3 d ago", statusLine(tile, now(minutes = 0)))
     }
 
     @Test
@@ -127,7 +132,7 @@ class RecuperatorTilesTest {
             poll.refresh()
 
             val tile = poll.recuperators.state.value.tiles.single { it.id == "xfj-01" }
-            assertEquals("29.3 °C · 3 min ago · 32.2 % · just now", climateLine(tile, now(minutes = 0)))
+            assertEquals("29.3 °C · 32.2 %", climateLine(tile))
         } finally {
             Locale.setDefault(previous)
         }
@@ -175,7 +180,7 @@ class RecuperatorTilesTest {
 
         val tile = poll.recuperators.state.value.tiles.single { it.id == "xfj-01" }
         assertEquals(listOf(FanSpeed.High), tile.speeds)
-        assertEquals("off · 3 d ago · high · 3 d ago", statusLine(tile, now(minutes = 0)))
+        assertEquals("off · high · 3 d ago", statusLine(tile, now(minutes = 0)))
     }
 
     @Test
@@ -193,7 +198,7 @@ class RecuperatorTilesTest {
 
         val tile = poll.recuperators.state.value.tiles.single { it.id == "xfj-01" }
         assertEquals(listOf(FanSpeed.Low, FanSpeed.High), tile.speeds)
-        assertEquals("off · 3 d ago · low + high · 3 d ago", statusLine(tile, now(minutes = 0)))
+        assertEquals("off · low + high · 3 d ago", statusLine(tile, now(minutes = 0)))
     }
 
     @Test
@@ -207,7 +212,7 @@ class RecuperatorTilesTest {
         poll.refresh()
 
         val tile = poll.recuperators.state.value.tiles.single { it.id == "xfj-01" }
-        assertEquals("off · 3 d ago · unknown · never read", statusLine(tile, now(minutes = 0)))
+        assertEquals("off · unknown · 3 d ago", statusLine(tile, now(minutes = 0)))
     }
 
     @Test
@@ -222,7 +227,7 @@ class RecuperatorTilesTest {
 
         val tile = poll.recuperators.state.value.tiles.single { it.id == "xfj-01" }
         assertNull(tile.isOn)
-        assertEquals("unknown · never read · no speed · 3 d ago", statusLine(tile, now(minutes = 0)))
+        assertEquals("unknown · no speed · 3 d ago", statusLine(tile, now(minutes = 0)))
     }
 
     @Test
@@ -279,7 +284,7 @@ class RecuperatorTilesTest {
         assertEquals(before.powerLastUpdated, after.powerLastUpdated)
         assertEquals(before.speeds, after.speeds)
         assertTrue(
-            statusLine(after, now(minutes = 0)).startsWith("off · 3 d ago · no speed · 3 d ago · not updating"),
+            statusLine(after, now(minutes = 0)).startsWith("off · no speed · 3 d ago · not updating"),
             "the tile has to keep its values and say why they are not moving: ${statusLine(after, now(minutes = 0))}",
         )
     }
@@ -470,7 +475,7 @@ class RecuperatorTilesTest {
         assertEquals("Бризер данина комната", tile.name)
         assertEquals("Спальня", tile.room, "the room it was placed in is remembered with it")
         assertNull(tile.isOn, "a switch position from before the reboot is not a reading")
-        assertEquals("unknown · never read · unknown · never read", statusLine(tile, now(minutes = 0)))
+        assertEquals("unknown · unknown", statusLine(tile, now(minutes = 0)))
         assertNull(restarted.recuperators.state.value.lastPolledAt, "nothing has been read yet")
     }
 

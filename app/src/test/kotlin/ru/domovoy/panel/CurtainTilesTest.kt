@@ -85,7 +85,10 @@ class CurtainTilesTest {
 
         val tile = curtains.state.value.tiles.single()
         assertNull(tile.openPercent)
-        assertEquals("unknown · 2 h ago", statusLine(tile, Instant.ofEpochSecond(lastRead + 2 * 3600), error = null))
+        // And the age goes with the value it was about. The capability carries a `last_updated`,
+        // but there is no position it is the age *of* — "unknown · 2 h ago" claimed to have read
+        // something two hours ago, which is exactly what this test refuses one line up.
+        assertEquals("unknown", statusLine(tile, Instant.ofEpochSecond(lastRead + 2 * 3600), error = null))
     }
 
     @Test

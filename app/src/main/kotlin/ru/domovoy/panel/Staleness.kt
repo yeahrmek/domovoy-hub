@@ -1,7 +1,11 @@
 package ru.domovoy.panel
 
+import ru.domovoy.core.Reading
 import java.time.Instant
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.days
+import kotlin.time.Duration.Companion.hours
+import kotlin.time.Duration.Companion.milliseconds
 
 /**
  * How many of its own poll intervals a group may go unread before the panel calls it stale.
@@ -58,3 +62,76 @@ internal fun notUpdating(
     now: Instant,
     interval: Duration,
 ): Boolean = error != null || isStale(lastPolledAt, now, interval)
+
+/**
+ * **How old a reading has to be before a tile bothers to print it.** Under this, the tile says
+ * nothing about its age at all.
+ *
+ * The wall printed an age per field and the fields shared them: `on · 3 min ago · low + medium +
+ * high · 3 min ago` over `26.4 °C · 3 min ago · 41.0 % · 3 min ago` — four timestamps on one tile,
+ * three of them the same number — while the app this panel is judged against prints one short grey
+ * line under a name, or nothing. CLAUDE.md requires a tile to say how old its state is. It does not
+ * require it to say so once per value, and it does not require it to say so when there is nothing
+ * worth saying.
+ *
+ * **An hour is a guess and is written down as one**, the same way [INTERVALS_BEFORE_STALE] is. It is
+ * the line between a value that is what the flat is doing and one that is history: Yandex is read
+ * every 15 s and Tuya every 6 minutes, so a reading younger than an hour has been confirmed by
+ * dozens of polls, and "3 min ago" beside it is a line nobody standing in the hallway acts on. Past
+ * it the tile speaks, in hours and then in days — which is why [ageLine] has no wording below an
+ * hour to give.
+ *
+ * _It is deliberately not [isStale]'s threshold._ That one is about whether the panel is still
+ * reading, is counted in poll intervals, and is said on the room's heading. This one is about the
+ * value on the card: the vendor's own `last_updated`, which says when the *device* reported. The two
+ * numbers answer different questions and must not become one — see docs/ui.md, "Stale".
+ */
+private val WORTH_SAYING = 1.hours
+
+/**
+ * The oldest of a set of readings, with [Reading.Never] older than any instant: a capability that
+ * has never reported is the least fresh thing a tile can be holding, and 33 of the 116 recorded
+ * capabilities are exactly that.
+ *
+ * **Null when the set is empty**, which is a tile with no reading to age rather than a tile that is
+ * fresh — a bulb the panel has no value for at all, whose status line says "unknown" and has said so
+ * since the first commit. Nothing is lost by not ageing it: "unknown · never read" is the same fact
+ * twice, and this is the file that decides such a line is not worth its width.
+ *
+ * Shared rather than one tile's, because **one age per tile is the rule now** and every kind has to
+ * take the oldest of what it is showing: the air conditioner over its two capabilities, the strip
+ * over three, the recuperator over four, the lights group over a room's worth of lamps. It was the
+ * group's private helper until this commit, which is why it reads as though it were about bulbs.
+ */
+internal fun oldest(readings: List<Reading>): Reading? = when {
+    readings.isEmpty() -> null
+    readings.any { it == Reading.Never } -> Reading.Never
+    else -> Reading.At(readings.filterIsInstance<Reading.At>().minOf { it.instant })
+}
+
+/**
+ * **The one age a tile prints**, in the words it prints it in — or null when it has nothing to say:
+ * no reading at all, or one young enough that [WORTH_SAYING] holds its tongue.
+ *
+ * A reading that never reported comes back as "never read" whatever the clock says; formatting its
+ * `0.0` as a date would put *1 Jan 1970* on the wall.
+ *
+ * Milliseconds and not `Duration.between`, for [isStale]'s reason: this is a wall clock read a few
+ * times a minute, and a stamp dated in the future — a tablet whose clock jumped back — comes out
+ * fresh and silent rather than absurd.
+ */
+internal fun ageLine(
+    reading: Reading?,
+    now: Instant,
+): String? = when (reading) {
+    null -> null
+    Reading.Never -> "never read"
+    is Reading.At -> {
+        val age = (now.toEpochMilli() - reading.instant.toEpochMilli()).milliseconds
+        when {
+            age < WORTH_SAYING -> null
+            age < 1.days -> "${age.inWholeHours} h ago"
+            else -> "${age.inWholeDays} d ago"
+        }
+    }
+}

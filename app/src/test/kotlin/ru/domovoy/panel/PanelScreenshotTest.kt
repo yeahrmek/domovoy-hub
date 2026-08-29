@@ -251,7 +251,7 @@ class PanelScreenshotTest {
         controls = TileControls.None,
         name = name,
         promoted = "22 °C",
-        status = "on · 2 min ago",
+        status = "on · 2 h ago",
         detail = null,
     )
 }

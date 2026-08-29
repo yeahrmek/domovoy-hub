@@ -49,13 +49,14 @@ internal const val NARROW_SPAN = 3
  * How wide one recuperator is: the only span in the panel decided by content rather than by type.
  *
  * Wide when the device has a second line to put there, narrow when it does not — a wide tile
- * holding one line of "on · 2 min ago" is a hole in the wall.
+ * holding one line of "on · no speed" is a hole in the wall.
  *
  * **Two things count as a second line**, and both are asked of the function that produces them
  * rather than re-derived here, so that the width and what goes in it cannot drift apart:
  *
- * - [climateLine], the temperature and humidity it measures. [Instant] is irrelevant to whether
- *   that line exists — it is present or absent whatever the ages are — so any instant does.
+ * - [climateLine], the temperature and humidity it measures. It takes no clock at all now that the
+ *   tile prints one age on the line above, so this asks it outright rather than with the
+ *   `Instant.EPOCH` it used to have to invent.
  * - **Its own error.** A recuperator that is not updating says why, and the reason is a vendor
  *   string of unbounded length; at 188 dp it is the one status line on the wall long enough to run
  *   past what a tile reserves for it. The tile with the most to say gets the width to say it, which
@@ -65,7 +66,7 @@ internal const val NARROW_SPAN = 3
  * would re-lay the whole room out every time Tuya blinked.
  */
 internal fun span(tile: RecuperatorTileState): Int {
-    val hasSecondLine = climateLine(tile, Instant.EPOCH) != null || tile.error != null
+    val hasSecondLine = climateLine(tile) != null || tile.error != null
     return if (hasSecondLine) WIDE_SPAN else NARROW_SPAN
 }
 
@@ -390,7 +391,7 @@ internal fun promoted(tile: LightStripTileState): String? {
 /**
  * The temperature and not the humidity, of the two the recuperator measures: it is the one somebody
  * standing in the hallway is deciding something about, and the humidity keeps its place on
- * [climateLine] with both ages.
+ * [climateLine] beside it.
  *
  * Formatted by [measured] rather than here, so the promoted value and the climate line cannot come
  * out rounded differently — the same reason [span] asks [climateLine] instead of re-deriving it.
@@ -612,15 +613,21 @@ internal data class TileAnatomy(
     val promoted: String?,
     /**
      * **Status line.** Everything CLAUDE.md requires a tile to be able to say and nobody reads from
-     * four metres: the on/off in words, every age, and the reason when a poll stopped landing.
+     * four metres: the on/off in words, **one age** — the oldest of the readings the tile is
+     * showing, and nothing at all when they are all fresh — and the reason when a poll stopped
+     * landing. It carried an age per value until this commit, which on the recuperator was four
+     * timestamps on one tile and three of them the same number.
      */
     val status: String,
     /**
-     * The status slot's second line, for the two tiles that have a reading with an age of its own —
-     * the strip's colour and the recuperator's climate — plus the lights group, whose second line
-     * says what its tap does rather than what it read. Null for the rest. Part of the status slot
-     * rather than a sixth one: it is the same words at the same size, and the slot reserves room for
-     * it on every tile whether or not it arrives.
+     * The status slot's second line, for the two tiles with a second reading to show — the strip's
+     * colour and the recuperator's climate — plus the lights group, whose second line says what its
+     * tap does rather than what it read. Null for the rest. Part of the status slot rather than a
+     * sixth one: it is the same words at the same size, and the slot reserves room for it on every
+     * tile whether or not it arrives.
+     *
+     * **It carries no age**, and neither of the two functions behind it takes a clock any more: the
+     * age of what is on this line is folded into the one the status line prints — see [ageLine].
      */
     val detail: String?,
 )
@@ -667,7 +674,7 @@ internal fun anatomy(
     name = tile.name,
     promoted = promoted(tile),
     status = statusLine(tile, now, error),
-    detail = colorLine(tile, now),
+    detail = colorLine(tile),
 )
 
 /**
@@ -687,7 +694,7 @@ internal fun anatomy(
     name = tile.name,
     promoted = promoted(tile),
     status = statusLine(tile, now, groupError),
-    detail = climateLine(tile, now),
+    detail = climateLine(tile),
 )
 
 internal fun anatomy(

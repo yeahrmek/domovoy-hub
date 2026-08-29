@@ -30,7 +30,7 @@ class TileLayoutTest {
         // which is the same condition rather than a second one that can drift away from it.
         val tile = recuperator(temperature = 29.3, humidity = 32.2)
 
-        assertNotNull(climateLine(tile, now))
+        assertNotNull(climateLine(tile))
         assertEquals(4, span(tile))
     }
 
@@ -39,16 +39,16 @@ class TileLayoutTest {
         // Either value on its own is a climate line, so either value on its own is a wide tile.
         val tile = recuperator(temperature = null, humidity = 32.2)
 
-        assertNotNull(climateLine(tile, now))
+        assertNotNull(climateLine(tile))
         assertEquals(4, span(tile))
     }
 
     @Test
     fun `a recuperator reporting neither is a narrow tile`() {
-        // A wide tile holding one line of "on · 2 min ago" is a hole in the wall.
+        // A wide tile holding one line of "on · no speed" is a hole in the wall.
         val tile = recuperator(temperature = null, humidity = null)
 
-        assertNull(climateLine(tile, now))
+        assertNull(climateLine(tile))
         assertEquals(3, span(tile))
     }
 
@@ -59,7 +59,7 @@ class TileLayoutTest {
         // with the most to say gets the width to say it — the same rule the climate line has.
         val tile = recuperator(temperature = null, humidity = null, isOn = null, error = "timeout")
 
-        assertNull(climateLine(tile, now))
+        assertNull(climateLine(tile))
         assertEquals(4, span(tile))
     }
 
@@ -471,7 +471,7 @@ class TileLayoutTest {
         val strip = strip(isOn = true)
         assertTrue(statusLine(strip, now, error = null).contains(promoted(strip)!!))
         val recuperator = recuperator(temperature = 29.3, humidity = 32.2)
-        assertTrue(climateLine(recuperator, now)!!.contains(promoted(recuperator)!!))
+        assertTrue(climateLine(recuperator)!!.contains(promoted(recuperator)!!))
     }
 
     @Test
@@ -536,6 +536,92 @@ class TileLayoutTest {
         assertNull(anatomy(strip(isOn = true), now, error = null).detail)
     }
 
+    // --- One age per tile ---------------------------------------------------------------------
+    //
+    // The wall printed an age per value and the values shared them: the recuperator carried four
+    // timestamps across two lines and three were the same number. What a tile has to be able to say
+    // is how old its state is — once, and only when it is old enough to be worth the line.
+
+    @Test
+    fun `a tile whose readings are all fresh prints no age at all`() {
+        // Every fixture in this file is read at `now`, so this is the whole table asserting the
+        // quiet case: nothing on a working wall says "3 min ago" any more.
+        everyTile().forEach { anatomy ->
+            assertEquals(emptyList(), agesOn(anatomy), "a fresh tile still printing an age: $anatomy")
+        }
+    }
+
+    @Test
+    fun `no tile prints the same age twice, however many readings are behind it`() {
+        // The air conditioner has two readings, the strip three, the recuperator four, and a lights
+        // group as many as the room has lamps. One line each, and one age on it.
+        everyStaleTile().forEach { anatomy ->
+            val ages = agesOn(anatomy)
+            assertEquals(1, ages.size, "a tile saying its age $ages times: $anatomy")
+        }
+    }
+
+    /**
+     * Every age printed on one tile, on both of its lines. The panel's whole vocabulary for an age
+     * is hours, days and "never read" — see `ageLine` — so a match here is a timestamp and nothing
+     * else is.
+     */
+    private fun agesOn(anatomy: TileAnatomy): List<String> {
+        val words = anatomy.status.split(" · ") + anatomy.detail.orEmpty().split(" · ")
+        return words.filter { it == "never read" || Regex("""^\d+ [hd] ago$""").matches(it) }
+    }
+
+    /**
+     * One tile of every kind that has a reading, with every reading behind it old enough to speak —
+     * and deliberately *not* all the same age, so a tile that printed one per value would come out
+     * of [agesOn] with several.
+     */
+    private fun everyStaleTile(): List<TileAnatomy> {
+        val weeks = Reading.At(now.minusSeconds(20 * 86_400))
+        val months = Reading.At(now.minusSeconds(81 * 86_400))
+        val hours = Reading.At(now.minusSeconds(5 * 3600))
+        return listOf(
+            anatomy(
+                ac(isOn = true).copy(powerLastUpdated = hours, temperatureLastUpdated = months),
+                now,
+                error = "HTTP 500",
+            ),
+            anatomy(curtain(openPercent = 40.0).copy(lastUpdated = weeks), now, error = null),
+            anatomy(
+                strip(isOn = true, color = warmWhite).copy(
+                    powerLastUpdated = hours,
+                    brightnessLastUpdated = weeks,
+                    color = warmWhite.copy(lastUpdated = Reading.Never),
+                ),
+                now,
+                error = null,
+            ),
+            anatomy(
+                recuperator(temperature = 29.3, humidity = 32.2).copy(
+                    powerLastUpdated = months,
+                    speedLastUpdated = weeks,
+                    temperatureLastUpdated = hours,
+                    humidityLastUpdated = hours,
+                ),
+                now,
+                groupError = "HTTP 500",
+            ),
+            anatomy(bulb(isOn = true).copy(lastUpdated = weeks), now, error = null),
+            anatomy(
+                bulbGroup(
+                    listOf(
+                        bulb(isOn = true).copy(id = "light-01", lastUpdated = hours),
+                        bulb(isOn = false).copy(id = "light-02", lastUpdated = months),
+                    ),
+                ),
+                now,
+                error = null,
+                notUpdating = true,
+                open = false,
+            ),
+        )
+    }
+
     @Test
     fun `what a tile offers a finger is its type's, and its vendor's bounds`() {
         // The switch and the slider are two axes of one answer, because they sit in two different
@@ -583,7 +669,7 @@ class TileLayoutTest {
         assertEquals(promoted(ac), anatomy(ac, now, error = null).promoted)
         assertEquals(glyph(ac), anatomy(ac, now, error = null).art)
         val recuperator = recuperator(temperature = 29.3, humidity = 32.2)
-        assertEquals(climateLine(recuperator, now), anatomy(recuperator, now, groupError = null).detail)
+        assertEquals(climateLine(recuperator), anatomy(recuperator, now, groupError = null).detail)
         val launcher = launcher(openable = false)
         assertEquals(statusLine(launcher), anatomy(launcher).status)
     }

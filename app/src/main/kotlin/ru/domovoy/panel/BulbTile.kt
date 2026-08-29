@@ -84,16 +84,23 @@ fun BulbGroupTile(
     )
 }
 
-/** The line under the name: on/off, how old the reading is, and the error if the poll failed. */
+/**
+ * The line under the name: on/off, how old that reading is once it is worth saying, and the error if
+ * the poll failed.
+ *
+ * A lamp switched on twenty days ago still says "20 d ago"; one read this morning says nothing but
+ * "on" — see [ageLine]. A lamp the panel has no value for says "unknown" and no age at all, because
+ * it has no reading for an age to be about: "unknown · never read" was the same fact twice.
+ */
 internal fun statusLine(
     tile: BulbTileState,
     now: Instant,
     error: String?,
-): String {
-    val power = power(tile.isOn)
-    val age = ageLabel(tile.lastUpdated, now)
-    return if (error == null) "$power · $age" else "$power · $age · not updating: $error"
-}
+): String = listOfNotNull(
+    power(tile.isOn),
+    ageLine(tile.lastUpdated.takeIf { tile.isOn != null }, now),
+    error?.let { "not updating: $it" },
+).joinToString(" · ")
 
 /**
  * The three words a bulb's state comes in. "unknown" and never "off" for a bulb that reported

@@ -45,10 +45,15 @@ fun RecuperatorTile(
 }
 
 /**
- * The line under the name: on/off and how old that is, then the fan speed and how old *that* is.
- * Two ages rather than one for the same reason the air conditioner prints two — the datapoints are
- * timestamped separately, and on the recorded response the humidity was minutes old while the
- * switch had not moved in days.
+ * The line under the name: on/off, the fan speed, **one age for the whole tile**, and the reason it
+ * stopped updating.
+ *
+ * This is the tile the one-age rule was written for. It printed four of them — two here and two on
+ * the climate line — and on the recorded response three were the same number: `on · 3 min ago · low
+ * + medium + high · 3 min ago` over `26.4 °C · 3 min ago · 41.0 % · 3 min ago`. The four datapoints
+ * really are timestamped separately, so the one printed is the **oldest** of them, the climate
+ * included: the tile under-claims how fresh it is rather than quoting the humidity's 26 seconds over
+ * a switch that has not moved in three days.
  *
  * "offline" leads, when Tuya says so: everything after it is what the device last reported before
  * it went away, and reading it as current would be the tile's worst lie.
@@ -65,14 +70,29 @@ internal fun statusLine(
             false -> "off"
             null -> "unknown"
         }
-    val line =
-        "$power · ${ageLabel(tile.powerLastUpdated, now)} · " +
-            "${speedLabel(tile)} · ${ageLabel(tile.speedLastUpdated, now)}"
-    // This tile's own failure first: it is the more specific of the two.
-    val reason = tile.error ?: groupError
-    val reported = if (reason == null) line else "$line · not updating: $reason"
-    return if (tile.online == false) "offline · $reported" else reported
+    return listOfNotNull(
+        // Offline leads: everything after it is what the device last said before it went away.
+        "offline".takeIf { tile.online == false },
+        power,
+        speedLabel(tile),
+        ageLine(oldest(tile.readings()), now),
+        // This tile's own failure before the group's: it is the more specific of the two.
+        (tile.error ?: groupError)?.let { "not updating: $it" },
+    ).joinToString(" · ")
 }
+
+/**
+ * The readings behind everything this tile shows, on both of its lines — and only the ones it has a
+ * value for, on [AcTileState]'s rule. A speed that reported nothing at all reads as "unknown" and
+ * brings no age with it; three booleans that all came back false are a reading like any other and
+ * bring theirs.
+ */
+private fun RecuperatorTileState.readings(): List<Reading> = listOfNotNull(
+    powerLastUpdated.takeIf { isOn != null },
+    speedLastUpdated.takeIf { it != Reading.Never || speeds.isNotEmpty() },
+    temperatureLastUpdated.takeIf { temperature != null },
+    humidityLastUpdated.takeIf { humidity != null },
+)
 
 // "no speed" and "unknown" are different answers: the first is three booleans that all came back
 // false, the second is a device that reported no speed datapoint at all.
@@ -83,20 +103,20 @@ private fun speedLabel(tile: RecuperatorTileState): String = when {
 }
 
 /**
- * The second line: what the recuperator measures, and how old each of those two readings is. They
- * get a line of their own because they are the only values here that move on their own — the
- * humidity was 26 s old on the recorded read while the switch had not changed in three days.
+ * The second line: what the recuperator measures. They get a line of their own because they are the
+ * only values here that move on their own — the humidity was 26 s old on the recorded read while the
+ * switch had not changed in three days.
+ *
+ * **Both of the ages it carried have gone to the status line**, where the tile says its age once and
+ * says the oldest, this pair included. It takes no `now` now, which is what makes [span] able to ask
+ * it whether there is a second line without inventing an instant to ask with.
  *
  * Null when the device reported neither, and the tile then has no second line at all: a row of
- * "unknown · never read · unknown · never read" says nothing the first line has not already said.
+ * "unknown · unknown" says nothing the first line has not already said.
  */
-internal fun climateLine(
-    tile: RecuperatorTileState,
-    now: Instant,
-): String? {
+internal fun climateLine(tile: RecuperatorTileState): String? {
     if (tile.temperature == null && tile.humidity == null) return null
-    return "${measured(tile.temperature, DEGREES)} · ${ageLabel(tile.temperatureLastUpdated, now)} · " +
-        "${measured(tile.humidity, PERCENT_SIGN)} · ${ageLabel(tile.humidityLastUpdated, now)}"
+    return "${measured(tile.temperature, DEGREES)} · ${measured(tile.humidity, PERCENT_SIGN)}"
 }
 
 /**

@@ -400,8 +400,8 @@ Each carries four capabilities: `on_off`, `range/brightness` (`1..100`, precisio
   meant both strips were dropped in `YandexClient` and rendered as nothing at all. They are now
   their own `DeviceKind`, mapped in the same `KINDS` table.
 - **Every capability on both strips carries `last_updated: 0.0`** — brightness, on/off and colour
-  alike. So both tiles read `on · never read · 26% · never read`, values present and read times
-  absent. These are the first tiles where that is the whole story rather than one field of it, and
+  alike. So both tiles read `on · 26% · never read`, values present and read times absent — one age
+  for the tile, which is the oldest of the three and here is the only one there is. These are the first tiles where that is the whole story rather than one field of it, and
   the reason `Reading.Never` existed before the strips did.
 - **Brightness is the existing `Range`,** the same model and the same `Bounds.snap` the curtain's
   `open` percent uses; the action is the same `POST /v1.0/devices/actions` with
@@ -410,7 +410,8 @@ Each carries four capabilities: `on_off`, `range/brightness` (`1..100`, precisio
   slider dragged to the bottom hands over a `0` the device never offered. Snapping turns that into
   `1` before it is sent, exactly as the AC's `40` becomes `32`.
 - **`color_setting` is parsed and modelled, and deliberately not controllable.** The tile prints it
-  — `2700 K · never read · not controllable` — and there is no `setColor` on the client. The
+  — `2700 K · not controllable`, its age folded into the one the status line prints — and there is
+  no `setColor` on the client. The
   capability differs from `range`/`mode`/`toggle` in one way that mattered: it names its instance
   only inside `state`, never in `parameters`. `light-strip-02`'s `state` is `null`, so it has
   neither instance nor value, and dropping such a capability would tell the tile the strip has no
