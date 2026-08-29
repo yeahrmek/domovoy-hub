@@ -2,12 +2,16 @@
 
 **Scope:** how the panel is laid out and drawn. Not what it reads — that is one doc per vendor.
 
-**Status: all seven commits built and merged** (#11, #12, #14, #15, #17, #19, #20). The plan is
-done; what is not done is in "What is left", which is a shorter list and a different kind of one —
-things settled after the plan was written rather than things the plan missed. This is no longer a
-brief and is now a record. Numbers that were guesses when this was written and have since been measured on
-the tablet say so and give the measurement; the ones still marked _measure on the tablet_ are numbers
-nobody has taken, and are not settled just because they are written down.
+**Status: done and merged** — seven commits: #11, #12, #14, #15, #17, #19, #20. See "History".
+This is no longer a brief and is now a record: the plan that produced the panel has been trimmed
+away and what is left is what the panel *is*, plus what was measured on the tablet while getting
+there. Numbers that were guesses when this was written and have since been measured say so and give
+the measurement; the ones still marked _measure on the tablet_ are numbers nobody has taken, and are
+not settled just because they are written down.
+
+What is not settled is in "Watch on the wall" — bets already placed, waiting on the wall to settle
+them — and in "Open". The work that follows from this doc is in
+[design/panel-redesign.md](design/panel-redesign.md).
 
 The tablet is a Samsung Galaxy Tab S7 (SM-T875, Android 13). Everything measured below was measured
 on it, on 2026-08-16.
@@ -94,7 +98,9 @@ Sizes to hold to, since this is read and touched at arm's length from a wall:
   switch in the panel dumps as exactly 64.0 × 64.0 dp, and so does every tab — the strip used to be
   the one thing on the wall a finger could miss, at Material's default 48, until a `heightIn` on the
   `Tab` raised it. The `PrimaryScrollableTabRow` needed nothing: it takes its height from its
-  tallest tab, so the strip came up 64.0 dp with them.
+  tallest tab, so the strip came up 64.0 dp with them. The selection indicator survived the taller
+  row intact: 3 dp of it at px 181–186 against a row ending at 186, flush with the bottom edge and
+  still the width of the selected tab's text rather than floating in the extra 16 dp.
 - Bulb circles **72 dp**.
 - Grid gutter 8 dp, tile corner radius 22 dp on a half tile, 18 dp on a third, full round on bulbs.
   The corner is derived from the span rather than passed beside it, so a tile's shape and its width
@@ -361,7 +367,63 @@ tone-90 version of the same thing. Every on-colour is ≥ 7:1 on its container i
   screencaps too, system UI included. Anything warm-looking in a screenshot of this panel is that
   filter and not the palette. Judge colour with it in mind, or turn it off first — which is harder
   than it sounds, and is now measured: see "The filter cannot be turned off the way this doc said"
-  under commit 5.
+  below.
+
+### The roles, measured on the glass
+
+**Checked on the wall, 2026-08-17, both themes.** Every tile takes the role it should, and the
+check was done by *measuring the screencap* rather than by looking at it, because looking at it is
+the thing this tablet will not let anybody do — see the filter below. Each tile's pixels were fitted
+against the scheme's four candidate roles; every one landed on its own by a wide margin, in light
+(fit distance ≤ 8 against a next-best ≥ 30) and in dark (≤ 1 against ≥ 30):
+
+| Tile | Role it landed on |
+| --- | --- |
+| Кондиционер, off | `surfaceContainer` |
+| Подсветка в зале, on | `tertiaryContainer` — light |
+| Бризер зал, on | `primaryContainer` — climate |
+| The bulb circles, on | `tertiaryContainer` — _as commit 5 left them, and as they are again: commit 6 took the disc away for a lamp tinted `tertiary` on bare `surface`, and the disc came back_ |
+| Домофон, Пылесос | `surfaceContainer` |
+| The panel behind them | `surface` |
+
+**Two of the values were not exercised and are still unseen**, both because of what the flat happens
+to be doing rather than because of anything in the code. `secondaryContainer` — the neutral family's
+*on* colour, the tone-75 one — needs a curtain that is open, and the flat's one curtain reads
+`0% open · 3 d ago`, which is `Off`. `primaryContainer` in **dark** needs a climate tile that is on,
+and by the time the dark capture was taken both the ac and the breather had gone off. Neither is a
+code path — the hue-to-role map is one `when` and is theme-blind, and it was proven in light — but
+they are two colours nobody has laid eyes on. Opening the curtain to see it would move the flat's
+curtain, which is not a thing to do for a screenshot without asking.
+
+### The filter cannot be turned off the way this doc said
+
+`settings put system blue_light_filter 0` **does not turn it off.** The setting reads back as 0 and
+the screen stays warm. Verified against the framebuffer rather than by eye: pure white composites as
+`#FFEDCD`, and the tint survived every one of `blue_light_filter=0`,
+`blue_light_filter_scheduled=0`, `reduce_bright_colors_activated=0`, `screen_mode_automatic_setting=0`,
+`screen_mode_setting=1` (Natural) and a display power cycle. There is no overlay window and no
+SurfaceFlinger colour matrix, so it is applied in composition by One UI, which keeps its own state
+that these keys only mirror. **The quick-settings tile is the only way found to move it.** It also
+ramped up on schedule at 19:00 with `blue_light_filter_scheduled` set to 0, which is the same fact
+again.
+
+What it does, measured: **an amber overlay**, about `#FFB838` at ~22–25 % — a multiply on light
+colours (gain R 1.00, G 0.94, B 0.81) and a lift on dark ones (`#111318` composites as `#402F13`).
+So a screencap can be *un-tinted* arithmetically, which is what the table above rests on. Anything
+warm in a screenshot of this panel is still that filter and not the palette.
+
+The palette survives it better than expected. The three families' separations, as designed against
+as the tablet actually renders them in light: climate/light 37 → 33, light/neutral 35 → 34,
+neutral/off 20 → 20, and the tightest pair, climate/off, 13.1 → **12.2**. Muted rather than
+collapsed — though a climate tile under the filter reads as a warm grey rather than as blue, which
+is worth knowing before anybody concludes the blue is wrong.
+
+Two things that cost time and are worth writing down. The tablet **relocks on screen-off** at the
+2-minute timeout, so a check has to run inside that window or set `svc power stayon true` first; and
+a `screencap` over the keyguard is a screencap of the keyguard, not of the panel. And on the
+capture side: `zsh` has `noclobber` on here, so `adb exec-out screencap -p > shot.png` onto an
+existing file **silently writes nothing** and the analysis then measures the previous shot. Three
+"the setting made no difference" results came from exactly that. Use `>|`.
 
 ## Icons
 
@@ -552,6 +614,70 @@ grid with a ~2 dp stroke and consistent terminals, and a glyph that misses any o
 tile on the wall that looks like it came from somewhere else. Match the set or replace all of it —
 not one.
 
+### The glyphs, measured on the glass
+
+**Checked on the wall, 2026-08-17, both themes, and the filter was off for it** — the light surface
+composited as `#F7F9FF` and the dark one as `#111318`, both the scheme's own values to the byte, so
+nothing below is an un-tinted reconstruction and no arithmetic stands between the wall and this table.
+One observation to set beside "The filter cannot be turned off the way this doc said", and not a
+second measurement of it: at **19:38** the screen was untinted with `blue_light_filter` at 0 and
+`blue_light_filter_scheduled` at **1**, where that section recorded it ramping up on schedule at 19:00
+with the schedule key at 0. So the keys still say nothing about what is on the glass — this time in the
+other direction.
+
+| Check | Result |
+| --- | --- |
+| All nine glyphs draw | Every one of them, and none is the empty box a bad path renders as |
+| `vacuum`, `video_camera_front` — the two unverified names | Both real artwork on the tablet: an upright vacuum, and a camera with a face in it |
+| The curtain's pair | Visibly different at 24 dp — four tight slats shut, three gathered ones open |
+| Half beside, third above | `Кондиционер`/`Подсветка`/`Бризер`/`Шторы` beside the name, `Домофон`/`Пылесос` above it |
+| The bulb circles | 48 dp lamp alone in its 72 dp cell, no container in either state — a filled `tertiary` lamp for a lit one, an outlined `onSurfaceVariant` lamp for an unlit one |
+| Track height | 13 px = **6.1 dp**, both schemes |
+| Touch area | **64.0 dp** on both sliders, dumped as `SeekBar` |
+| Slider colours, light | Fill `#0561A2` = `primary` on the ac, `#865301` = `tertiary` on the strip; rest `#D1B9A2` and `#C2C6CD`, both the 24 % composite to the byte |
+| Slider colours, dark | Fill `#FFB863` = `tertiary`; rest `#7B5F33` and `#44484E`, again the composite to the byte |
+
+The `primary` fill was confirmed the way commit 5's roles were — against something else the scheme
+paints with the same role, here the light strip's checked `Switch`, which measures the same
+`#0561A2`. Two things through the same filter is a filter-independent check, and it was worth keeping
+even on a day the filter turned out to be off.
+
+**The open curtain needed a throwaway build to see**, and it is the one glyph the flat cannot show on
+demand: the curtain reads `0% open · 3 d ago`, so the wall only ever draws the closed one, and opening
+the flat's curtain for a screenshot is not a thing to do without asking. So `curtainGlyph` was locally
+forced to the open branch, installed, captured beside the closed one, and reverted — the shipped code
+is the reverted code and `TileLayout.kt`'s diff is additions only. What that check buys is the thing
+`./gradlew test` cannot: **a vector drawable with bad path data fails silently as an empty box**, and
+the open shades are 141 characters of path data nobody had rendered on this device.
+
+**Checked again on 2026-08-18, and this time the filter was on the glass** — which is what the bulb
+change needed, since its whole argument is about what the filter does to a hue. The surface composited
+as `#F9E8CD` rather than `#F7F9FF`, about what "an amber overlay at ~22–25 %" predicts, so this pass is
+a real reading and not the arithmetic un-tinting the filter section rests on. `blue_light_filter` read 1
+for it, agreeing with the glass for once.
+
+| Check | Result |
+| --- | --- |
+| The lamp pair, filter on | Lit `#9E6301`, unlit `#473719` — from `#865301` and `#3F4754`. Both brown under the filter, and told apart by shape rather than hue |
+| A row of both at once | Unmistakable at 1:1 from a throwaway build: filled amber lamps against dark hollow ones |
+| The unlit lamp, for real | Кабинет holds one lamp and it is off, so this one needed no forcing |
+| The open curtain, for real | Спальня read `100% open` on the second pass — the curtain had moved on its own, so the glyph the flat could not show in the first pass showed itself in the second |
+| The closed curtain | Forced instead, this time, being the state the flat was no longer in. Four tight slats at 6× against the open one's three |
+
+The lamp measurement is the one worth keeping, because it settles an argument rather than recording a
+colour: **the filter erodes an amber-against-neutral distinction and leaves a filled-against-hollow one
+intact.** That was the reason for spending a second drawable on the bulb, and it was a prediction until
+this pass. Anything else on this wall that plans to say something with a hue alone should be measured
+the same way before it is trusted.
+
+Two throwaway builds for it, both reverted, and `grep THROWAWAY` is empty in the shipped tree. The
+mixed row is the honest way to check a distinction — a lit row on one tab and an unlit lamp on another
+proves each glyph draws but not that the two read apart at a glance.
+
+Still unseen, both for the same reason as before — the flat is not doing the thing that would show
+them: a **broken-out bulb tile** (every bulb has state today, so the glyph-above-the-name layout is
+proven on the launchers only) and a **third-width recuperator** (all five report climate).
+
 ## Sliders
 
 Three tiles have one: the air conditioner's temperature, the curtain's position, the light strip's
@@ -575,7 +701,10 @@ round.
   that is 64 dp, with the bar drawn centred inside it, because the slider's height is the taller of
   its two slots and its drag handling covers exactly that — a `heightIn` on the outside would have
   left the gesture on the 6 dp. _Measured:_ both sliders on Главная dump as **64.0 dp** tall, as
-  `android.widget.SeekBar`, which is also the value semantics surviving the override.
+  `android.widget.SeekBar`, which is also the value semantics surviving the override. The track
+  measures 13 px = **6.1 dp** in both schemes, and both the fill and the rest-of-track composite to
+  the byte — the full reading is in "The glyphs, measured on the glass" under "Icons", which is the
+  pass that captured them.
 - The filled portion takes the tile's domain colour, the rest a low-emphasis neutral. Same two axes
   as everything else, so a climate slider and a light slider do not come out the same colour. The
   *accent* of each family rather than its container — `primary`, `tertiary`, `secondary` — because the
@@ -618,29 +747,6 @@ Expressive components are opt-in annotated, so `app/build.gradle.kts` gained one
 — confirmed by reading the class out of material3's `classes.jar` on this BOM, not taken from the
 release notes.
 
-## What changes, and what does not
-
-Changes:
-
-- `PanelRooms.kt` — becomes the tab shell. Loses the `LazyColumn`. ✅ commits 1 and 2.
-- Every tile composable — new shape, new span, colour roles instead of a bare `Card`. ✅ commit 2.
-- `MainActivity.kt` — the idle timer that returns to Главная ✅ commit 1; the colour schemes are
-  commit 4 and not done.
-- New: the favourites function ✅, the tab-mark function ✅, the stale-bulb split (commit 3, not
-  done). All three are pure and live next to `roomSections`.
-- New in commit 2, not foreseen when this was written: `TileLayout.kt` for the two decisions a
-  composable cannot be tested through, and `TileCard.kt` for the one card all five tiles draw.
-
-Does not change, and a diff touching these is out of scope:
-
-- `roomSections` and `ROOM_ORDER` — room membership and room order are already decided and correct.
-- Every `*Tiles.kt` — the tile state models and the `statusLine` functions. This is a re-skin; if a
-  poll or a mapping changed, the change went too far.
-- Anything under `integrations/`.
-- The Domonap call takeover. It goes on top of the panel, and the panel having tabs underneath it
-  changes nothing about that. Whatever tab was showing is what the panel comes back to — subject to
-  the 2-minute reset, which keeps running through the call the same way the ages do.
-
 ## Testing
 
 TDD, and the test comes first in the same commit.
@@ -662,8 +768,9 @@ What gets a test, each asserting the value returned and not which composable was
 - The tab list: Главная first, rooms in `roomSections` order, Без комнаты last and present even when
   every other section is empty.
 - The tile layout: the recuperator's span from whether it reports climate, and `mood` from `isOn`
-  and the error. Added in commit 2 — see section 2 for why a re-skin turned out to have things to
-  assert after all.
+  and the error. Added in commit 2, which is where "a re-skin has nothing to test" turned out to be
+  wrong: both are decisions with a right and a wrong answer, and a decision that only exists inside
+  a `@Composable` is a decision no test can reach.
 - The one glyph of the eight that is a decision rather than a picture: the curtain's. 0 is closed, 40
   and 100 are open, and **null is open** — a shut curtain is a positive claim the panel cannot make.
   The other seven are a lookup from tile type to drawable and hold nothing a test could catch, the
@@ -694,29 +801,7 @@ minutes and locks behind a PIN; `adb shell input keyevent KEYCODE_WAKEUP` immedi
 
 `./gradlew test` and `ktlintCheck` green before push, as everywhere else.
 
-## What is left
-
-Decided and not yet built, which is a different list from "Open" below — nothing here needs an
-answer, only doing. Ordered by how much of the wall it changes.
-
-~~1 · The bulb circles do not match what was chosen.~~ **Done** — the circles are the disc that was
-picked, and "Icons" describes it rather than the bare lamp commit 6 built. Checked on the wall on
-2026-08-29 in both themes with the filter on, including a failing row from a throwaway build; the
-measurements and the one thing they turned up — an unlit disc is ΔE 4 from the panel behind it — are
-in that section.
-
-~~2 · The tab mark could be a colour now, and its comment is wrong until it is.~~ **Done** — the
-fuller version of it: a marked tab keeps its `•` and takes the error colour as its content colour,
-and the comment in [`PanelRooms.kt`](../app/src/main/kotlin/ru/domovoy/panel/PanelRooms.kt) now says
-that instead of the commit-1 reasoning it had outlived. The dot was kept rather than replaced, and
-the selected-and-marked case was decided rather than left to Material's defaults; both are in "The
-tab shell", rule 2, with what they measured on the glass. No test changed — `marked` was already
-decided in `PanelTabs.kt` and already covered, and what this commit changed is only what the
-composable paints with the boolean it is handed.
-
-~~3 · Commit 7, the tab strip's 64 dp.~~ Done, #20.
-
-### Watch on the wall
+## Watch on the wall
 
 Not tasks — bets already placed, each with the note that says which way to resolve it if it turns
 out wrong. None of them can be settled from a screenshot.
@@ -774,382 +859,31 @@ Answered since this was written, kept here so they are not re-asked: the panel w
 whether shape morphing is affordable (moot — `MaterialShapes` is not on this BOM, see "Compose
 APIs").
 
-## The plan
-
-Four commits, each a concern, each green on `./gradlew test` and `ktlintCheck` before the next one
-starts. The shell first because it is the part that can be wrong about *behaviour*; the skin after
-it, because a skin that is wrong is visible from the hallway.
-
-One branch per commit rather than the one branch this originally named: 1 shipped as
-`feat/panel-mosaic-tabs` (#11) and 2 as `feat/panel-expressive-tiles` (#12).
-
-No `AndroidManifest.xml` change, no new dependency, no new permission anywhere in this work. Held so
-far, including for the portrait lock — that is a device setting, not `screenOrientation`. If one
-turns out to be needed, that is an "ask first" and the branch stops until it is asked.
-
-### 1 · `feat(panel): tab shell` — done, #11
-
-Navigation only. The tiles stay exactly as they are — full-width cards — so anything that breaks in
-this commit is the shell and not the drawing.
-
-New, all pure, all in `panel/` next to `roomSections`:
-
-| File | Holds |
-| --- | --- |
-| `Staleness.kt` | `isStale(reading: Reading, now: Instant, interval: Duration): Boolean`, and the ×8 multiplier. See "Stale" |
-| `Favourites.kt` | `favourites(sections: List<RoomSection>, now: Instant): RoomSection` |
-| `PanelTabs.kt` | `panelTabs(sections, errors, now): List<PanelTab>`; `PanelTab` carries a title, a `RoomSection` and `marked` |
-| `IdleReset.kt` | `suspend fun resetAfterIdle(touches: Flow<Unit>, timeout: Duration, onIdle: () -> Unit)` |
-
-`resetAfterIdle` is a suspend function over a flow rather than something inside a composable for the
-same reason `pollPausingForCalls` is: it is the one piece of the shell with a clock in it, and a
-clock that cannot be advanced in a test is a clock nobody checks.
-
-Changed: `PanelRooms.kt` gains a `PrimaryScrollableTabRow` and renders one tab's section where it
-used to render all of them. `MainActivity.kt` feeds touches into `resetAfterIdle`.
-
-Tests, written first — `StalenessTest`, `PanelTabsTest`, `FavouritesTest`, `IdleResetTest`:
-
-- A Yandex reading 90 s old is fresh and one 3 min old is stale; a Tuya reading 7 min old is **fresh**
-  and one an hour old is stale; `Never` is stale at every interval.
-- Главная first; rooms in `roomSections` order; Без комнаты last and present even when every other
-  section is empty.
-- A room marked when its group errored, marked when every reading in it is stale, unmarked otherwise.
-- Favourites hold every Коридор and Зал tile and every launcher; a stale Спальня tile is pulled in;
-  a fresh one is not.
-- The reset fires after the timeout, does not fire while touched, and restarts its clock on each
-  touch.
-
-### 2 · `feat(panel): expressive tiles` — done, #12
-
-Changed: `PanelRooms.kt` swaps the `LazyColumn` for `LazyVerticalGrid(GridCells.Fixed(6))` with the
-spans from "Tile sizes"; all five tile composables get shapes, spans and colour roles in place of a
-bare `Card`; `app/build.gradle.kts` gains the Expressive opt-in in its existing `compilerOptions`
-block. `TileCard.kt` holds the one card every tile draws — five callers, which is what earns it —
-and maps `TileMood` to the colour roles.
-
-"A re-skin has nothing to test" was the first draft of this section and it is wrong. Two of the
-rules above are decisions with a right and a wrong answer, and a decision that only exists inside a
-`@Composable` is a decision no test can reach. So they come out of the composables the same way
-`statusLine` and `ageLabel` already have — pure, `internal`, tested first — and the composable is
-left doing nothing but drawing what they returned.
-
-New, in `TileLayout.kt`:
-
-- `fun span(tile: RecuperatorTileState): Int` — half the panel when it reports climate, a third when
-  it does not. The one span in the panel that is not a constant per type. It asks `climateLine`
-  rather than re-testing `temperature != null || humidity != null`, so the span and the line it
-  exists to hold cannot drift apart.
-- `fun mood(isOn: Boolean?, error: String?): TileMood` — `On`, `Off`, `Unknown`, `Failing`. The
-  composable maps a `TileMood` to a Material colour role and does no thinking of its own. Five
-  callers, so it is not an abstraction invented for one.
-
-`Failing` outranks everything: a tile whose poll failed is showing a value nobody has confirmed, and
-painting it as merely "on" is the panel asserting something it does not know. `Unknown` is not `Off`
-— 33 of the 116 recorded capabilities have never reported, and the tiles have always said "unknown"
-rather than "off" for them; the colours must not undo in paint what the strings were careful about.
-
-Tests, written first — `TileLayoutTest`, 6 cases:
-
-- A recuperator with a temperature is a half tile; with a humidity and no temperature, half; with
-  neither, a third.
-- `mood` is `Failing` whenever there is an error, whatever `isOn` says — including when `isOn` is
-  null and including when it is true.
-- `mood` is `Unknown` for a null `isOn` with no error, and never `Off`.
-
-Beyond those, the commit changes no behaviour, so **every existing test must pass untouched.** If one
-needs editing to go green, the production change did more than it claimed and the edit is the bug.
-It held: 203 tests, none edited.
-
-What stayed untestable was checked on the tablet, and the checks are the reason this section's
-numbers changed:
-
-| Check | Result |
-| --- | --- |
-| Columns against the real width | **Failed at four**, and the span table was rewritten. 753 dp, six columns, halves and thirds |
-| 64 dp hit areas | Every switch dumps as exactly 64.0 × 64.0 dp. The tab strip's tabs are 48 dp — see "Open" |
-| The shapes | 22 dp and 18 dp both applied; the difference is real but subtle from across a hallway |
-| Both palettes | Light only. The panel stays light under forced night mode, as expected until commit 4 |
-| Shape morph on press | Moot — `MaterialShapes` is not on this BOM |
-
-The four-column pass is worth recording rather than quietly fixing, because the mistake was not the
-number: it was writing a span table against a width nobody had measured and calling the result
-decided.
-
-### 3 · `fix(panel): stale means the poll stopped` — done, #14
-
-Found while planning the bulb grouping, and it came first because commit 4's group line and commit
-1's tab marks both rest on it. The full reasoning is in "Stale"; the short version is that commit 1
-judged health on the vendor's `last_updated` and so calls a lamp nobody has touched in three weeks
-broken.
-
-Changed, and this is the one place the plan's fence around the poll classes comes down — knowingly,
-because the fact being added is the poll's own and nowhere else can honestly hold it:
-
-- Each `*PanelState` gains `lastPolledAt: Instant?`; `YandexPoll` and `TuyaPoll` stamp it on a
-  refresh that succeeded. Null until the first one lands.
-- `Staleness.kt` — `isStale` takes the group's `lastPolledAt` and its interval, not a `Reading`. The
-  `readings(...)` helpers that fed the old rule go with it; nothing else reads them.
-- `PanelTabs.kt`, `Favourites.kt` — a room is marked, and a tile is pulled onto Главная, when its
-  group errored **or** its group is stale. Same rules, corrected input.
-
-Not changed: what the tiles print. `ageLabel(tile.lastUpdated, now)` stays exactly as it is on every
-tile. "20 d ago" is an honest answer to how old a value is and always was; it is only its use as a
-health signal that was wrong.
-
-Tests, written first — `StalenessTest` rewritten, `PanelTabsTest` and `FavouritesTest` amended:
-
-- A group polled 90 s ago is fresh and one polled 3 min ago is stale, at the Yandex interval; a group
-  polled 7 min ago is **fresh** at the Tuya interval and one polled an hour ago is stale.
-- A `lastPolledAt` of null is stale at every interval — the panel has read nothing yet.
-- A room of bulbs whose every `last_updated` is `Never` is **not** marked while its group is polling
-  fine. This is the regression the commit exists for; it fails before the fix.
-- A recuperator with its own error still marks its room while the other four do not.
-
-### 4 · `feat(panel): group the bulbs` — done, #15
-
-New: `BulbGroup.kt` — `bulbGroup(bulbs: List<BulbTileState>): BulbGroup`, returning the circles, the
-ones that broke out, how many are on, and the oldest `last_updated` among those that stayed.
-
-**No `now`.** Finding the oldest of a set of readings needs no clock; formatting one does, and that
-is `ageLabel`'s job at the point of drawing, as on every other tile. A `now` parameter this function
-does not use is a clock in a pure function nobody can see is unused.
-
-`Reading.Never` is the oldest of all, and it can appear inside the group: `isOn` and `lastUpdated`
-come from different fields of the same capability, so a bulb whose value is known while its
-`last_updated` is `0.0` stays a circle and carries a `Never` the group line has to be able to quote.
-The split is on `isOn`, not on the reading — those are two different questions and the fixture
-answers them separately.
-
-Reuse rather than reinvent, both already there:
-
-- `notUpdating(error, lastPolledAt, now, interval)` in `Staleness.kt` — whether the group behind the
-  circles has stopped being read. The group line says it once for the row instead of 28 times.
-- `mood(isOn, error)` in `TileLayout.kt` — what colours a circle. A circle is a tile and takes the
-  same four moods as one; nothing new is needed to paint it. _Commit 6 took the container off the
-  circles, so for a while a mood was a glyph and a tint rather than a disc colour; the disc is back
-  and this is the function it asks again — see "Icons"._
-
-Changed: `PanelRooms.kt` renders the group as a `FlowRow` of 72 dp circles under one line, and each
-broken-out bulb as a named third-width tile. Until this lands the bulbs are third-width tiles, one
-per cell, three to a row — which is what commit 2 left them as and is why Главная is still fourteen
-rows of lamps.
-
-Tests, written first — `BulbGroupTest`: a bulb with `isOn` null leaves the group; one that is on and
-one that is off both stay, however old their readings are; the group line quotes the **oldest**
-`last_updated` of those that stayed and not the freshest; the count of "how many on" excludes the
-ones that broke out; a room with no bulbs yields no group rather than an empty row.
-
-Expect this to be almost all of them in a circle. On today's data the split is the handful Yandex has
-never reported against the twenty-odd it has, which is the reduction the commit is for — and the
-opposite of what the stale rule would have done.
-
-### 5 · `feat(panel): the panel's own colours` — done, #17
-
-The commit that stops the wall being grey. Two things, and they are one concern because they are the
-same file and neither works without the other: the panel gets a palette instead of Material's
-baseline, and a tile's colour starts saying what kind of device it is.
-
-New: `PanelTheme.kt` — the light and dark schemes, written out, generated from a cool blue and a warm
-amber. This is the one file in the app allowed to hold colour values. It is not a wrapper with one
-caller: it is data, and the alternative is 40 arguments inline in `MainActivity`.
-
-Changed: `MainActivity.kt` picks between the two by `isSystemInDarkTheme()`. `TileLayout.kt` gains
-`hue(...)`; the five tile composables map `(hue, mood)` to a role pair instead of `mood` alone.
-
-Tests, written first — `TileLayoutTest` amended: an air conditioner and a recuperator are `Climate`;
-a bulb and a strip are `Light`; a curtain and a launcher are `Neutral`. `hue` is a function of the
-tile's type and nothing else — it does not consult `isOn`, because a lamp that is off is still a
-lamp, and it is `mood` that decides whether the hue is used.
-
-The scheme itself has no unit test — there is no Compose test dependency and adding one is an "ask
-first". Checked on the tablet in both themes, and by grepping `panel/` for hex literals, of which
-there should still be none. **Turn the blue light filter off before judging any of it**; it is on,
-and it tints screencaps too.
-
-**Checked on the wall, 2026-08-17, both themes.** Every tile takes the role it should, and the
-check was done by *measuring the screencap* rather than by looking at it, because looking at it is
-the thing this tablet will not let anybody do — see the filter below. Each tile's pixels were fitted
-against the scheme's four candidate roles; every one landed on its own by a wide margin, in light
-(fit distance ≤ 8 against a next-best ≥ 30) and in dark (≤ 1 against ≥ 30):
-
-| Tile | Role it landed on |
-| --- | --- |
-| Кондиционер, off | `surfaceContainer` |
-| Подсветка в зале, on | `tertiaryContainer` — light |
-| Бризер зал, on | `primaryContainer` — climate |
-| The bulb circles, on | `tertiaryContainer` — _as commit 5 left them, and as they are again: commit 6 took the disc away for a lamp tinted `tertiary` on bare `surface`, and the disc came back_ |
-| Домофон, Пылесос | `surfaceContainer` |
-| The panel behind them | `surface` |
-
-**Two of the values were not exercised and are still unseen**, both because of what the flat happens
-to be doing rather than because of anything in the code. `secondaryContainer` — the neutral family's
-*on* colour, the tone-75 one — needs a curtain that is open, and the flat's one curtain reads
-`0% open · 3 d ago`, which is `Off`. `primaryContainer` in **dark** needs a climate tile that is on,
-and by the time the dark capture was taken both the ac and the breather had gone off. Neither is a
-code path — the hue-to-role map is one `when` and is theme-blind, and it was proven in light — but
-they are two colours nobody has laid eyes on. Opening the curtain to see it would move the flat's
-curtain, which is not a thing to do for a screenshot without asking.
-
-### The filter cannot be turned off the way this doc said
-
-`settings put system blue_light_filter 0` **does not turn it off.** The setting reads back as 0 and
-the screen stays warm. Verified against the framebuffer rather than by eye: pure white composites as
-`#FFEDCD`, and the tint survived every one of `blue_light_filter=0`,
-`blue_light_filter_scheduled=0`, `reduce_bright_colors_activated=0`, `screen_mode_automatic_setting=0`,
-`screen_mode_setting=1` (Natural) and a display power cycle. There is no overlay window and no
-SurfaceFlinger colour matrix, so it is applied in composition by One UI, which keeps its own state
-that these keys only mirror. **The quick-settings tile is the only way found to move it.** It also
-ramped up on schedule at 19:00 with `blue_light_filter_scheduled` set to 0, which is the same fact
-again.
-
-What it does, measured: **an amber overlay**, about `#FFB838` at ~22–25 % — a multiply on light
-colours (gain R 1.00, G 0.94, B 0.81) and a lift on dark ones (`#111318` composites as `#402F13`).
-So a screencap can be *un-tinted* arithmetically, which is what the table above rests on. Anything
-warm in a screenshot of this panel is still that filter and not the palette.
-
-The palette survives it better than expected. The three families' separations, as designed against
-as the tablet actually renders them in light: climate/light 37 → 33, light/neutral 35 → 34,
-neutral/off 20 → 20, and the tightest pair, climate/off, 13.1 → **12.2**. Muted rather than
-collapsed — though a climate tile under the filter reads as a warm grey rather than as blue, which
-is worth knowing before anybody concludes the blue is wrong.
-
-Two things that cost time and are worth writing down. The tablet **relocks on screen-off** at the
-2-minute timeout, so a check has to run inside that window or set `svc power stayon true` first; and
-a `screencap` over the keyguard is a screencap of the keyguard, not of the panel. And on the
-capture side: `zsh` has `noclobber` on here, so `adb exec-out screencap -p > shot.png` onto an
-existing file **silently writes nothing** and the analysis then measures the previous shot. Three
-"the setting made no difference" results came from exactly that. Use `>|`.
-
-### 6 · `feat(panel): an icon per tile, and a slimmer slider` — done, #19
-
-The other half of what makes the wall read as a panel rather than as paragraphs. See "Icons" for the
-glyph per tile, the sizes, and why they are `res/drawable` files rather than a dependency, and
-"Sliders" for the 6 dp track.
-
-New: nine vector drawables in `app/src/main/res/drawable/` — seven tiles, the curtain's second state
-and the bulb's filled variant. Changed: the five tile composables and the bulb circles.
-
-_Everything this section says about the bulb has since been undone_ — the circles went back to the
-disc that had been chosen from a screenshot, and `ic_bulb_filled.xml`, `bulbGlyph` and its two tests
-went with it. See "Icons", which describes what is on the wall; this section is what commit 6 did.
-
-Two tests, because two of the nine are decisions rather than pictures. `curtainGlyph(openPercent:
-Double?)` in `TileLayout.kt`, returning open or closed — 0 is closed, 40 is open, 100 is open, and
-**null is open**. And `bulbGlyph(isOn: Boolean?)` beside it, returning filled or outlined — and **null
-is outlined**, because the filled lamp is the same kind of claim the closed curtain is. Both written
-first. The other seven are a lookup from tile type to drawable and hold nothing a test could catch.
-
-The slim slider lands here too — the three tiles with one, per "Sliders". It is the same pass over
-the same five composables, and splitting the glyph off from the control on the same tile would mean
-opening each of them twice.
-
-What this commit must not do is add a dependency: if `material-icons-extended` starts to look
-necessary, stop and ask rather than adding it.
-
-After 5, deliberately. Icons take the tile's content colour, so drawing them before the palette
-exists means placing every glyph against the baseline violet and re-judging all of them once it
-changes.
-
-Also new, in `panel/`: `glyph(...)`, `curtainGlyph(...)` and `bulbGlyph(...)` in `TileLayout.kt` — one
-overload per tile state, as `hue` already has; `TileGlyph` and `TileHeading` in `TileCard.kt`, where the
-half-beside-third-above rule lives once and is taken from the tile's own span, so the recuperator
-gets whichever its width earns without being asked twice; and `SlimSlider.kt`, three callers.
-
-**Checked on the wall, 2026-08-17, both themes, and the filter was off for it** — the light surface
-composited as `#F7F9FF` and the dark one as `#111318`, both the scheme's own values to the byte, so
-nothing below is an un-tinted reconstruction and no arithmetic stands between the wall and this table.
-One observation to set beside "The filter cannot be turned off the way this doc said", and not a
-second measurement of it: at **19:38** the screen was untinted with `blue_light_filter` at 0 and
-`blue_light_filter_scheduled` at **1**, where that section recorded it ramping up on schedule at 19:00
-with the schedule key at 0. So the keys still say nothing about what is on the glass — this time in the
-other direction.
-
-| Check | Result |
-| --- | --- |
-| All nine glyphs draw | Every one of them, and none is the empty box a bad path renders as |
-| `vacuum`, `video_camera_front` — the two unverified names | Both real artwork on the tablet: an upright vacuum, and a camera with a face in it |
-| The curtain's pair | Visibly different at 24 dp — four tight slats shut, three gathered ones open |
-| Half beside, third above | `Кондиционер`/`Подсветка`/`Бризер`/`Шторы` beside the name, `Домофон`/`Пылесос` above it |
-| The bulb circles | 48 dp lamp alone in its 72 dp cell, no container in either state — a filled `tertiary` lamp for a lit one, an outlined `onSurfaceVariant` lamp for an unlit one |
-| Track height | 13 px = **6.1 dp**, both schemes |
-| Touch area | **64.0 dp** on both sliders, dumped as `SeekBar` |
-| Slider colours, light | Fill `#0561A2` = `primary` on the ac, `#865301` = `tertiary` on the strip; rest `#D1B9A2` and `#C2C6CD`, both the 24 % composite to the byte |
-| Slider colours, dark | Fill `#FFB863` = `tertiary`; rest `#7B5F33` and `#44484E`, again the composite to the byte |
-
-The `primary` fill was confirmed the way commit 5's roles were — against something else the scheme
-paints with the same role, here the light strip's checked `Switch`, which measures the same
-`#0561A2`. Two things through the same filter is a filter-independent check, and it was worth keeping
-even on a day the filter turned out to be off.
-
-**The open curtain needed a throwaway build to see**, and it is the one glyph the flat cannot show on
-demand: the curtain reads `0% open · 3 d ago`, so the wall only ever draws the closed one, and opening
-the flat's curtain for a screenshot is not a thing to do without asking. So `curtainGlyph` was locally
-forced to the open branch, installed, captured beside the closed one, and reverted — the shipped code
-is the reverted code and `TileLayout.kt`'s diff is additions only. What that check buys is the thing
-`./gradlew test` cannot: **a vector drawable with bad path data fails silently as an empty box**, and
-the open shades are 141 characters of path data nobody had rendered on this device.
-
-**Checked again on 2026-08-18, and this time the filter was on the glass** — which is what the bulb
-change needed, since its whole argument is about what the filter does to a hue. The surface composited
-as `#F9E8CD` rather than `#F7F9FF`, about what "an amber overlay at ~22–25 %" predicts, so this pass is
-a real reading and not the arithmetic un-tinting the table above rests on. `blue_light_filter` read 1
-for it, agreeing with the glass for once.
-
-| Check | Result |
-| --- | --- |
-| The lamp pair, filter on | Lit `#9E6301`, unlit `#473719` — from `#865301` and `#3F4754`. Both brown under the filter, and told apart by shape rather than hue |
-| A row of both at once | Unmistakable at 1:1 from a throwaway build: filled amber lamps against dark hollow ones |
-| The unlit lamp, for real | Кабинет holds one lamp and it is off, so this one needed no forcing |
-| The open curtain, for real | Спальня read `100% open` on the second pass — the curtain had moved on its own, so the glyph the flat could not show in the first pass showed itself in the second |
-| The closed curtain | Forced instead, this time, being the state the flat was no longer in. Four tight slats at 6× against the open one's three |
-
-The lamp measurement is the one worth keeping, because it settles an argument rather than recording a
-colour: **the filter erodes an amber-against-neutral distinction and leaves a filled-against-hollow one
-intact.** That was the reason for spending a second drawable on the bulb, and it was a prediction until
-this pass. Anything else on this wall that plans to say something with a hue alone should be measured
-the same way before it is trusted.
-
-Two throwaway builds for it, both reverted, and `grep THROWAWAY` is empty in the shipped tree. The
-mixed row is the honest way to check a distinction — a lit row on one tab and an unlit lamp on another
-proves each glyph draws but not that the two read apart at a glance.
-
-Still unseen, both for the same reason as before — the flat is not doing the thing that would show
-them: a **broken-out bulb tile** (every bulb has state today, so the glyph-above-the-name layout is
-proven on the launchers only) and a **third-width recuperator** (all five report climate).
-
-### 7 · `fix(panel): the tab strip's touch height` — done
-
-`PrimaryScrollableTabRow` sizes its tabs at Material's default 48 dp while this doc asks for 64 dp on
-everything a finger goes near, and the tab strip is the one control on the wall a finger can miss.
-One override, no new logic, no test to write — it is a dp. Independent of everything else here and
-can go whenever; last only because it is the smallest thing on the list.
-
-`Modifier.heightIn(min = MIN_TOUCH)` on the `Tab`, which is where the 48 comes from: Material's
-text-only tab asks for 48 dp of its own, and the row only passes on whatever its tallest tab wanted.
-A floor rather than a fixed height, so a title that ever needs more room can have it.
-
-**Measured on the wall rather than eyeballed**, the same way the switches were — `uiautomator dump`
-at 340 dpi, density 2.125. Every tab comes back **64.0 dp** tall (136 px), and so does the row that
-holds them, so the second override the row might have needed was not needed. The indicator survived
-the taller row intact: 3 dp of it at px 181–186 against a row ending at 186, flush with the bottom
-edge and still the width of the selected tab's text, not floating in the extra 16 dp.
-
-### Order, and what it buys
-
-1 before 2 because the shell is the only part with behaviour to get wrong, and it is worth having it
-green before anything visual moves. 2 before the rest because the lights group is a mosaic idea and
-has nowhere to live until the grid exists.
-
-3 before 4 because the group line and the tab marks both read staleness, and grouping the bulbs on
-top of a signal known to be wrong means doing it twice. 3 is also the only commit here that is a fix
-rather than a feature, and it stays its own commit for that reason — a correction folded into a
-feature is a correction nobody can find again.
-
-5 and 6 last because they touch every colour and every tile the commits before them introduced, and
-doing either earlier means doing it twice — 6 after 5 in particular, since a glyph takes its tile's
-content colour and drawing seven of them against a palette about to be replaced is drawing them
-twice.
+## History
+
+Seven commits, all merged. What each of them decided is in the sections above; this is the record
+that they happened, and what the doing of them taught that the planning of them could not.
+
+| | Commit | PR |
+| --- | --- | --- |
+| 1 | `feat(panel): tab shell` — the tab strip, the favourites, the idle reset | #11 |
+| 2 | `feat(panel): expressive tiles` — the six-column grid, the spans, the shapes | #12 |
+| 3 | `fix(panel): stale means the poll stopped` — `lastPolledAt` instead of the vendor's `last_updated` | #14 |
+| 4 | `feat(panel): group the bulbs` — the circles, and who breaks out of the row | #15 |
+| 5 | `feat(panel): the panel's own colours` — the two schemes, and hue as the second axis | #17 |
+| 6 | `feat(panel): an icon per tile, and a slimmer slider` — nine drawables, the 6 dp track | #19 |
+| 7 | `fix(panel): the tab strip's touch height` — 64 dp on a `Tab` | #20 |
+
+No `AndroidManifest.xml` change, no new dependency and no new permission in any of them. That held
+for the whole of it, the portrait lock included — that is a device setting, not `screenOrientation`.
+
+**What the order bought.** The shell first, because it is the only part with behaviour to get wrong
+and it is worth having green before anything visual moves. 3 before 4, because the group line and
+the tab marks both read staleness and grouping the bulbs on top of a signal known to be wrong means
+doing it twice. 5 before 6, because a glyph takes its tile's content colour and drawing seven of
+them against a palette about to be replaced is drawing them twice. 3 stayed its own commit because
+it is the only fix among six features, and a correction folded into a feature is a correction nobody
+can find again.
 
 The order held. What it did not buy, and nothing in it could have: 2 was still wrong about the grid
 until the grid was on the wall, because the number it was wrong about was a measurement and not a
