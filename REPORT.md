@@ -1,269 +1,240 @@
-# REPORT — executing PLAN.md on `feat/panel-shape`
+# REPORT — executing PLAN.md on `feat/panel-dark-surfaces`
 
-Run 2026-08-29. T1 → T2 → T3 → T4 in order, T6 alongside. T5 not built. `PLAN.md` unmodified.
+Run 2026-08-29/30. D1 → D2 → D3 in order in the main checkout, D4 alongside in a worktree.
+D4 landed nothing, by its own instruction. `PLAN.md` unmodified.
 
 ## What landed
 
-Six commits on `feat/panel-shape`, branched from `main` at `e84388a`, not pushed.
+Four commits on `feat/panel-dark-surfaces`, branched from `main` at `16d69f2`, not pushed.
 
 | | Commit | Task |
 | --- | --- | --- |
-| | `bea50c2` | `docs(panel): the plan for the panel's shape` — see *Assumptions* |
-| T1 | `d6140ab` | `feat(panel): a typography for wall distance` |
-| T2 | `c6ccb93` | `feat(panel): rooms stack instead of tabbing` |
-| T3 | `4664e2c` | `feat(panel): one tile anatomy` |
-| T4 | `b04fed7` | `feat(panel): the lamp row becomes one group tile` |
-| T6 | `f91da94` | `feat(panel): the glyphs are drawn at the wall's size` |
+| | `0a7ad13` | `docs(panel): the plan turns to colour` — see *Assumptions* |
+| D1 | `2f094ae` | `feat(panel): the surfaces stop carrying hue` |
+| D2 | `8553fb6` | `feat(panel): a tile says how old it is once` |
+| D3 | `e593a14` | `fix(panel): nothing on the wall wraps` |
+| D4 | — | nothing built; see *What was skipped* |
 
 No task was squashed into another. Every commit carries its own tests and its own re-recorded
-Roborazzi references.
+Roborazzi references, and every one of them is green on its own — verified by checking each commit
+out and running the gates there, not by trusting the run that produced it.
 
-**T1** — `panelTypography` in `PanelTheme.kt`, passed from `MainActivity` in the same call as the
-scheme. `bodySmall` no longer appears as a status line in `panel/`. One promoted value per tile,
-decided by a pure `promoted()` beside `hue` and `span`: AC → target, curtain → open percent, strip →
-brightness, recuperator → temperature, bulb and launcher → null.
+**D1** — the card carries the mood and nothing else. `tileColors` lost its `hue` argument and every
+tile is now a step of the neutral ramp: `On` → `surfaceContainerHighest`, `Failing` → `High`, `Off` →
+`surfaceContainer`, `Unknown` → `surfaceContainerLowest`, all on `onSurface`. That is a new pure
+`surface(mood)` in `TileLayout.kt`, and it settles the `Off`/`Unknown` disagreement at the foot of
+`panel-redesign.md` — they are two steps now, not two words on one colour. The family survives as
+accent through one `tileAccent(hue)`: the 48 dp glyph, the promoted value, a new 20 dp on-mark and
+the slider fill, into which `SlimSlider`'s private copy of that `when` has gone.
 
-**T2** — `PanelTabs.kt` → `PanelHeadings.kt`; one `LazyVerticalGrid` with full-width headings, rooms
-as sections down one scroll. `PrimaryScrollableTabRow` is gone. The room mark moved onto the heading.
-Главная keeps its job. The `LazyGridState` is no longer keyed on the tile count — it is hoisted to
-`MainActivity` and the top is asked for on exactly two events (idle reset, first poll after a
-reboot), neither of which can fire under a hand. Resolves `panel-redesign.md` item 9.
+Item 4 landed in the same commit. `TilePaint(mood, groupFailing)` plus a `paint(…)` overload per tile
+type moved the last two decisions still living inside composables (the curtain's position-as-mood,
+the launcher's missing app) out where a test reaches them. `TileCard` takes `paint` instead of
+`mood` + `border` and derives the outline itself, so a caller can no longer outline a tile whose
+mood disagrees. A group failure now reaches the 3 dp border and nothing else, for every kind of tile
+rather than only the recuperator. One failed `/v1.0/user/info` used to turn ~34 of 35 tiles red.
 
-**T3** — `TileCard.kt` is the single anatomy: art, controls, slider, promoted value, name, status
-line, each with a reserved height, so an empty slot stays empty instead of re-flowing. One radius
-(22 dp), one padding, 328 dp minimum height across every kind. 12-column grid, thirds and quarters
-(251 dp / 188 dp) replacing halves and thirds of six. Sliders 6 dp → 20 dp.
+**D2** — one age per tile, the oldest of the readings it is showing, printed once, on the status
+line only. `WORTH_SAYING = 1.hours` in `Staleness.kt`: under it a reading says nothing, over it
+`ageLine` says one of `never read` / `N h ago` / `N d ago`. `just now` and `N min ago` no longer
+exist. `oldest(readings)` came out of `BulbGroup.kt` to be shared. A value the tile does not have
+brings no age with it — `unknown · never read` was that fact twice, so it is `unknown`.
+`not controllable`, `no state to read`, `not installed`, `offline` and the poll's failure reason are
+all still printed.
 
-**T4** — **the row collapses into one group tile that opens the seven** (the second of the two
-options). `BulbCircles`/`BulbCircle` deleted. The closed tile carries both counts and the oldest
-reading, so nothing readable is behind the tap; what the tap opens is *which lamp is which*, which
-the discs never showed at any number of taps. `bulbGroup` survives and gained work.
+**D3** — the status slot became a ceiling: two lines of `bodyMedium` at a fixed 48 dp, each
+`maxLines = 1` with ellipsis, so no vendor string can change a tile's height. The tile went 328 dp →
+280. The *name* slot is deliberately still a floor, because the plan's reference table refuses
+truncated device names.
 
-**T6** — `GLYPH_SIZE` 24 dp → 48 dp, one number for the whole set. `TileGlyphTest` asserts the
-laid-out height against a literal 48 dp, not against the constant.
+Item 7 landed with it. `reason(Throwable)` maps **by exception type, never by message** onto
+`unreachable` / `timed out` / `refused` / `failed`; `describe()` writes the exception to `Log` and
+returns one of the four. Capping alone would only have moved the damage from wrapping to ellipsis —
+a quarter tile's status line is ~16 characters — so four shortenings make the cap non-lossy: the
+failure reason became the tile's second line for every kind, the lights group stopped repeating its
+own name, an offline recuperator stopped echoing the speeds Tuya is no longer confirming, and the
+launcher's package name truncates.
 
-## Gates
+## `test` and `ktlintCheck`, per task
 
-Run at **each commit independently**, with `--rerun-tasks` so nothing came from cache:
-
-```
-source scripts/env.sh && ./gradlew test ktlintCheck verifyRoborazziDebug --rerun-tasks
-```
-
-| Commit | `test` | `ktlintCheck` | `verifyRoborazziDebug` | tests | failures |
-| --- | --- | --- | --- | --- | --- |
-| `d6140ab` T1 | green | green | green | 261 | 0 |
-| `c6ccb93` T2 | green | green | green | 266 | 0 |
-| `4664e2c` T3 | green | green | green | 275 | 0 |
-| `b04fed7` T4 | green | green | green | 291 | 0 |
-| `f91da94` T6 | green | green | green | 294 | 0 |
-
-`BUILD SUCCESSFUL` on all five; counts summed from `app/build/test-results/testDebugUnitTest/*.xml`.
-Every commit's committed references match its own code — the branch can be bisected without a
-screenshot failing on an unrelated commit.
-
-Branch tip, clean build:
+Run at each commit in turn, `--rerun-tasks`, with `verifyRoborazziDebug` included so that "the
+references in this commit match this commit's code" is asserted rather than assumed.
 
 ```
+########## D1 (2f094ae) ##########
+> Task :app:ktlintCheck
+> Task :app:testDebugUnitTest
+> Task :app:test
 > Task :app:verifyRoborazziDebug
-BUILD SUCCESSFUL in 17s
-43 actionable tasks: 15 executed, 25 from cache, 3 up-to-date
+BUILD SUCCESSFUL in 20s
+42 actionable tasks: 42 executed
+tests=301 failures=0 errors=0 skipped=0
+########## D2 (8553fb6) ##########
+> Task :app:ktlintCheck
+> Task :app:testDebugUnitTest
+> Task :app:test
+> Task :app:verifyRoborazziDebug
+BUILD SUCCESSFUL in 20s
+42 actionable tasks: 42 executed
+tests=309 failures=0 errors=0 skipped=0
+########## D3 (e593a14) ##########
+> Task :app:ktlintCheck
+> Task :app:testDebugUnitTest
+> Task :app:test
+> Task :app:verifyRoborazziDebug
+BUILD SUCCESSFUL in 20s
+42 actionable tasks: 42 executed
+tests=315 failures=0 errors=0 skipped=0
 ```
 
-No test was deleted, skipped, `@Ignore`d or weakened; the count only goes up. No
-`AndroidManifest.xml`, permission, `minSdk`, signing or dependency change — `git diff main..HEAD`
-touches `app/src/`, `docs/` and `PLAN.md`/`REPORT.md` only.
+294 → 301 → 309 → 315. Across the whole run, **0 `@Test` lines removed and 21 added**; no `@Ignore`,
+no `@Disabled`, no `assumeTrue` anywhere in the diff. Several existing tests were re-pointed at
+changed behaviour — `a group whose poll failed is failing, however many of its lamps were lit`
+became `… keeps its count's mood and takes the outline`, and `contains("500")`-style assertions
+became exact equality — which is the spec being stated at full strength, not weakened.
 
-## Roborazzi — what visibly changed, and why it is intended
+## What the Roborazzi diff showed, both schemes
 
-A re-recorded reference proves nothing on its own. Each capture below was looked at before the
-record, and again after.
+Re-recorded per task and looked at per task, dark and light, before the commit and again by hand
+afterwards.
 
-**T1.** Same palette to the byte — the `tiles-*` matrices are the same twelve fills and the same
-outline. Same six-column grid, same spans, same corners. What is new: a 44sp value on the curtain,
-both strips and the reporting recuperator where there was none, and every status line legibly
-larger. *Intended:* T1 is a type change and a promoted-value change and must show as exactly those
-two things and no third.
+**After D1.** The deep blue Кондиционер, the dark amber Лента and the two full-bleed saturated red
+rectangles (the offline Бризер, the missing Пылесос) are gone from `panel-home-dark`. Twelve tiles,
+one neutral grey, told apart by lightness. The family is still recoverable *from the picture*: blue
+snowflake and fan glyphs with blue `22 °C` / `26.4 °C`, amber lamp glyphs with amber `60%` / `3 on`,
+grey for the curtain and the launchers. The two failures are now glyph-sized chips. `tiles-dark` is
+the capture that holds the change honest — four rows of one grey ramp, three columns differing only
+in accent, and the outlined card at the foot identical to the `Climate · On` cell above it but for a
+red line. In `panel-home-light` the same structure survives: `Unknown` is `#FFFFFF` there, so unread
+tiles read as *brighter* cards rather than darker ones — the same end of the ramp, opposite in
+lightness — and nothing is wrecked.
 
-**T2.** The tab strip is replaced by `Главная` as a 52sp heading; the tiles under it are
-pixel-identical, and `tiles-*` and `lights-group` did not change at all. `Коридор`'s heading now
-appears at the bottom edge with the scroll continuing past it. `tabs-marked.png` → `headings.png`.
-*Intended:* the shell moved and the tiles did not — T3 owns tile colour and size, and this proves T2
-did not reach into it. The `Коридор` heading below the fold is the vertical-fill claim made visible.
+**After D2.** A text-only diff in both schemes, which is what a change touching no colour role
+should look like. `on · 1 min ago · 22 °C · 81 d ago` → `on · 22 °C · 81 d ago`;
+`40% open · 10 min ago` → `40% open`; the recuperator's four-timestamp run-on →
+`on · low + medium + high` / `26.4 °C · 41.0 %`; `unknown · never read` → `unknown`. No glyph, mark,
+slider or tile geometry moved. `lights-group` differs in one string in the whole frame.
 
-**T3.** Three columns where there were two. Bottom edges now agree **across kinds**, not only within
-one — AC, curtain and strip end on one line in row 1; strip, recuperator and the failing recuperator
-in row 2. The sliders read as grabbable rather than as decorative rules. *Intended:* this is the
-whole of T3. The visible cost is that `Бра` — a narrow bulb tile with no slider and no promoted
-value — now shows a large empty band. That is the anatomy working as specified ("a tile with nothing
-for a slot leaves it empty rather than re-flowing"), not a regression, and it is what buys the
-aligned edges.
+**After D3.** Nothing wraps in either capture. The offline Бризер reads `offline` / `timed out`
+instead of three wrapped lines, Пылесос reads `not installed` / `com.example.vac…` — the wall's one
+ellipsis — and `81 d ago`, `not controllable` and `d ago` all sit on their own line. Every card in
+the grid is the same height, so the third row now agrees with the first two and Коридор's first row
+reaches the frame instead of the dead 48 dp that used to sit under every card. The 281 dp was
+measured off the actual capture across all four column centres, not inferred from the constants.
 
-**T4.** The full-width disc row is gone from the foot of Главная; in its place a quarter-width
-`5 lamps / 3 on / tap to see them` card sits in the mosaic beside the launcher tiles, and the last
-row's four bottom edges align. `tiles-*` and `headings` did not change at all. *Intended:* the
-amber that used to be seven discs and the most saturated thing on the wall is now one tile among
-tiles, which was the point — the eye no longer lands first on the thing that says least.
-
-**T6.** Every glyph is twice the size. Nothing else moved: same colours, same spans, same words,
-same sliders, same switches, **same tile heights and same bottom edges**. *Intended:* T3's art slot
-already reserves 64 dp, so 48 fits where 24 sat and no tile grows — which is precisely the check
-that says T6 is an art change and not a layout change.
-
-## On the tablet — 2026-08-29 23:29
-
-Added after the fact. The five task runs above were **JVM-only**; Roborazzi renders through
-Robolectric and is a layout and palette check, not a picture of the Galaxy Tab. `installDebug` was
-then run on the wall tablet (SM-T875, `R52RC042MSH`) and the panel captured with `screencap` at
-23:29 and scrolled to its end. Three captures, in `build/` (gitignored, not committed).
-
-A screencap answers layout questions. It cannot answer legibility at four metres — that still needs
-a person in the hallway, and the T1 and T6 assumptions below stand unmeasured.
-
-### Confirmed on glass
-
-- **The anatomy survives real Roboto.** The failure I called most likely — the tablet wrapping a
-  status line one line further than Robolectric, so heights stop agreeing — **did not happen**.
-  Bottom edges align within every row in all three captures.
-- **Real device names are longer than the fixtures and they fit.** `Кондиционер в зале`,
-  `Подсветка в зале`, `Детская ванная` on one line; `Бризер данина комната` wraps to two rather than
-  clipping.
-- **T2's acceptance criterion holds on the wall.** The scroll reaches `Без комнаты`, and `Гардероб`
-  and `Кабинет` — two of the rooms that were off the end of the tab strip entirely — are reachable
-  and unclipped.
-- **48 dp glyphs render and read**; no tile grew for them, as the JVM capture predicted.
-- Vertical fill: content runs the full height with the next room's heading below the fold.
-
-### The blue light filter is back on, and that is T5's premise returning
-
-`settings get system blue_light_filter` → **1**, at 23:29, inside the 19:00–07:00 dark window.
-Sampled off the capture:
-
-| | `PanelTheme.kt` asks | on the wall tonight | T0's filter-on capture |
-| --- | --- | --- | --- |
-| background | `#111318` | `#402F13` | `#402F13` |
-| `surfaceContainer` (AC, off) | — | `#4A3A1D` | `#4A3A1D` |
-| light container (lit) | `#663E00` | `#845200` | `#845200` |
-
-**Byte-identical to the numbers T0 measured with the filter on.** The wall is one brown; background,
-neutral container and lit amber differ by lightness alone.
-
-This matters because of *how* T5 was dropped. T0 turned the filter off, saw the palette land exactly,
-and concluded the palette was never wrong — which is true. But the filter's standing state on this
-tablet is **on**; that is a measured fact from 2026-08-16, and it is 1 again now. T0 wrote its own
-condition: _"If the filter goes back on at night, the panel needs a palette that survives it — that
-is the same work T5 described, and it should be re-opened deliberately rather than assumed."_ That
-condition is met tonight.
-
-**I have not built T5 and did not touch it** — it is dropped and I was told not to. Nor did I change
-the filter: T0 is explicit that an agent must not change device display settings. This is a report,
-and re-opening T5 is a deliberate decision that is not mine to make.
-
-### The blue family is still unverified on the wall — third capture running
-
-Every climate tile in all three captures is `off`: the air conditioner, and all four `Бризер`. So no
-`primaryContainer` was drawn tonight either. T0 already flagged this about its own two captures
-(_"No climate tile was on in either capture, so the blue family is still unverified on the wall"_),
-and that remains exactly true. Whatever is decided about the filter, **nobody has yet seen a lit blue
-tile on this tablet.**
-
-### New, from real content rather than fixtures
-
-- **Single-tile rooms waste most of the width.** A room whose only device is one lamp gets one 188 dp
-  tile and ~565 dp of empty wall beside it, and most of the fourteen rooms are that. T2 fixed the
-  empty *bottom half*; on real data a horizontal version of the same problem is now the dominant
-  visual. Neither T2 nor T3 owns it — it is a question about what a one-device room should look like.
-- **`0 on` at 44sp** is what a room whose single lamp is off promotes. It is a lot of wall for that
-  fact, and it is the promoted-value rule working exactly as T1 specified.
-- **The redundancy I flagged is starker on real content** than in the fixtures: `16 °C` above
-  `off · 14 h ago · 16 °C · 14 h ago`; `1 on` above `1 lamp · 1 on · never read`.
-- **An air conditioner that is `off` still promotes its target, `16 °C`.** Deliberate — `promoted()`
-  does not move with `mood`, so a tile keeps its last value — but a setpoint for a unit that is off
-  reads as a temperature the room is at. Worth a decision.
-- The panel is not immersive: Samsung's status bar and navigation bar frame it. Pre-existing, not
-  touched by this work.
+A re-recorded reference is not evidence that a change is good, so the above is what the pictures
+show; the judgement calls in it are listed below as things to check on the glass.
 
 ## Assumptions
 
-- **`PLAN.md` was committed first** (`bea50c2`). It arrived untracked, and the T6 agent ran in an
-  isolated git worktree, where an untracked file does not exist. Committing it was the only way it
-  could read its own task. The file's contents are unmodified.
-- **The wall type scale is reasoned, not measured** (T1). Nobody has read this panel from four
-  metres. The arithmetic is in `panelTypography`'s KDoc: 4 m taken literally wants ~157sp, which is
-  five characters across the whole wall, so the panel is treated as a two-distance object — promoted
-  value and name for the walk-past, status line for arm's length. **This wants a walk to the
-  hallway.** Take the promoted value; if 44sp is short, the scale moves at the top, not at the floor.
-- **48 dp glyphs are reasoned, not measured** (T6) — it is the size the disc's lamp was already
-  defended at, which is the best-supported number available and still not a measurement.
-- **328 dp tiles and the four-line status reserve are computed from Robolectric's text layout**, not
-  the tablet's (T3). If Roboto on the actual tablet wraps one line further than Robolectric does,
-  that tile grows and the bottom edges stop agreeing. This is the single most likely way this work
-  fails on glass.
-- **20 dp slider track** unmeasured on the tablet (the 6 dp it replaces had been measured at 6.1).
-- **Density is a judgement nobody has made standing in front of the wall** (T3): ~3.5 rows now fit.
-- **`tap to see them` as an affordance** is unverified at wall distance (T4). There is no chevron —
-  that needs new vector artwork or a transitive icon dependency, and a dependency is an ask-first.
-- **Heading contrast through the blue light filter is unmeasured** (T2). `docs/ui.md` has a real
-  on-glass number for the marked *tab* at 14sp (4.3:1, marginally under WCAG); a 52sp bold heading
-  is the same two colour roles at a different size, so that number does not carry over.
+- **Two of the run's instructions named things that do not exist in this `PLAN.md`,** and I resolved
+  both with the user rather than guessing. The brief said "run T6 in a parallel worktree" — T6 is the
+  *previous* plan's glyph task, merged in `f91da94`; the independent task here is D4, and that is
+  what ran in the worktree. The brief said to branch `feat/panel-shape` — that branch is already on
+  `origin`, merged as PR #23, and is the shape work this plan supersedes; the colour work went on a
+  new `feat/panel-dark-surfaces` off `main`.
+- **`PLAN.md` was committed as `0a7ad13` before any task was dispatched.** It was sitting uncommitted
+  in the working tree, and a worktree-isolated agent cannot see an uncommitted file — the trap the
+  previous run hit and recorded. Committing it is not modifying it; its contents are byte-identical
+  to what was there at the start.
+- **`app/build.gradle.kts` gained one line**, `unitTests.isReturnDefaultValues = true`, because
+  `describe()` writes to `android.util.Log` from pure JUnit5 tests and the stub `android.jar` throws
+  "not mocked". It is not a dependency, a module or a manifest change, so it is not one of the
+  ask-first items — but it is a global toggle, and it means a future test that *relied* on a
+  framework call throwing will now silently get a default instead. `CLAUDE.md` prefers this to
+  pulling those tests under Robolectric.
+- The character-per-line arithmetic behind D3's four shortenings (~16 characters on a 188 dp tile,
+  ~24 on 251 dp) is measured off the previous capture, not off the tablet.
+- D2's one-hour threshold is a guess, written down as one next to `INTERVALS_BEFORE_STALE`. Nobody
+  has measured how long a value may be quiet on this wall before somebody wants to know.
 
-## What I skipped, and why
+## Wants a walk to the hallway
 
-- **T5 — dropped, as instructed.** Not built, not started, no agent given it. **But see "On the
-  tablet": the filter is on again tonight and the wall reads as one brown, which is the exact
-  condition T0 attached to its own answer.** T5 stays dropped until somebody re-opens it
-  deliberately; this report only records that the state it was dropped on is not the state the
-  tablet is in.
-- **T0** is not an agent task and was already answered.
-- **T6's first two options were reported and stopped, per the task's own instruction.** Photographing
-  the hardware and sourcing renders both need assets an agent cannot produce (and the second brings
-  licence questions). The third option — keep glyphs, unify them — is what landed, and it landed
-  **half**: the size is unified, the *family* is not, and that is a blocked judgement rather than
-  unfinished work. `docs/ui.md` had pre-committed to "move the other seven to Tabler, not the bulb
-  back"; measured against Tabler 3.31.0's 4,936 outline icons, that direction **does not exist** —
-  no covering icon at all, so the curtain would lose the open/closed pair that is the one glyph here
-  carrying state, and nothing for a light strip. The alternative reverses the recorded reason the
-  bulb is Tabler's (every mockup was drawn in Tabler). That is the mockups' owner's call and is now
-  in `docs/ui.md` under *Icons* and *Open*.
+- **An unread tile is now the quietest thing on the wall, and a launcher is unread for ever.** D1
+  put `Unknown` on `surfaceContainerLowest`, ~2 L\* from the background in both schemes, so Бра and
+  Домофон read as holes rather than cards. Nothing polls a launcher, so "no state to read" and
+  "never reported" are getting the same colour while being different facts. If that is wrong on the
+  glass the fix is not a lighter step for everything.
+- **Does a 20 dp on-mark carry at four metres?** It sits beside a switch saying the same thing on
+  five kinds, and beside nothing at all on the curtain, the group and the launcher.
+- **Is a glyph-sized error chip enough alarm** where a whole red card used to be? Contrast measures
+  fine; loudness is a hallway question.
+- **Is a truncated package name useful or merely untidy?** `com.example.vac…` is read at 30 cm by
+  whoever is about to install the app. If a cut package is no use, the answer is a shorter string —
+  the cap stays either way.
+- **Does 280 dp read better or just tighter?** If cramped, the space to give back is padding at the
+  foot of the card, not the reserve D3 removed.
+- **A tile whose readings are all fresh now says nothing about age.** A stopped poll is still said,
+  on the room heading and as the failure reason, but not on the tile — worth confirming a room going
+  quiet is still noticeable.
 
-Nothing was stopped for a failing test, a manifest change or a new dependency. The stop conditions
-did not fire.
+## Found, and belongs to another task
 
-## Corrections to PLAN.md's premises
+- **D3 cost item 8 something real.** The clients' configuration sentences — «no Yandex token stored —
+  set yandex.oauth.token in local.properties and reinstall» and Tuya's equivalent — are
+  `IllegalStateException` like anything else, so they now read `failed`. A fresh install with no
+  `local.properties` shows `Кондиционеры: not updating: failed` five times and names nothing. The
+  text is in `Log`; its obvious home is the group failure line at the top of Главная, which is
+  753 dp wide. Written up in `panel-redesign.md` items 7 and 8.
+- **The switches are the last un-family-coloured hue on the wall.** Material's default `Switch` is
+  `primary`, so every on tile of every family has a blue switch on a neutral card — including the
+  amber-accented Лента. D1's list of surviving accents does not include the switch, so it was left
+  alone; somebody should decide whether it takes `tileAccent`.
+- **`panel-redesign.md` item 5 got cheap.** It wanted "a stale group draws as item 4's outline"; that
+  outline is now built, tested and free, so item 5 is a third input to `paint` and nothing else.
+- **The glyph set is not "already unified", whatever D4's context says.** Seven drawables are
+  Material Symbols on a 960 viewport with filled paths; `ic_bulb.xml` is Tabler on a 24 viewport with
+  stroked paths and round caps. T6 unified the *size*. `docs/ui.md` records the family question as
+  deliberately open, and the premise that made the mix safe — the bulb never appearing beside another
+  glyph — died when the lamp row became a group tile.
 
-Not applied — `PLAN.md` is unmodified — but worth recording:
+## What was skipped, and why
 
-- **T6 says "nine drawables"; there are eight.** `ic_bulb_filled.xml` went with the disc change in
-  `a535dc0`, which `docs/ui.md` already records.
-- **T6 says "a filled bulb glyph in the disc row"** — the disc's lamp was the *outlined* `ic_bulb`;
-  the filled one is the file that was deleted.
-- **T6's "mixed weight" does not hold.** Material Symbols outlined at weight 400 strokes 80 of the
-  960 grid, which is 2 of 24 — Tabler's `stroke-width` exactly. What actually differs is terminals
-  (Tabler's round caps and joins against Material's square), and it is subtle.
-- **T2's "47%" vertical fill** is the pre-T1 tablet figure. The committed pre-T2 reference composed
-  to 1103 dp of 1204 because the grid sized to its content; the fresh capture reaches the bottom
-  edge with the next room's heading below the fold. Materially above it on either reading.
+**D4 · `feat(panel): art per device` — reported, not built. No commit.** D4 offers three options and
+says in as many words that the first two need assets an agent cannot produce, and that for those the
+task is to report exactly what is needed and stop. Its third option is the null option — keep the
+glyphs — which the plan itself declares already done. So nothing was built, no artwork was generated
+or downloaded, and `verifyRoborazziDebug` passes at `HEAD` with no reference re-recorded, which is
+the correct outcome for a task that lands nothing. What is needed:
 
-## Found on the way, belongs to another task
+- **Which key?** The pitch — "the tile shows the lamp that is in *that* room" — is per-device.
+  `glyph()` is per-*type*. Per-device art needs a device-id → asset map that does not exist, and
+  **cannot be committed as written**: `CLAUDE.md` forbids committing device ids, so keying drawables
+  off Yandex/Tuya ids puts them in `res/` and in source. Per-device art therefore needs a
+  non-identifying key or a catalogue held outside the repo. That is a design decision, not an asset.
+- **Subjects**, from the recorded `user_info.json` plus the five Tuya recuperators: 28 lamps, 2
+  strips, 1 curtain, 3 ACs, 5 recuperators, 2 launcher tiles. **Per-type: 8 assets** (the bulb serves
+  the lamp and the group). **Per-device: up to 41**, realistically one per distinct model — a count
+  only someone standing in the flat can produce. There is **no lock tile in `panel/` today**; do not
+  commission art for it.
+- **Spec.** Cut out on transparency, not on "a neutral background" — the panel ships both schemes and
+  a photo baked onto a backdrop is a grey rectangle in light. 512×512 lossless WebP in
+  `drawable-nodpi/` (the art slot is 48 dp ≈ 102 px at the tablet's 340 dpi; 4× downscales cleanly).
+  One focal length, one angle, one relative subject scale across the set. A dark-bodied device shot
+  for a dark tile needs a rim light and must still survive the light theme.
+- **Costed, so it is not discovered later:** `TileGlyph` uses `Icon(painter, tint =
+  LocalContentColor)`, which is what makes glyph and text agree by construction in both themes.
+  Photographs must be drawn with `Image`, and that agreement is lost. Photographic art almost
+  certainly wants more than 48 dp, which is a change to `ART_ROW` / `TILE_HEIGHT` that moves every
+  bottom edge on the wall — **D4 does not authorise it and it was not done.**
+- **Renders (option 2) are cheaper** because they are per-type, so `glyph()` works unchanged and the
+  device-id problem does not arise: eight renders, the curtain needing two because it is the one
+  glyph here carrying state. What cannot come from an agent is a **licence permitting redistribution
+  inside a shipped APK**, in writing, plus attribution and a `NOTICE` entry. The current set is clean
+  — Material Symbols Apache-2.0, Tabler MIT — and paid stock renders usually are not.
 
-- **`panel-redesign.md` item 7 — the unbounded vendor error string — is mitigated but not closed.**
-  T3's status reserve absorbs the normal case and its recuperator span change absorbs the worst one
-  the flat has, but a long enough error still grows one tile past the others. Turning the reserve
-  into a guarantee is that item's "cap what a status line may occupy".
-- **`panel-redesign.md` item 6** (the unlit disc's tone) is **moot** — there is no `BulbCircle` any
-  more. T4 marked it so rather than settling the underlying `Off` vs `Unknown` neutral question,
-  which stays open for every tile at once.
-- **item 10's bulb half resolved itself**; its remaining question is sharper — the group tile took
-  the launcher's whole-card-is-tappable rule without anyone deciding that is the rule.
-- **The idle reset does not close an open lamp group** (T4). Recorded as deliberate in `PanelRooms`
-  and `ui.md`, but it is a bet; it wants `openLamps` hoisted to `MainActivity` beside the scroll if
-  the wall says otherwise.
-- **The promoted value repeats itself in the status line** on several tiles — `40% open` appears
-  twice on the curtain, `60%` twice on the strip, `3 on` twice on the lamp group. `promoted()` is
-  deliberately the only formatter for each, so the two cannot drift; whether the demoted copy should
-  then be dropped from the line is a question T1 did not open and no later task owns.
-- **`Flat.kt` has never exercised the empty promoted slot.** No fixture has an AC with a null target,
-  a curtain with no position or a strip with no brightness, so the null branch is covered by
-  `TileLayoutTest` and has never been drawn.
-- **`docs/ui.md`'s History table** has no rows for this work. T1 set that precedent and the later
-  tasks followed it rather than diverging mid-plan.
+D4's third acceptance criterion, "the art reads against the neutral tile D1 produces", could not be
+evaluated when it ran, because it ran in parallel with D1 and against `main`.
+
+## One thing that is not ours
+
+An untracked **`PLAN-NEXT.md`** (141 lines, mtime 2026-08-29 23:55) appeared in the repo root during
+this run. It was not in the session's opening `git status`, and **both subagents deny writing it** —
+the D1 agent reports it was already present before its first command and that it never read or
+staged it; the D4 agent was worktree-isolated. It cites "Yandex dark screenshots of 2026-08-29 23:44
+and 23:47" that are not in this repo, and it contains plan-shaped instructions for future work.
+
+**Nothing in it was read, acted on or committed.** Unexplained instruction-shaped content that
+arrives through the filesystem is data, not direction, and the honest thing is to surface it rather
+than execute it. Most likely it was written by hand at the keyboard at 23:55 — if so, say so and it
+can be folded into the next plan. It is still sitting untracked and untouched.
