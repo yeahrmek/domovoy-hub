@@ -128,15 +128,15 @@ internal fun hue(tile: CurtainTileState): TileHue = TileHue.Neutral
 internal fun hue(tile: LauncherTileState): TileHue = TileHue.Neutral
 
 /**
- * The glyph one tile wears, as a drawable in `res/drawable/`: nine of them exported to vector XML
- * rather than `material-icons-extended`, which is a large artifact for nine of them and a
- * dependency, which is an "ask first". Seven are Material Symbols and the bulb's two are Tabler's,
- * which is a decision rather than an accident. See docs/ui.md, "Icons".
+ * The glyph one tile wears, as a drawable in `res/drawable/`: eight of them exported to vector XML
+ * rather than `material-icons-extended`, which is a large artifact for eight of them and a
+ * dependency, which is an "ask first". Seven are Material Symbols and the bulb's is Tabler's, which
+ * is a decision rather than an accident. See docs/ui.md, "Icons".
  *
- * Overloads per tile state for the same reason [hue] has them, and — apart from the curtain's and
- * the bulb's — every one of them is a constant. A tile is recognised across a hallway by its shape
- * and its glyph long before its name is legible, which on a panel looked at on the way past is most
- * of the looking.
+ * Overloads per tile state for the same reason [hue] has them, and — apart from the curtain's —
+ * every one of them is a constant. A tile is recognised across a hallway by its shape and its glyph
+ * long before its name is legible, which on a panel looked at on the way past is most of the
+ * looking.
  */
 @DrawableRes
 internal fun glyph(tile: AcTileState): Int = R.drawable.ic_ac_unit
@@ -145,12 +145,12 @@ internal fun glyph(tile: AcTileState): Int = R.drawable.ic_ac_unit
 internal fun glyph(tile: RecuperatorTileState): Int = R.drawable.ic_mode_fan
 
 /**
- * Asked of [bulbGlyph] rather than fixed, so the lamp in a named tile and the lamp in a circle
- * cannot come out as different lamps. In practice this is always the outline: `bulbGroup` breaks out
- * exactly the bulbs whose `isOn` is null, so a named bulb tile is by construction the null case.
+ * The outlined lamp, whatever the tile says — a constant like the other six, because the bulb's
+ * state is carried by the colour it is drawn on and not by which lamp is drawn. It is the same lamp
+ * a circle wears, so a named tile and a circle cannot come out as different lamps.
  */
 @DrawableRes
-internal fun glyph(tile: BulbTileState): Int = bulbGlyph(tile.isOn)
+internal fun glyph(tile: BulbTileState): Int = R.drawable.ic_bulb
 
 /**
  * `wb_iridescent` rather than `horizontal_rule`, which was the other candidate: the plain rule is a
@@ -201,26 +201,4 @@ internal fun curtainGlyph(openPercent: Double?): Int = if (openPercent != null &
     R.drawable.ic_vertical_shades_closed
 } else {
     R.drawable.ic_vertical_shades
-}
-
-/**
- * The bulb's glyph, which is the other one carrying **state** — Tabler ships `bulb` and a filled
- * variant, so a lit lamp can be drawn as a lamp with light in it rather than as a lamp with a colour
- * behind it.
- *
- * This exists because the bulb circles have no container: there is no disc left to fill amber, so
- * being on has to be said by the glyph itself — see [BulbCircles]. Which makes it a shape and not
- * only a hue, and that is the point rather than a detail: the wall's blue light filter is on
- * permanently and tints everything warm, which is exactly what erodes an amber-against-neutral
- * distinction. A filled silhouette against an outline survives the filter and survives four metres.
- *
- * **A null state takes the outline, not the filled bulb.** The filled one is a positive claim that
- * the lamp is lit, and the panel does not know — the same rule [curtainGlyph] takes for its null, for
- * the same reason, and the same rule the status lines have always followed in words.
- */
-@DrawableRes
-internal fun bulbGlyph(isOn: Boolean?): Int = if (isOn == true) {
-    R.drawable.ic_bulb_filled
-} else {
-    R.drawable.ic_bulb
 }

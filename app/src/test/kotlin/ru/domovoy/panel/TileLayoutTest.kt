@@ -131,27 +131,11 @@ class TileLayoutTest {
     }
 
     @Test
-    fun `a lit lamp is a filled bulb and an unlit one an outline`() {
-        // The second glyph that carries state rather than labelling a type, and the reason the bulb
-        // needs two drawables: the row has no containers left to colour, so being on has to be a
-        // shape. A filled silhouette against an outline is what survives the blue light filter, four
-        // metres, and whatever the dark scheme does to the amber at night.
-        assertEquals(R.drawable.ic_bulb_filled, bulbGlyph(true))
-        assertEquals(R.drawable.ic_bulb, bulbGlyph(false))
-    }
-
-    @Test
-    fun `a lamp the panel has no state for gets the outline, not the filled bulb`() {
-        // The filled bulb is a positive claim that the lamp is lit, and the panel does not know.
-        // Same rule curtainGlyph takes for its null, and for the same reason.
-        assertEquals(R.drawable.ic_bulb, bulbGlyph(null))
-    }
-
-    @Test
-    fun `a bulb tile's glyph follows the one thing that tile is for`() {
-        // A named bulb tile is the bulb the panel has no state for — bulbGroup breaks out exactly
-        // the null ones — so its glyph is the null answer, and it is the same answer asked once.
-        assertEquals(bulbGlyph(null), glyph(bulb(isOn = null)))
+    fun `a bulb tile's glyph is the lamp, and only ever the lamp`() {
+        // The bulb is not the curtain: its glyph labels a type and carries no state. A named bulb
+        // tile is by construction the bulb the panel has no state for — bulbGroup breaks out
+        // exactly the null ones — and the state of every other lamp is said by the disc it sits on.
+        assertEquals(R.drawable.ic_bulb, glyph(bulb(isOn = null)))
     }
 
     private fun recuperator(
