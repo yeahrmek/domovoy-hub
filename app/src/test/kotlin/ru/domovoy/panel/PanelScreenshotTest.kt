@@ -92,11 +92,13 @@ class PanelScreenshotTest {
 
     // **A taller frame than the wall, and only here.** [TileMatrix] is thirteen colour swatches
     // rather than a picture of the panel — the wall's own 1204 dp is what the two Главная captures
-    // are for, and it is load-bearing there. A tile is 328 dp tall now that every kind fills the
-    // same five slots, so five rows of them — four moods and the outlined case — come to 1656 dp,
-    // and in a 1204 dp frame the failing row and the outline simply fell off the bottom and were
-    // recorded as nothing at all. The width stays 753: these cards sit three across, which is the
-    // wall's own wide column.
+    // are for, and it is load-bearing there. A tile is 280 dp tall now that every kind fills the
+    // same five slots and the status slot is capped at two lines, so five rows of them — four moods
+    // and the outlined case — come to 1400 dp, and in a 1204 dp frame the failing row and the
+    // outline simply fell off the bottom and were recorded as nothing at all. The frame stays at
+    // 1700 rather than following the tile down: it was 1656 dp of swatch and is 1400, and a height
+    // that has to be retuned every time a slot moves is a height that will be wrong once. The width
+    // stays 753 — these cards sit three across, which is the wall's own wide column.
     @Test
     @Config(qualifiers = "w753dp-h1700dp-port-340dpi")
     fun `the tile colours, light`() {

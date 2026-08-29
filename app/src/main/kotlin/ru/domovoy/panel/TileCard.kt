@@ -29,6 +29,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
@@ -76,35 +77,62 @@ private val LEVEL_ROW = MIN_TOUCH
 /** The **promoted value**: one line of `displaySmall`, whose line height is 52sp. */
 private val PROMOTED_ROW = 52.dp
 
-/** The **name**: one line of `titleMedium`, whose line height is 28sp. A longer name wraps. */
+/**
+ * The **name**: one line of `titleMedium`, whose line height is 28sp. A longer name wraps, and that
+ * is the one place on the card where something still can.
+ *
+ * It is left that way on purpose while the status slot is capped. A device name is a string the
+ * vendor supplies, so it could in principle be the thing that makes one tile taller than another —
+ * but PLAN.md's reference table refuses truncated device names outright ("fine at 30 cm, useless at
+ * four metres"), and a wrapped name is legible where a cut one is not. Nothing in this flat's 35
+ * devices comes close: the longest, "Кондиционер", is 145 dp of the 156 a quarter tile gives it, and
+ * every longer name in the catalogue is on a tile a third of the wall wide.
+ */
 private val NAME_ROW = 28.dp
 
+/** One line of `bodyMedium`, whose line height is 24sp. The unit the status slot is built from. */
+private val STATUS_LINE = 24.dp
+
 /**
- * The **status line**: four lines of `bodyMedium`, whose line height is 24sp.
+ * The **status line**: two lines of `bodyMedium`, **and this one is a ceiling rather than a
+ * reserve.**
  *
- * Four rather than one, and this is the number the whole anatomy is sized around. The panel refuses
- * to hide state behind a tap, so a tile prints its on/off, both of its ages, its second reading
- * with two more ages, and the reason a poll stopped landing — a run-on of up to 90 characters, on a
- * card 251 or 188 dp wide. Four lines is what the longest of them measures on the narrower of the
- * two, and reserving it on every tile is what stops a bulb sitting 70 dp higher than the strip
- * beside it.
+ * It was four lines and a reserve, on the argument that a vendor error long enough to run past them
+ * should make that tile taller rather than be swallowed. That argument had the priority backwards.
+ * The status line was the last unbounded thing on the wall, so a vendor's error text — Java's
+ * `Unable to resolve host "openapi.tuyaeu.com"`, arriving at whatever length it happened to be —
+ * decided how tall a tile came out, and docs/ui.md calls *two tiles of the same kind coming out the
+ * same height* the mosaic's proudest property. A string nobody in this flat controls could break it
+ * at any moment.
  *
- * _It is a reserve and not a ceiling._ A vendor error long enough to run past four lines makes that
- * one tile taller rather than being clipped or ellipsised — the panel does not swallow the reason a
- * thing is broken to keep a bottom edge straight. Nothing the flat has ever produced does that; the
- * failing recuperator, which is the longest line on the wall, is why [span] gives a tile with an
- * error the wider column.
+ * So the two lines are all there is, and each of them is one line: [StatusText] sets `maxLines = 1`
+ * and ellipsises. **Nothing on this wall wraps.** What made that affordable rather than lossy is
+ * everything else in this commit — the reason a poll failed is four words on the second line
+ * instead of a vendor sentence on the first, the lights group stopped repeating its own name, an
+ * offline recuperator stopped echoing what it can no longer confirm, and the launcher's package
+ * moved to a line where it may be cut short. The one string still long enough to meet the ellipsis
+ * is a package name, and `docs/design/panel-redesign.md` item 7 says outright that an identifier
+ * that cannot be shortened is truncated rather than wrapped.
+ *
+ * The tile's *name* is deliberately not capped this way — see [NAME_ROW]. A device name is the one
+ * thing PLAN.md refuses to truncate at any width.
  */
-private val STATUS_ROW = 96.dp
+private val STATUS_ROW = STATUS_LINE * 2
 
 /**
  * How tall every tile is: the five slots plus the padding, written out so the number is visible.
  *
- * **328 dp, and the same 328 for a bulb as for an air conditioner.** That is the point of the whole
+ * **280 dp, and the same 280 for a bulb as for an air conditioner.** That is the point of the whole
  * file — the mosaic had four heights and ragged bottom edges because each kind laid itself out
- * around what it happened to have. A minimum rather than a fixed height so that nothing is ever
- * clipped; the slots below sum to exactly this, so a tile only exceeds it by wrapping past a
- * reserve, which see.
+ * around what it happened to have.
+ *
+ * It was 328 while the status slot reserved four lines for a string of unbounded length. Two of
+ * those four were never filled by anything the flat produces, and the 48 dp they left at the foot of
+ * every card was the reserve showing rather than padding. Capping the slot is what let it go — see
+ * [STATUS_ROW].
+ *
+ * Still a minimum rather than a fixed height, so that nothing is ever clipped: the slots below sum
+ * to exactly this, and the only one that can now exceed its share is the name — see [NAME_ROW].
  */
 private val TILE_HEIGHT =
     ART_ROW + LEVEL_ROW + PROMOTED_ROW + NAME_ROW + STATUS_ROW + TILE_CONTENT_PADDING * 2
@@ -206,30 +234,48 @@ private fun TileBody(
             // "Свет в гарде…", which is the reference app's answer and the one PLAN.md refuses.
             Text(text = anatomy.name, style = MaterialTheme.typography.titleMedium)
         }
-        Slot(STATUS_ROW) {
-            Column {
-                Text(text = anatomy.status, style = MaterialTheme.typography.bodyMedium)
-                // The second line of the same slot, on the two tiles that have one. Its own line
-                // rather than more dots on the first: it carries ages of its own, and six values in
-                // one run is a line nobody reads at any size.
-                anatomy.detail?.let {
-                    Text(text = it, style = MaterialTheme.typography.bodyMedium)
-                }
-            }
+        // **The one slot that is a fixed height and not a floor.** Two lines, always exactly two
+        // lines tall, and nothing a vendor sends can make it a third — which is what stops a
+        // vendor's error text from deciding how tall a tile comes out. See [STATUS_ROW].
+        Column(modifier = Modifier.fillMaxWidth().height(STATUS_ROW)) {
+            StatusText(anatomy.status)
+            // The second line of the same slot. Its own line rather than more dots on the first:
+            // it carries the tile's second reading or the reason its poll stopped landing, and
+            // either of them run onto the first is a line nobody reads at any size.
+            anatomy.detail?.let { StatusText(it) }
         }
     }
 }
 
 /**
+ * **One line of the status slot: exactly one line, whatever it was handed.**
+ *
+ * `maxLines = 1` and an ellipsis, which between them are the cap this whole commit is about. The
+ * panel's own strings are all written to fit — the widest of them, "no state to read", is 124 dp of
+ * the 156 a quarter tile gives it — so the ellipsis is not the normal case and is not meant to be.
+ * What it is for is the string nobody here writes: a package name, and whatever a vendor invents
+ * next. Truncating those is `docs/design/panel-redesign.md` item 7's own answer; wrapping them was
+ * how one tile ended up 70 dp taller than the tile beside it.
+ */
+@Composable
+private fun StatusText(text: String) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.bodyMedium,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+    )
+}
+
+/**
  * One slot: at least [reserved] tall, full width, and empty when its content draws nothing.
  *
- * `heightIn` rather than `height` so that a name or a status line longer than its reserve grows the
- * tile instead of being cut off — see [STATUS_ROW].
+ * `heightIn` rather than `height` so that a name longer than its reserve grows the tile instead of
+ * being cut off — see [NAME_ROW]. The status slot no longer uses this: it is the one slot with a
+ * ceiling, and it draws itself in [TileBody].
  *
- * **Top-aligned, which only the status slot can tell the difference about**: the other three hold
- * exactly one line and fill their reserve. A status line of one or two lines centred in a four-line
- * reserve floats away from the name it belongs to, with a gap above it and a gap below; anchored to
- * the top it stays attached, and the slack falls at the foot of the card where it reads as padding.
+ * **Top-aligned**, which is what keeps a slot's content attached to what it belongs to rather than
+ * floating in the middle of its reserve, with a gap above and a gap below.
  */
 @Composable
 private fun Slot(

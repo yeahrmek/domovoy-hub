@@ -29,7 +29,8 @@ class LauncherTilesTest {
         val tile = launcherTiles(canOpen = { true }).single { it.packageName == "com.domonap.app" }
 
         assertTrue(tile.openable)
-        assertEquals("opens the app · no state to read", statusLine(tile))
+        assertEquals("opens the app", statusLine(tile))
+        assertEquals("no state to read", detailLine(tile))
     }
 
     @Test
@@ -37,7 +38,11 @@ class LauncherTilesTest {
         val tile = launcherTiles(canOpen = { false }).single { it.packageName == "com.xiaomi.smarthome" }
 
         assertFalse(tile.openable)
-        assertEquals("not installed · com.xiaomi.smarthome", statusLine(tile))
+        // **The package gets a line of its own**, which is the only place on the wall an identifier
+        // may be cut short rather than wrapped. Run onto the end of "not installed · " it broke
+        // mid-word across three lines of a 188 dp tile — `com.example.vacu` over `um`.
+        assertEquals("not installed", statusLine(tile))
+        assertEquals("com.xiaomi.smarthome", detailLine(tile))
     }
 
     @Test
@@ -54,7 +59,10 @@ class LauncherTilesTest {
         // Every other tile on the wall has to say how old its reading is. These have no reading:
         // they hold one fact, read from the tablet itself, and an age printed here would be an age
         // for something the panel never asked a vendor about.
-        val lines = listOf(true, false).flatMap { open -> launcherTiles { open }.map(::statusLine) }
+        val lines =
+            listOf(true, false).flatMap { open ->
+                launcherTiles { open }.flatMap { tile -> listOf(statusLine(tile), detailLine(tile)) }
+            }
 
         assertTrue(
             lines.none { line -> "ago" in line || "never read" in line || "just now" in line },

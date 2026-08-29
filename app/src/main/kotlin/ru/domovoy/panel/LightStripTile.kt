@@ -68,8 +68,9 @@ private fun sliderStart(
 ): Float = (tile.brightnessPercent ?: min).toFloat()
 
 /**
- * The line under the name: on/off, the brightness, **one age for the whole tile**, and the error if
- * the poll failed.
+ * The line under the name: on/off, the brightness and **one age for the whole tile**. The reason a
+ * poll failed is the tile's second line now — see [TileAnatomy] — where it takes the place of
+ * [colorLine] while it lasts.
  *
  * The age is the oldest of the three readings this tile shows — the on/off, the brightness and the
  * colour on the line below — because a tile says how old it is once. It printed four ages across two
@@ -79,7 +80,6 @@ private fun sliderStart(
 internal fun statusLine(
     tile: LightStripTileState,
     now: Instant,
-    error: String?,
 ): String {
     val power =
         when (tile.isOn) {
@@ -92,7 +92,6 @@ internal fun statusLine(
         // The same string the tile promotes, plus the word for a brightness nobody has reported.
         promoted(tile) ?: "unknown",
         ageLine(oldest(tile.readings()), now),
-        error?.let { "not updating: $it" },
     ).joinToString(" · ")
 }
 

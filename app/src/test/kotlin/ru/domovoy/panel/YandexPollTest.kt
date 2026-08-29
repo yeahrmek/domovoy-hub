@@ -18,7 +18,6 @@ import ru.domovoy.integrations.yandex.YandexClient
 import java.time.Instant
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
-import kotlin.test.assertTrue
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
@@ -83,12 +82,13 @@ class YandexPollTest {
         val curtains = poll.curtains.state.value
         val acs = poll.acs.state.value
         val strips = poll.strips.state.value
-        // The one failure reaches every group: no group is left painting a value as current
-        // while the panel behind it is not updating.
-        assertTrue(bulbs.error.orEmpty().contains("500"), "the bulbs must say why: ${bulbs.error}")
-        assertTrue(curtains.error.orEmpty().contains("500"), "the curtains must say why: ${curtains.error}")
-        assertTrue(acs.error.orEmpty().contains("500"), "the air conditioners must say why: ${acs.error}")
-        assertTrue(strips.error.orEmpty().contains("500"), "the strips must say why: ${strips.error}")
+        // The one failure reaches every group: no group is left painting a value as current while
+        // the panel behind it is not updating. One reason, the same one, in all four — and it is one
+        // of the four words the panel prints rather than the 500's body. See BulbTilesTest's table.
+        assertEquals("failed", bulbs.error, "the bulbs must say why")
+        assertEquals("failed", curtains.error, "the curtains must say why")
+        assertEquals("failed", acs.error, "the air conditioners must say why")
+        assertEquals("failed", strips.error, "the strips must say why")
         assertEquals(bulbsBefore, bulbs.tiles)
         assertEquals(curtainsBefore, curtains.tiles)
         assertEquals(acsBefore, acs.tiles)
@@ -96,22 +96,10 @@ class YandexPollTest {
         // Sharing the fetch does not merge the ages: the bulb, the curtain and the ac were read
         // days apart, the strips never at all, and one "last read" for the panel would be a lie
         // about most of them.
-        assertEquals(
-            "on · 20 d ago · not updating: ${bulbs.error}",
-            statusLine(bulbs.tiles.single { it.id == "light-01" }, now, bulbs.error),
-        )
-        assertEquals(
-            "0% open · 2 h ago · not updating: ${curtains.error}",
-            statusLine(curtains.tiles.single(), now, curtains.error),
-        )
-        assertEquals(
-            "off · 18 °C · 98 d ago · not updating: ${acs.error}",
-            statusLine(acs.tiles.single { it.id == "ac-01" }, now, acs.error),
-        )
-        assertEquals(
-            "on · 26% · never read · not updating: ${strips.error}",
-            statusLine(strips.tiles.single { it.id == "light-strip-01" }, now, strips.error),
-        )
+        assertEquals("on · 20 d ago", statusLine(bulbs.tiles.single { it.id == "light-01" }, now))
+        assertEquals("0% open · 2 h ago", statusLine(curtains.tiles.single(), now))
+        assertEquals("off · 18 °C · 98 d ago", statusLine(acs.tiles.single { it.id == "ac-01" }, now))
+        assertEquals("on · 26% · never read", statusLine(strips.tiles.single { it.id == "light-strip-01" }, now))
     }
 
     @Test

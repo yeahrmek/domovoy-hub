@@ -4,8 +4,8 @@
 Not a re-argument of what is already decided — `docs/ui.md` is the record of that and this doc does
 not repeat it. Where the two disagree, this doc says so and says why.
 
-**Status: item 1 landed with the wall typography, item 4 with the neutral surfaces, items 6 and 9
-dissolved; the rest are open.** Every item below is written to be implementable on its own, in the
+**Status: item 1 landed with the wall typography, item 4 with the neutral surfaces, item 7 with the
+wrapping fix, items 6 and 9 dissolved; the rest are open.** Every item below is written to be implementable on its own, in the
 order given, one concern per commit. Items 1–5 change what the wall looks like; 6–12 are smaller.
 Item 13 is an "ask first" and the branch stops there until it is asked.
 
@@ -216,7 +216,36 @@ state the doc says is unsettled.
 
 ---
 
-## 7 · `fix(panel): an error is a sentence, not an exception`
+## 7 · DONE — `fix(panel): an error is a sentence, not an exception`
+
+**Landed inside `fix(panel): nothing on the wall wraps`**, which is where PLAN.md put it: the
+unbounded vendor string and the unbounded status line were one bug, and capping the slot without
+shortening the strings would only have moved the damage from wrapping to ellipsis.
+
+What was built, against what is written below: `reason(Throwable)` in `BulbTiles.kt` maps by
+exception *type* — never by message — onto `unreachable`, `timed out`, `refused` and `failed`;
+`describe()` writes the exception to `Log` and returns one of the four, and it is the single edge
+every group's error string comes through. The status slot is two lines of `bodyMedium` at a fixed
+48 dp, each `maxLines = 1` and ellipsised, so nothing on the wall wraps and no vendor string can
+change a tile's height. The tile came down from 328 dp to 280 with the two reserve lines that were
+never filled.
+
+Three things it needed that the item did not predict, all of them the same discovery — a quarter
+tile's status line holds about sixteen characters, so capping alone would have cut the *age* off
+every bulb during a group failure. The reason moved to the tile's **second** line for every kind; the
+lights group stopped opening its status line with the count that is already its name; and an offline
+recuperator stopped echoing the power and speed it can no longer confirm. The launcher's package
+went to a line of its own, where it is the wall's one truncation.
+
+**What it cost, and it is worth naming.** The clients' own configuration sentences — «no Yandex token
+stored — set yandex.oauth.token in local.properties and reinstall» and Tuya's equivalent — are
+`IllegalStateException` like any other and now come out as `failed`. They are in `Log`, and
+docs/yandex.md, docs/tuya.md and docs/ui.md all say so, but a fresh install with no `local.properties`
+now names nothing on the wall. **That is item 8's to fix**, and it is the strongest reason to do
+item 8: those sentences want the group failure line at the top of Главная, which is 753 dp wide and
+takes the same mapped word every 188 dp tile does.
+
+<details><summary>The item as it stood, kept for the record</summary>
 
 `describe()` in `BulbTiles.kt` is `message ?: className`, and that string is concatenated raw onto
 the status line by every tile. On the wall that reads
@@ -236,14 +265,21 @@ error text.
 
 **Test.** The mapping is a pure function over a throwable and gets a table.
 
+</details>
+
 ---
 
 ## 8 · `feat(panel): one language on the wall`
 
 Recorded in `docs/ui.md` under "Open" as needing its own commit. This is that commit, and it is
-listed here so it is scheduled rather than only acknowledged. Today a failing group prints
-`Бризеры: not updating: Unable to resolve host` — three registers in one line. Item 7 is worth doing
-first: it decides what the strings *are* before this decides what language they are in.
+listed here so it is scheduled rather than only acknowledged. A failing group used to print
+`Бризеры: not updating: Unable to resolve host` — three registers in one line. Item 7 has landed and
+settled what the strings *are*: `Бризеры: not updating: unreachable`, one register, four possible
+reasons. What is left for this item is which language they are in, and **one thing item 7 could not
+keep**: the clients' configuration sentences now come out as `failed` on the wall and live only in
+`Log`. The group failure line is 753 dp wide and is the obvious place to give them back — it is the
+one line on the panel with room for a sentence, and it takes a tile's word today only because both
+read the same string.
 
 ---
 

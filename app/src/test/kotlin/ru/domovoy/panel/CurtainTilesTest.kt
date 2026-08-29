@@ -58,7 +58,7 @@ class CurtainTilesTest {
         assertEquals("Шторы", tile.name)
         assertEquals("Спальня", tile.room)
         assertEquals(0.0, tile.openPercent)
-        assertEquals("0% open · 2 h ago", statusLine(tile, Instant.ofEpochSecond(lastRead + 2 * 3600), error = null))
+        assertEquals("0% open · 2 h ago", statusLine(tile, Instant.ofEpochSecond(lastRead + 2 * 3600)))
     }
 
     @Test
@@ -88,7 +88,7 @@ class CurtainTilesTest {
         // And the age goes with the value it was about. The capability carries a `last_updated`,
         // but there is no position it is the age *of* — "unknown · 2 h ago" claimed to have read
         // something two hours ago, which is exactly what this test refuses one line up.
-        assertEquals("unknown", statusLine(tile, Instant.ofEpochSecond(lastRead + 2 * 3600), error = null))
+        assertEquals("unknown", statusLine(tile, Instant.ofEpochSecond(lastRead + 2 * 3600)))
     }
 
     @Test
@@ -106,21 +106,21 @@ class CurtainTilesTest {
         assertNotNull(after.error)
         assertEquals(before, after.tiles.single())
         val now = Instant.ofEpochSecond(lastRead + 2 * 3600)
-        assertTrue(statusLine(after.tiles.single(), now, after.error).startsWith("0% open · 2 h ago · not updating"))
+        assertEquals("0% open · 2 h ago", statusLine(after.tiles.single(), now))
+        assertEquals("failed", anatomy(after.tiles.single(), now, after.error).detail)
     }
 
     @Test
-    fun `a panel with no token stored says so instead of standing there empty`() = runTest {
+    fun `a panel with no token stored reports a failed poll instead of standing there empty`() = runTest {
+        // The sentence naming the token goes to `Log` now rather than to the wall — see
+        // BulbTilesTest, which is where that trade is written down.
         val poll = YandexPoll(client(token = { "" }))
         val curtains = poll.curtains
 
         poll.refresh()
 
         assertTrue(curtains.state.value.tiles.isEmpty())
-        assertTrue(
-            curtains.state.value.error.orEmpty().contains("token"),
-            "the panel must name the missing token: ${curtains.state.value.error}",
-        )
+        assertEquals("failed", curtains.state.value.error)
     }
 
     @Test
@@ -191,7 +191,7 @@ class CurtainTilesTest {
         curtains.setOpen("curtain-01", 70.0)
 
         assertEquals(before, curtains.state.value.tiles)
-        assertTrue(curtains.state.value.error.orEmpty().contains("404"))
+        assertEquals("failed", curtains.state.value.error)
     }
 
     @Test

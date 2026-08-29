@@ -88,6 +88,14 @@ android {
         // where `painterResource` finds nothing. It is what makes the screenshots pictures of the
         // panel rather than of a grid of empty cards.
         unitTests.isIncludeAndroidResources = true
+
+        // `Throwable.describe()` writes the exception the wall is no longer allowed to print to
+        // `android.util.Log`, and it is called from ordinary JUnit5 tests — the toggle and poll
+        // failure paths in AcTilesTest, BulbTilesTest and the rest, none of which run under
+        // Robolectric. Without this the stub android.jar throws "not mocked" from `Log.w` and eight
+        // tests fail on a log line. Under Robolectric the real implementation still runs; this only
+        // changes what the stub does when Robolectric is not there.
+        unitTests.isReturnDefaultValues = true
     }
 }
 

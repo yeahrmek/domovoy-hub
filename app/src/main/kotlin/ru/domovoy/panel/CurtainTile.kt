@@ -57,8 +57,8 @@ private fun sliderStart(
 ): Float = (tile.openPercent ?: min).toFloat()
 
 /**
- * The line under the name: how far open, how old that reading is once it is old enough to be worth
- * saying, and the error if the poll failed.
+ * The line under the name: how far open, and how old that reading is once it is old enough to be
+ * worth saying. The reason a poll failed is the tile's second line now — see [TileAnatomy].
  *
  * A fresh curtain says only "40% open" now — see [ageLine]. And a curtain that reported no position
  * says only "unknown": the age went with the value, because a timestamp on a reading that does not
@@ -67,10 +67,8 @@ private fun sliderStart(
 internal fun statusLine(
     tile: CurtainTileState,
     now: Instant,
-    error: String?,
 ): String = listOfNotNull(
     // The same string the tile promotes, plus the word for a curtain that has never reported.
     promoted(tile) ?: "unknown",
     ageLine(tile.lastUpdated.takeIf { tile.openPercent != null }, now),
-    error?.let { "not updating: $it" },
 ).joinToString(" · ")

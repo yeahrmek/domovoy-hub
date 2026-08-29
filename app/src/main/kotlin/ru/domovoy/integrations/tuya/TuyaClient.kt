@@ -60,7 +60,10 @@ private const val VALUE_SCALE = 10.0
  */
 private const val TOKEN_MARGIN_SECONDS = 60L
 
-/** Said on the tile, so it names both what is missing and the one way a credential gets in today. */
+/**
+ * Names both what is missing and the one way a credential gets in today. Said in `Log` rather than
+ * on the tile, for [ru.domovoy.integrations.yandex.NO_TOKEN]'s reason and with its consequences.
+ */
 internal const val NO_CREDENTIALS =
     "no Tuya credentials stored — set tuya.client.id, tuya.client.secret and tuya.uid in local.properties and reinstall"
 

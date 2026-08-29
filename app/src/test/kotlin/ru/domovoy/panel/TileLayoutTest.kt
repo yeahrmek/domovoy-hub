@@ -7,6 +7,7 @@ import ru.domovoy.core.ColorSetting
 import ru.domovoy.core.Reading
 import java.time.Instant
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNotEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
@@ -54,10 +55,11 @@ class TileLayoutTest {
 
     @Test
     fun `a recuperator with nothing to report but a failure is wide anyway`() {
-        // The reason it stopped updating is a vendor string of unbounded length, and it is the one
-        // status line on the wall long enough to run past what a tile reserves for it. The tile
-        // with the most to say gets the width to say it — the same rule the climate line has.
-        val tile = recuperator(temperature = null, humidity = null, isOn = null, error = "timeout")
+        // The reason it stopped updating is this tile's second line, exactly as the climate is —
+        // and the tile with a second line gets the width to say it, which is this function's whole
+        // rule. The reason is four words long now rather than a vendor string of unbounded length
+        // (see BulbTilesTest), and the width is still the honest answer to having something to say.
+        val tile = recuperator(temperature = null, humidity = null, isOn = null, error = "timed out")
 
         assertNull(climateLine(tile))
         assertEquals(4, span(tile))
@@ -70,7 +72,7 @@ class TileLayoutTest {
         val tile = recuperator(temperature = null, humidity = null)
 
         assertEquals(3, span(tile))
-        assertTrue(statusLine(tile, now, groupError = "HTTP 500").contains("HTTP 500"))
+        assertEquals("timed out", anatomy(tile, now, groupError = "timed out").detail)
         assertEquals(3, span(tile))
     }
 
@@ -224,10 +226,12 @@ class TileLayoutTest {
     fun `a group tile that stopped updating says so once, for all of its lamps`() {
         // One `/v1.0/user/info` call is behind every bulb in the flat, so this is one tile's line
         // rather than seven — and it is what the seven discs' shared line used to say.
-        val status = anatomy(lamps(on = 5, off = 2), now, "HTTP 500", notUpdating = true, open = false).status
+        val tile = anatomy(lamps(on = 5, off = 2), now, "timed out", notUpdating = true, open = false)
 
-        assertEquals(bulbGroupLine(lamps(on = 5, off = 2), now, notUpdating = true, error = "HTTP 500"), status)
-        assertTrue(status.contains("not updating: HTTP 500"))
+        assertEquals(bulbGroupLine(lamps(on = 5, off = 2), now), tile.status)
+        // On the second line, where it takes the place of what the tap does. A gesture the tile can
+        // still perform is the one thing on this wall worth giving up for a reason it cannot.
+        assertEquals("timed out", tile.detail)
     }
 
     @Test
@@ -465,11 +469,11 @@ class TileLayoutTest {
         // the value, so it has to name the value it is aging, and a tile printing "22 °C" over
         // "on · 3 min ago · 23 °C · 81 d ago" would be one tile disagreeing with itself.
         val ac = ac(isOn = true)
-        assertTrue(statusLine(ac, now, error = null).contains(promoted(ac)!!))
+        assertTrue(statusLine(ac, now).contains(promoted(ac)!!))
         val curtain = curtain(openPercent = 40.0)
-        assertTrue(statusLine(curtain, now, error = null).contains(promoted(curtain)!!))
+        assertTrue(statusLine(curtain, now).contains(promoted(curtain)!!))
         val strip = strip(isOn = true)
-        assertTrue(statusLine(strip, now, error = null).contains(promoted(strip)!!))
+        assertTrue(statusLine(strip, now).contains(promoted(strip)!!))
         val recuperator = recuperator(temperature = 29.3, humidity = 32.2)
         assertTrue(climateLine(recuperator)!!.contains(promoted(recuperator)!!))
     }
@@ -478,9 +482,9 @@ class TileLayoutTest {
     fun `a tile with no value to promote still says unknown in words`() {
         // Null promotes nothing; it does not take the word away. The status line is where "unknown"
         // has always been said and it goes on saying it.
-        assertTrue(statusLine(ac(isOn = true, targetTemperature = null), now, error = null).contains("unknown"))
-        assertTrue(statusLine(curtain(openPercent = null), now, error = null).contains("unknown"))
-        assertTrue(statusLine(strip(isOn = true, brightnessPercent = null), now, error = null).contains("unknown"))
+        assertTrue(statusLine(ac(isOn = true, targetTemperature = null), now).contains("unknown"))
+        assertTrue(statusLine(curtain(openPercent = null), now).contains("unknown"))
+        assertTrue(statusLine(strip(isOn = true, brightnessPercent = null), now).contains("unknown"))
     }
 
     // --- The five slots ----------------------------------------------------------------------
@@ -519,18 +523,20 @@ class TileLayoutTest {
     }
 
     @Test
-    fun `only the strip and the recuperator have a second status line`() {
-        // The two readings on the wall that carry an age of their own — the strip's colour and the
-        // recuperator's climate. The other four answer null, and the slot they leave empty is the
-        // same slot, reserved to the same height.
+    fun `a tile with nothing wrong and nothing else to report has no second line`() {
+        // The second line is for a tile that has something *more* to say than its state and its
+        // age: the strip's colour, the recuperator's climate, the group's gesture, the launcher's
+        // "no state to read" — or, ahead of any of them, why the panel is not reading it. A tile
+        // with none of those leaves the line empty, and the slot it leaves empty is the same slot,
+        // capped to the same two lines.
         assertNotNull(anatomy(strip(isOn = true, color = warmWhite), now, error = null).detail)
         assertNotNull(
             anatomy(recuperator(temperature = 29.3, humidity = 32.2), now, groupError = null).detail,
         )
+        assertEquals("no state to read", anatomy(launcher(openable = true)).detail)
         assertNull(anatomy(ac(isOn = true), now, error = null).detail)
         assertNull(anatomy(curtain(openPercent = 40.0), now, error = null).detail)
         assertNull(anatomy(bulb(isOn = true), now, error = null).detail)
-        assertNull(anatomy(launcher(openable = true)).detail)
         // And a strip that reported no colour at all has no second line either, which is the one
         // case where a kind's second line is absent rather than the kind's answer being null.
         assertNull(anatomy(strip(isOn = true), now, error = null).detail)
@@ -584,7 +590,7 @@ class TileLayoutTest {
             anatomy(
                 ac(isOn = true).copy(powerLastUpdated = hours, temperatureLastUpdated = months),
                 now,
-                error = "HTTP 500",
+                error = "timed out",
             ),
             anatomy(curtain(openPercent = 40.0).copy(lastUpdated = weeks), now, error = null),
             anatomy(
@@ -604,7 +610,7 @@ class TileLayoutTest {
                     humidityLastUpdated = hours,
                 ),
                 now,
-                groupError = "HTTP 500",
+                groupError = "timed out",
             ),
             anatomy(bulb(isOn = true).copy(lastUpdated = weeks), now, error = null),
             anatomy(
@@ -665,13 +671,61 @@ class TileLayoutTest {
         // It composes them rather than re-deriving them, so a tile cannot print one string at the
         // top of the card and a differently-rounded one underneath.
         val ac = ac(isOn = true)
-        assertEquals(statusLine(ac, now, error = "HTTP 500"), anatomy(ac, now, "HTTP 500").status)
+        assertEquals(statusLine(ac, now), anatomy(ac, now, "timed out").status)
         assertEquals(promoted(ac), anatomy(ac, now, error = null).promoted)
         assertEquals(glyph(ac), anatomy(ac, now, error = null).art)
         val recuperator = recuperator(temperature = 29.3, humidity = 32.2)
         assertEquals(climateLine(recuperator), anatomy(recuperator, now, groupError = null).detail)
         val launcher = launcher(openable = false)
         assertEquals(statusLine(launcher), anatomy(launcher).status)
+        assertEquals(detailLine(launcher), anatomy(launcher).detail)
+    }
+
+    @Test
+    fun `a tile's second line is why it stopped updating, before anything else it had to say`() {
+        // **The wall's one rule for bad news, and it is about width as much as about news.** A
+        // status line is 156 dp on a quarter tile — about sixteen characters — so
+        // "on · 20 d ago · not updating: unreachable" was never going to be one line of anything,
+        // and the tile it wrapped inside grew taller than the tile beside it.
+        //
+        // The reason takes the second line outright rather than queueing behind what is already
+        // there: a second reading is stale by definition once the poll behind it stopped landing,
+        // so the strip's colour and the recuperator's climate give way to it while it lasts.
+        assertEquals("timed out", anatomy(ac(isOn = true), now, "timed out").detail)
+        assertEquals("timed out", anatomy(curtain(openPercent = 40.0), now, "timed out").detail)
+        assertEquals("timed out", anatomy(bulb(isOn = true), now, "timed out").detail)
+        assertEquals("timed out", anatomy(strip(isOn = true, color = warmWhite), now, "timed out").detail)
+        assertEquals(
+            "timed out",
+            anatomy(recuperator(temperature = 29.3, humidity = 32.2), now, groupError = "timed out").detail,
+        )
+        // And it is only while it lasts: the second reading comes straight back when the poll does.
+        assertEquals(
+            colorLine(strip(isOn = true, color = warmWhite)),
+            anatomy(strip(isOn = true, color = warmWhite), now, error = null).detail,
+        )
+    }
+
+    @Test
+    fun `a recuperator names its own failure rather than its group's`() {
+        // The one tile with both kinds at once — Tuya charges a call per device — so its own reason
+        // is the more specific of the two and is the one it prints.
+        val tile = recuperator(temperature = null, humidity = null, error = "timed out")
+
+        assertEquals("timed out", anatomy(tile, now, groupError = "unreachable").detail)
+    }
+
+    @Test
+    fun `nothing a tile says carries the reason twice`() {
+        // It moved from the status line to the second one; a tile printing it in both places would
+        // be the run-on this replaces, wearing two lines instead of four.
+        everyTile().forEach { tile ->
+            val reason = tile.detail ?: return@forEach
+            assertFalse(
+                tile.status.contains(reason),
+                "a tile saying the same thing twice: ${tile.status} / $reason",
+            )
+        }
     }
 
     /**
@@ -679,7 +733,7 @@ class TileLayoutTest {
      * on/off answers, a failing poll and a missing app.
      */
     private fun everyTile(): List<TileAnatomy> {
-        val errors = listOf(null, "HTTP 500")
+        val errors = listOf(null, "timed out")
         val states = listOf(true, false, null)
         return errors.flatMap { error ->
             states.flatMap { state ->

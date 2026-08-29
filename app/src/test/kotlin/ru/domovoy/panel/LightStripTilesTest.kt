@@ -64,7 +64,7 @@ class LightStripTilesTest {
         assertEquals("Зал", tile.room)
         assertEquals(true, tile.isOn)
         assertEquals(26.0, tile.brightnessPercent)
-        assertEquals("on · 26% · never read", statusLine(tile, now, error = null))
+        assertEquals("on · 26% · never read", statusLine(tile, now))
     }
 
     @Test
@@ -163,7 +163,7 @@ class LightStripTilesTest {
 
         val tile = poll.strips.state.value.tiles.single { it.id == "light-strip-01" }
         assertNull(tile.brightnessPercent)
-        assertEquals("on · unknown · never read", statusLine(tile, now, error = null))
+        assertEquals("on · unknown · never read", statusLine(tile, now))
     }
 
     @Test
@@ -174,7 +174,7 @@ class LightStripTilesTest {
         poll.refresh()
 
         val tile = poll.strips.state.value.tiles.single { it.id == "light-strip-01" }
-        assertEquals("on · 26 · never read", statusLine(tile, now, error = null))
+        assertEquals("on · 26 · never read", statusLine(tile, now))
     }
 
     @Test
@@ -186,7 +186,7 @@ class LightStripTilesTest {
 
         val tile = poll.strips.state.value.tiles.single { it.id == "light-strip-01" }
         assertNull(tile.isOn)
-        assertEquals("unknown · 26% · never read", statusLine(tile, now, error = null))
+        assertEquals("unknown · 26% · never read", statusLine(tile, now))
     }
 
     @Test
@@ -284,10 +284,11 @@ class LightStripTilesTest {
         assertNotNull(after.error)
         assertEquals(before, after.tiles)
         val tile = after.tiles.single { it.id == "light-strip-01" }
-        assertEquals(
-            "on · 26% · never read · not updating: ${after.error}",
-            statusLine(tile, now, after.error),
-        )
+        // The values and the age stay put on the first line; the reason is the second one, where it
+        // takes the place of the colour this strip reports — bad news outranks a second reading,
+        // because a second reading is stale by definition once the poll behind it stopped landing.
+        assertEquals("on · 26% · never read", statusLine(tile, now))
+        assertEquals("failed", anatomy(tile, now, after.error).detail)
     }
 
     @Test
@@ -302,21 +303,20 @@ class LightStripTilesTest {
         strips.setBrightness("light-strip-01", 50.0)
 
         assertEquals(before, strips.state.value.tiles)
-        assertTrue(strips.state.value.error.orEmpty().contains("404"))
+        assertEquals("failed", strips.state.value.error)
     }
 
     @Test
-    fun `a panel with no token stored says so instead of standing there empty`() = runTest {
+    fun `a panel with no token stored reports a failed poll instead of standing there empty`() = runTest {
+        // The sentence naming the token goes to `Log` now rather than to the wall — see
+        // BulbTilesTest, which is where that trade is written down.
         val poll = YandexPoll(client(token = { "" }))
         val strips = poll.strips
 
         poll.refresh()
 
         assertTrue(strips.state.value.tiles.isEmpty())
-        assertTrue(
-            strips.state.value.error.orEmpty().contains("token"),
-            "the panel must name the missing token: ${strips.state.value.error}",
-        )
+        assertEquals("failed", strips.state.value.error)
     }
 
     @Test

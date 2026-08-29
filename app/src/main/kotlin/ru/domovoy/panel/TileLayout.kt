@@ -57,10 +57,11 @@ internal const val NARROW_SPAN = 3
  * - [climateLine], the temperature and humidity it measures. It takes no clock at all now that the
  *   tile prints one age on the line above, so this asks it outright rather than with the
  *   `Instant.EPOCH` it used to have to invent.
- * - **Its own error.** A recuperator that is not updating says why, and the reason is a vendor
- *   string of unbounded length; at 188 dp it is the one status line on the wall long enough to run
- *   past what a tile reserves for it. The tile with the most to say gets the width to say it, which
- *   is this function's whole rule.
+ * - **Its own error.** A recuperator that is not updating says why on that second line, and the
+ *   reason takes the climate's place there while it lasts — see [TileAnatomy]. It is one of four
+ *   words now rather than a vendor string of unbounded length, so this is no longer the line that
+ *   could run past what a tile reserves for it; what it still is is a second line, and the tile
+ *   with something to say on one gets the width to say it, which is this function's whole rule.
  *
  * The group's error is deliberately not here. It fails all five at once, so letting it move spans
  * would re-lay the whole room out every time Tuya blinked.
@@ -620,14 +621,22 @@ internal data class TileAnatomy(
      */
     val status: String,
     /**
-     * The status slot's second line, for the two tiles with a second reading to show — the strip's
-     * colour and the recuperator's climate — plus the lights group, whose second line says what its
-     * tap does rather than what it read. Null for the rest. Part of the status slot rather than a
-     * sixth one: it is the same words at the same size, and the slot reserves room for it on every
-     * tile whether or not it arrives.
+     * **The status slot's second line, and where every tile's bad news lives.**
      *
-     * **It carries no age**, and neither of the two functions behind it takes a clock any more: the
-     * age of what is on this line is folded into the one the status line prints — see [ageLine].
+     * One rule, in this order: *why the panel is not updating this tile*, if it is not; otherwise
+     * the tile's second reading — the strip's colour, the recuperator's climate — or, on the lights
+     * group and the launcher, the one thing they have to say that is not a reading at all.
+     *
+     * **The reason moved here from the status line and it moved because of width.** A quarter tile
+     * is 188 dp and its status line holds about sixteen characters of `bodyMedium`, so
+     * `on · 20 d ago · not updating: unreachable` was never one line of anything: it wrapped, and a
+     * wrapping status line is the one thing left that could still make two tiles of the same kind
+     * come out different heights. It takes the second line outright rather than queueing behind
+     * what is already there, because a second reading is stale by definition once the poll behind it
+     * stopped landing — and it gives the line straight back when the poll comes back.
+     *
+     * **It carries no age.** The age of what is on this line is folded into the one the status line
+     * prints — see [ageLine] — and none of the functions behind it takes a clock.
      */
     val detail: String?,
 )
@@ -646,8 +655,8 @@ internal fun anatomy(
     controls = controls(tile),
     name = tile.name,
     promoted = promoted(tile),
-    status = statusLine(tile, now, error),
-    detail = null,
+    status = statusLine(tile, now),
+    detail = error,
 )
 
 internal fun anatomy(
@@ -659,11 +668,15 @@ internal fun anatomy(
     controls = controls(tile),
     name = tile.name,
     promoted = promoted(tile),
-    status = statusLine(tile, now, error),
-    detail = null,
+    status = statusLine(tile, now),
+    detail = error,
 )
 
-/** The strip's, whose second line is the colour it reports and cannot be driven — see [colorLine]. */
+/**
+ * The strip's, whose second line is the colour it reports and cannot be driven — see [colorLine] —
+ * until the poll behind it stops landing, and then it is the reason. A colour last seen four polls
+ * ago is not a reading worth a line over the news that the panel has stopped reading.
+ */
 internal fun anatomy(
     tile: LightStripTileState,
     now: Instant,
@@ -673,16 +686,18 @@ internal fun anatomy(
     controls = controls(tile),
     name = tile.name,
     promoted = promoted(tile),
-    status = statusLine(tile, now, error),
-    detail = colorLine(tile),
+    status = statusLine(tile, now),
+    detail = error ?: colorLine(tile),
 )
 
 /**
  * The recuperator's, whose second line is the climate it measures — the same line [span] asks about
- * to decide how wide the tile is.
+ * to decide how wide the tile is — or, when it is not being read, why.
  *
  * [groupError] rather than `error`: this is the one tile with two kinds of bad news, and its own is
- * already on [RecuperatorTileState]. Both reach the status line; only the group's draws an outline.
+ * already on [RecuperatorTileState]. **Its own comes first**, because Tuya charges a call per device
+ * and so a tile that timed out is *this* recuperator while the four beside it may be current. Both
+ * reach the second line; only the group's draws an outline.
  */
 internal fun anatomy(
     tile: RecuperatorTileState,
@@ -693,8 +708,8 @@ internal fun anatomy(
     controls = controls(tile),
     name = tile.name,
     promoted = promoted(tile),
-    status = statusLine(tile, now, groupError),
-    detail = climateLine(tile),
+    status = statusLine(tile, now),
+    detail = tile.error ?: groupError ?: climateLine(tile),
 )
 
 internal fun anatomy(
@@ -706,28 +721,30 @@ internal fun anatomy(
     controls = controls(tile),
     name = tile.name,
     promoted = promoted(tile),
-    status = statusLine(tile, now, error),
-    detail = null,
+    status = statusLine(tile, now),
+    detail = error,
 )
 
 /**
  * **The lights group's five slots**, which is one card standing for a room's whole set of lamps.
  *
  * The name is the count — `7 lamps` — the promoted value is how many of them are lit, and the
- * status line is the one [bulbGroupLine] has always written: the count again, the count on, the
- * oldest of their readings, and the reason the poll stopped landing. Saying the count in two places
- * is the same thing the air conditioner does with its target: the status line is what *ages* a
- * value, so it has to name the value it is ageing.
+ * status line is how many are on and how old the oldest of their readings is. It opened with the
+ * count as well until this commit, which put the tile's own name back on a line seven characters
+ * shorter than the name it repeated; see [bulbGroupLine].
  *
  * [notUpdating] rather than an error alone, because a group can stop being read without any call
  * having failed — see [notUpdating] — and this tile is where the whole group's bad news is said
- * once instead of seven times.
+ * once instead of seven times. It is two different facts and gets two different words: a named
+ * [error] is a call that came back wrong, and a bare "not updating" is a poll that simply stopped
+ * landing with nothing to name.
  *
  * **The detail line is the one on this wall that describes a gesture rather than a reading**, and it
  * is here because this is the one tile whose tap has something behind it that the card cannot show:
- * the seven names. The launcher's status line already does the same job — "opens the app" — for the
- * same reason, and a wall panel that hides seven devices behind an unmarked card is a wall panel
- * that has hidden them.
+ * the seven names. A wall panel that hides seven devices behind an unmarked card is a wall panel
+ * that has hidden them — so the gesture keeps the line whenever there is no bad news to displace it,
+ * which is nearly always, and gives it up when there is. The tap still works either way; the reason
+ * the panel stopped reading is the one thing on this tile that cannot be found out by tapping.
  */
 internal fun anatomy(
     group: BulbGroup,
@@ -741,14 +758,18 @@ internal fun anatomy(
     controls = controls(group),
     name = lampCount(group),
     promoted = promoted(group),
-    status = bulbGroupLine(group, now, notUpdating, error),
-    detail = if (open) "tap to close" else "tap to see them",
+    status = bulbGroupLine(group, now),
+    detail =
+    error
+        ?: "not updating".takeIf { notUpdating }
+        ?: if (open) "tap to close" else "tap to see them",
 )
 
 /**
  * The launcher's, and the only one taking no `now`: nothing polls it, so it has no reading to age.
- * It still fills all five slots — an empty promoted value and a status line that says outright that
- * there is no state to read, which is the honest version of the age it does not have.
+ * It still fills all five slots — an empty promoted value, and two short lines rather than one long
+ * one: what the tile is, and then either the honest version of the age it does not have or the
+ * package it cannot open. See [detailLine], which is where the wall's one truncation lives.
  */
 internal fun anatomy(tile: LauncherTileState): TileAnatomy = TileAnatomy(
     art = glyph(tile),
@@ -756,5 +777,5 @@ internal fun anatomy(tile: LauncherTileState): TileAnatomy = TileAnatomy(
     name = tile.name,
     promoted = promoted(tile),
     status = statusLine(tile),
-    detail = null,
+    detail = detailLine(tile),
 )

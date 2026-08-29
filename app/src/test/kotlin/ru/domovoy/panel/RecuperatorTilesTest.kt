@@ -241,10 +241,11 @@ class RecuperatorTilesTest {
 
         val tile = poll.recuperators.state.value.tiles.single { it.id == "xfj-01" }
         assertEquals(false, tile.online)
-        assertTrue(
-            statusLine(tile, now(minutes = 0)).startsWith("offline · "),
-            "an offline device has to say so before anything it last reported: ${statusLine(tile, now(minutes = 0))}",
-        )
+        // **"offline" replaces the power word rather than leading a queue of echoes.** It used to
+        // read `offline · unknown · low + medium + high · 3 d ago` — five facts about a device that
+        // is not there, 39 characters of them on a 251 dp tile that holds about 24. What survives
+        // is the state and its age; what the panel is failing to read is on the line below.
+        assertEquals("offline · 3 d ago", statusLine(tile, now(minutes = 0)))
     }
 
     @Test
@@ -262,8 +263,7 @@ class RecuperatorTilesTest {
         assertNull(state.error, "one device failing is not the group failing")
         assertNull(state.tiles.single { it.id == "xfj-01" }.error)
         val failed = state.tiles.single { it.id == "xfj-02" }
-        assertNotNull(failed.error)
-        assertTrue(failed.error.orEmpty().contains("500"))
+        assertEquals("failed", failed.error)
     }
 
     @Test
@@ -283,9 +283,11 @@ class RecuperatorTilesTest {
         assertEquals(before.isOn, after.isOn)
         assertEquals(before.powerLastUpdated, after.powerLastUpdated)
         assertEquals(before.speeds, after.speeds)
-        assertTrue(
-            statusLine(after, now(minutes = 0)).startsWith("off · no speed · 3 d ago · not updating"),
-            "the tile has to keep its values and say why they are not moving: ${statusLine(after, now(minutes = 0))}",
+        assertEquals("off · no speed · 3 d ago", statusLine(after, now(minutes = 0)))
+        assertEquals(
+            "failed",
+            anatomy(after, now(minutes = 0), groupError = null).detail,
+            "the tile has to keep its values and say why they are not moving",
         )
     }
 
@@ -357,16 +359,17 @@ class RecuperatorTilesTest {
     }
 
     @Test
-    fun `a panel with no credentials stored says so instead of standing there empty`() = runTest {
+    fun `a panel with no credentials stored reports a failed poll instead of standing there empty`() = runTest {
+        // As on the Yandex side: the client's sentence about `local.properties` goes to `Log` with
+        // the exception, and the wall gets one of the four words `reason` is willing to print. The
+        // group failure line at the top of Главная is what stops this being a blank panel with no
+        // reason given — see BulbTilesTest, where that trade is written down.
         val poll = TuyaPoll(client(credentials = { TuyaCredentials("", "", "") }))
 
         poll.refresh()
 
         assertTrue(poll.recuperators.state.value.tiles.isEmpty())
-        assertTrue(
-            poll.recuperators.state.value.error.orEmpty().contains("local.properties"),
-            "the panel must name how a credential gets in: ${poll.recuperators.state.value.error}",
-        )
+        assertEquals("failed", poll.recuperators.state.value.error)
     }
 
     @Test
@@ -423,7 +426,7 @@ class RecuperatorTilesTest {
 
         val after = poll.recuperators.state.value.tiles.single { it.id == "xfj-02" }
         assertEquals(before.isOn, after.isOn)
-        assertTrue(after.error.orEmpty().contains("404"))
+        assertEquals("failed", after.error)
         // The other four are untouched by one device's failed command.
         assertTrue(poll.recuperators.state.value.tiles.filter { it.id != "xfj-02" }.all { it.error == null })
     }
@@ -496,8 +499,8 @@ class RecuperatorTilesTest {
         val state = restarted.recuperators.state.value
         assertEquals(5, state.tiles.size)
         val reason = requireNotNull(state.error)
-        val line = statusLine(state.tiles.first(), now(minutes = 0), reason)
-        assertTrue(line.endsWith("not updating: $reason"), "the tile has to carry the group's reason: $line")
+        val detail = anatomy(state.tiles.first(), now(minutes = 0), groupError = reason).detail
+        assertEquals(reason, detail, "the tile has to carry the group's reason")
     }
 
     @Test

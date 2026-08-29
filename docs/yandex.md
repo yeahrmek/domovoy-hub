@@ -157,10 +157,15 @@ restart. `local.properties` still seeds it:
    ignored. Reinstalling the same APK over a store that has a fresher token does not put the stale
    one back. *Uninstalling* wipes the store, and the next install seeds again from the APK.
 3. **Nothing stored.** No request is sent — an empty `Bearer` would come back as the same
-   plain-text `Forbidden` above and blame the scopes. The bulb group shows *«no Yandex token
-   stored — set yandex.oauth.token in local.properties and reinstall»*.
-4. **Store will not open.** A keystore lost across a restored backup or a wipe fails the poll with
-   *«secure storage unavailable: …»* on the tiles rather than taking the panel down.
+   plain-text `Forbidden` above and blame the scopes. The poll fails with *«no Yandex token stored —
+   set yandex.oauth.token in local.properties and reinstall»*, **and that sentence is now in `Log`
+   rather than on the wall**: every throwable reaching a tile goes through `reason`, which has four
+   words in it (`docs/ui.md`, "Why a poll failed"). What the panel shows is
+   `Лампы: not updating: failed`. That is a real loss and it is tracked —
+   `docs/design/panel-redesign.md` item 8 is the commit that would give the sentence the 753 dp
+   group-failure line it actually fits on.
+4. **Store will not open.** A keystore lost across a restored backup or a wipe fails the poll rather
+   than taking the panel down; *«secure storage unavailable: …»* is in `Log`, on 3's rule.
 
 **Still true, and the reason this is only half the fix:** the seed rides in the APK, and there is
 no way to type a token into the panel. So an expired token today still means edit
@@ -212,15 +217,16 @@ Built against the fixture; first run against the live API on the tablet on 2026-
 - **`last_updated: 0.0` is `Reading.Never`**, rendered "never read". A `Double` at this magnitude
   resolves only ~0.2 µs, so sub-second parts survive approximately — irrelevant for an age display,
   worth knowing before anyone compares two timestamps for equality.
-- **A failed or timed-out poll keeps the tiles on screen** with their last values and adds
-  "not updating: …". One `/v1.0/user/info` call is the whole house, so the failure belongs to the
+- **A failed or timed-out poll keeps the tiles on screen** with their last values and adds one of
+  four words — `unreachable`, `timed out`, `refused`, `failed` — on the tile's second line. One `/v1.0/user/info` call is the whole house, so the failure belongs to the
   bulb group rather than to one tile. Every call carries a 10 s call timeout.
 - **A toggle is not trusted.** `POST /v1.0/devices/actions` succeeding only means Yandex accepted
   it, so the tile is repainted from a fresh `/v1.0/user/info`, never from the action result — see
   the first open question below, still unanswered. The tablet run shows the round trip works; it
   does not show that the response could have been trusted.
 - **The OAuth token** is read at runtime from `EncryptedSharedPreferences`, not from `BuildConfig`
-  — see "How the token gets in" below. No token stored is a visible tile error, not an empty poll.
+  — see "How the token gets in" below. No token stored is a visible failure on every tile, not an
+  empty poll; what it is *not* any more is a sentence naming the token, which is in `Log`.
 
 ## What the curtain tile actually does with this
 

@@ -64,7 +64,8 @@ private fun sliderStart(
 ): Float = (tile.targetTemperature ?: min).toFloat()
 
 /**
- * The line under the name: on/off, the target, **one age**, and the error if the poll failed.
+ * The line under the name: on/off, the target and **one age**. It no longer carries the reason a
+ * poll failed — that is the tile's second line now, for every kind at once; see [TileAnatomy].
  *
  * It printed two ages — one per capability — because on `ac-01` they are 81 days apart and neither
  * could speak for the other. They still cannot, so the one printed is the **older**: the tile
@@ -75,7 +76,6 @@ private fun sliderStart(
 internal fun statusLine(
     tile: AcTileState,
     now: Instant,
-    error: String?,
 ): String {
     val power =
         when (tile.isOn) {
@@ -90,7 +90,6 @@ internal fun statusLine(
         // underneath it cannot disagree.
         promoted(tile) ?: "unknown",
         ageLine(oldest(tile.readings()), now),
-        error?.let { "not updating: $it" },
     ).joinToString(" · ")
 }
 

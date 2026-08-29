@@ -45,8 +45,8 @@ fun RecuperatorTile(
 }
 
 /**
- * The line under the name: on/off, the fan speed, **one age for the whole tile**, and the reason it
- * stopped updating.
+ * The line under the name: on/off, the fan speed and **one age for the whole tile**. The reason it
+ * stopped updating is the tile's second line now — see [TileAnatomy].
  *
  * This is the tile the one-age rule was written for. It printed four of them — two here and two on
  * the climate line — and on the recorded response three were the same number: `on · 3 min ago · low
@@ -55,30 +55,32 @@ fun RecuperatorTile(
  * included: the tile under-claims how fresh it is rather than quoting the humidity's 26 seconds over
  * a switch that has not moved in three days.
  *
- * "offline" leads, when Tuya says so: everything after it is what the device last reported before
- * it went away, and reading it as current would be the tile's worst lie.
+ * **"offline" replaces the power word rather than leading a queue of echoes**, and this is the line
+ * on the wall that most needed it. `offline · unknown · low + medium + high · not updating: timeout`
+ * is 62 characters on a 251 dp tile that holds about twenty-four of them; it wrapped onto three
+ * lines and was the longest thing on the panel. What is dropped is the echo: a device Tuya says is
+ * offline is not confirming its switch or its speeds, and the panel's rule everywhere else is that
+ * it does not assert what it has not read. What survives is the state, its age, and — on the line
+ * below — why the panel is not reading it. The values themselves are still on
+ * [RecuperatorTileState]; nothing about the device is forgotten, it is only not claimed.
  */
 internal fun statusLine(
     tile: RecuperatorTileState,
     now: Instant,
-    /** The group's failure — the inventory call — which stops every tile from updating at once. */
-    groupError: String? = null,
 ): String {
-    val power =
-        when (tile.isOn) {
-            true -> "on"
-            false -> "off"
-            null -> "unknown"
-        }
+    val offline = tile.online == false
     return listOfNotNull(
-        // Offline leads: everything after it is what the device last said before it went away.
-        "offline".takeIf { tile.online == false },
-        power,
-        speedLabel(tile),
+        if (offline) "offline" else powerLabel(tile.isOn),
+        speedLabel(tile).takeUnless { offline },
         ageLine(oldest(tile.readings()), now),
-        // This tile's own failure before the group's: it is the more specific of the two.
-        (tile.error ?: groupError)?.let { "not updating: $it" },
     ).joinToString(" · ")
+}
+
+/** The three words a recuperator's switch comes in, on the same rule every other tile follows. */
+private fun powerLabel(isOn: Boolean?): String = when (isOn) {
+    true -> "on"
+    false -> "off"
+    null -> "unknown"
 }
 
 /**

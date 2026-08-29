@@ -59,20 +59,35 @@ fun launcherTiles(canOpen: (String) -> Boolean): List<LauncherTileState> = CATAL
 }
 
 /**
- * The line under the name. It carries no age, and that is the point: every other tile on the wall
- * has to say how old its reading is, and this one has no reading — nothing polls it, nothing about
- * the flat is shown on it, so there is nothing here that can be stale. Saying "no state to read"
- * is the honest version of that; printing "just now" next to a name would claim a freshness the
- * tile never earned.
- *
- * When the app is missing the tile names the package instead. That is the useful thing to say —
- * it is what somebody standing at the wall would have to go and install — and it is why the card
- * refuses the tap rather than swallowing it: see [LauncherTile].
+ * The line under the name: what this tile is, in two words. It carries no age, and that is the
+ * point — every other tile on the wall has to say how old its reading is, and this one has no
+ * reading. Nothing polls it, nothing about the flat is shown on it, so there is nothing here that
+ * can be stale.
  */
 internal fun statusLine(tile: LauncherTileState): String = if (tile.openable) {
-    "opens the app · no state to read"
+    "opens the app"
 } else {
-    "not installed · ${tile.packageName}"
+    "not installed"
+}
+
+/**
+ * The second line: the honest version of the age this tile does not have, or — when the app is not
+ * there — **the package, on a line of its own where it may be cut short**.
+ *
+ * This is the one identifier on the wall the panel is allowed to truncate, and the reason it is
+ * split off the line above rather than joined to it. `not installed · com.example.vacuum` is 34
+ * characters on a 188 dp tile that holds about sixteen, so it wrapped, and it wrapped *mid-word*:
+ * `com.example.vacu` over `um`, three lines deep. A package name has no shorter honest form, and a
+ * device name — which the panel refuses to truncate at any width — is a different thing entirely:
+ * this one is read at 30 cm by whoever is about to go and install it, not from four metres.
+ *
+ * "no state to read" is what the openable one says, and printing "just now" next to a name instead
+ * would claim a freshness the tile never earned.
+ */
+internal fun detailLine(tile: LauncherTileState): String = if (tile.openable) {
+    "no state to read"
+} else {
+    tile.packageName
 }
 
 /** One row of the catalogue; the tiles differ only in these three values. */

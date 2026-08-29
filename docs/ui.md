@@ -53,6 +53,8 @@ The baseline commits 1 and 2 replaced, kept so the diff stays legible:
   its group's poll failed. Commit 2 was a re-skin and changed no string. **No longer true:** a tile
   prints *one* age, the oldest of the readings it is showing, and none at all while they are all
   fresh — see "One age per tile". `ageLabel` is gone; `ageLine` answers null instead of "just now".
+  The error is not appended to that line either: it is the tile's second line, and it is one of four
+  words rather than the vendor's own — see "Why a poll failed".
 - `MainActivity` wraps everything in a bare `MaterialTheme {}` — no colour scheme is passed, so the
   panel is on the Material baseline light palette in both system themes. **No longer true:** commit
   5 passes it one of the two schemes in `PanelTheme.kt`, chosen by `isSystemInDarkTheme()`.
@@ -60,7 +62,7 @@ The baseline commits 1 and 2 replaced, kept so the diff stays legible:
 ## Tile sizes
 
 A **twelve-column** grid, laid out in thirds and quarters. The span is a property of the tile type,
-not of the room, and **every tile is 328 dp tall whatever its span** — see "One tile anatomy":
+not of the room, and **every tile is 280 dp tall whatever its span** — see "One tile anatomy":
 
 | Tile | Count | Span | Width | What it shows |
 | --- | --- | --- | --- | --- |
@@ -69,8 +71,8 @@ not of the room, and **every tile is 328 dp tall whatever its span** — see "On
 | Light strip | 2 | 4 (wide) | 251 dp | Name, on/off, brightness slider, colour, one age |
 | Recuperator | 5 | 4 or 3 | 251 / 188 dp | Name, on/off, fan speeds, and — when it reports them — temperature and humidity. One age for the four |
 | Bulb | many | 3 (narrow) | 188 dp | Name, on/off, one age. On the wall when it has never reported, or when its room's group has been opened. See "The lights group" below |
-| Lights group | 1 per room | 3 (narrow) | 188 dp | How many lamps the room has, how many are lit, the oldest of their ages. Opens the lamps |
-| Launcher | 2 | 3 (narrow) | 188 dp | Name and one line. No age — there is no reading to age |
+| Lights group | 1 per room | 3 (narrow) | 188 dp | How many lamps the room has as its name, how many are lit, the oldest of their ages. Opens the lamps |
+| Launcher | 2 | 3 (narrow) | 188 dp | Name, what the tile does, and — when the app is missing — the package. No age; there is no reading to age |
 
 **This was six columns, halves and thirds, and the widest tile was half the wall.** Two columns of
 anything is a phone's proportion — the reference smart-home app is two columns of a 411 dp phone —
@@ -81,8 +83,9 @@ and four across is what a 753 dp panel has room for.
 itself 4, so a hero tile spanned all four and came out 753 dp with its switch stranded 700 dp from
 the value it switches. What is here is twelve columns with nothing ever one column wide. The other
 half of that old rejection — "the launcher at 188 dp wrapped its one line onto two" — has stopped
-being a defect: every tile now reserves the same block of status lines whether it fills them or
-not, so a line that wraps costs nothing that was not already spent.
+being a defect: every tile reserves the same block of status lines whether it fills them or not,
+and since "nothing on the wall wraps" that block is a ceiling — a line too long for 188 dp is cut
+short rather than allowed onto a second one.
 
 **Thirds and quarters, because both divide twelve.** This is the rule that matters, and it was
 learned rather than designed: a row fills instead of trailing dead cells. It used to carry a second
@@ -91,9 +94,10 @@ been taken over by the anatomy, which makes tiles of *different* kinds agree as 
 
 The recuperator is the densest tile the flat has and the only one whose span is decided by its
 content: **wide when it has a second line to put there, narrow when it has neither.** Two things
-count as a second line — `climateLine`, and its own error, whose vendor string is the longest thing
-any tile on this wall prints. A wide tile holding one line of "on · no speed" is a hole in the
-wall; a narrow one holding six lines of failure is a tile that does not line up with anything.
+count as a second line — `climateLine`, and its own error. A wide tile holding one line of
+"on · no speed" is a hole in the wall. The error used to be the longest string any tile printed and
+is four words now (see "Why a poll failed"), so the width it buys is for having something on the
+second line at all rather than for the length of it.
 _Unexercised on this wall:_ all five recuperators report both values, so the narrow branch is
 covered by `TileLayoutTest` and has never been seen.
 
@@ -107,21 +111,38 @@ Five slots, in this order, on every tile of every kind:
 | Level | 64 dp | The slider, centred — the same 64 dp `SlimSlider`'s track slot measures |
 | Promoted value | 52 dp | One line of `displaySmall`, or nothing |
 | Name | 28 dp | One line of `titleMedium`, wrapped rather than truncated |
-| Status line | 96 dp | Four lines of `bodyMedium`: the status line, and the second line the strip and the recuperator have |
+| Status line | 48 dp | **Two lines of `bodyMedium`, and a ceiling rather than a reserve**: the status line, and the second line — the strip's colour, the recuperator's climate, or why the poll stopped landing |
 
-**328 dp = 64 + 64 + 52 + 28 + 96 + 2 × 12 of padding**, and the same 328 for a bulb as for an air
+**280 dp = 64 + 64 + 52 + 28 + 48 + 2 × 12 of padding**, and the same 280 for a bulb as for an air
 conditioner. Before this the mosaic had four heights — the air conditioner 169 dp with a dead area
 under its slider, the strip shorter, the recuperator shorter again, the launchers shorter still —
 because each kind laid itself out around whatever it happened to have.
+
+It was 328 while the status slot reserved four lines. Two of the four were never filled by anything
+the flat produces, and the 48 dp they left at the foot of every card read as a reserve showing
+rather than as padding; capping the slot is what let them go.
 
 **An empty slot is empty, not absent.** A launcher has no switch, no slider and no value and
 reserves all three anyway. That is what buys bottom edges that line up across kinds, and it is the
 whole cost of it too: a bulb tile carries a 64 dp band where a slider would go.
 
-The reserve is **a minimum and not a ceiling**. A vendor error long enough to run past four lines
-makes that one tile taller rather than being clipped or ellipsised — the panel does not swallow the
-reason a thing is broken to keep a bottom edge straight. Nothing the flat has produced does that,
-and the tile that came closest is why the recuperator's span counts its error as a second line.
+**The status slot is a ceiling; every other slot is a floor.** That is the reverse of what this
+doc said until "nothing on the wall wraps", and the argument it reverses — that a vendor error long
+enough to run past four lines should make that tile taller rather than be swallowed — had the
+priority backwards. The status line was the last unbounded thing on the panel, so a string nobody in
+this flat controls decided how tall a tile came out, and *two tiles of the same kind coming out the
+same height* is the property this whole section exists for. Each of the slot's two lines is now one
+line, `maxLines = 1`, ellipsised.
+
+What made that affordable rather than lossy is that the strings were shortened first — see "Why a
+poll failed" and "One age per tile". The only thing left long enough to meet the ellipsis is a
+package name, and truncating an identifier is the answer `docs/design/panel-redesign.md` item 7 asks
+for outright.
+
+**The name is deliberately still a floor.** A long device name wraps onto a second line and grows
+the card, because PLAN.md's reference table refuses truncated device names — fine at 30 cm, useless
+at four metres. Nothing in the flat's 35 devices comes near it: "Кондиционер" is 145 dp of the 156 a
+quarter tile gives it, and every longer name is on a tile a third of the wall wide.
 
 What goes in the slots is one pure function per tile type — `anatomy(...)` in `TileLayout.kt`,
 returning a `TileAnatomy` — so "does this kind still fill all five" is a test rather than a picture.
@@ -173,7 +194,7 @@ other kind agreed on.
 
 **The other option was seven ordinary tiles, and the count is why it was not taken.** One
 `/v1.0/user/info` call feeds every bulb in the flat, so the moment it stops landing `favourites`
-pulls all 28 onto Главная — at 328 dp each that is seven rows of lamp before the wall says anything
+pulls all 28 onto Главная — at 280 dp each that is seven rows of lamp before the wall says anything
 about the air conditioner, which is the "fourteen rows of lamps" the group exists to prevent, four
 times taller.
 
@@ -287,12 +308,66 @@ nothing at all.
   `unknown`, and `unknown · never read` was that fact twice. So a bulb with no state says `unknown`,
   and an AC with no target says `off · unknown · 2 h ago` — the on/off's age, not the missing
   temperature's 81 days.
-- The rest is untouched: `not controllable`, `no state to read`, `not installed`, `offline` and
-  `not updating: <reason>` all still print, and the promoted value is exactly what it was.
+- The rest is untouched: `not controllable`, `no state to read`, `not installed` and `offline` all
+  still print, and the promoted value is exactly what it was. The reason a poll failed prints too,
+  and has since moved to the tile's second line — see "Why a poll failed".
 
 _What this does not change:_ the vendor's `last_updated` is still what a tile prints, and the poll's
 own staleness is still what marks a heading. A tile that has gone quiet for under an hour says
 nothing about it — the room's heading is where that is said, and it is said about the poll.
+
+### Why a poll failed
+
+**Four words, and no vendor ever writes one of them.** `Throwable.describe()` was
+`message ?: className`, so Java's own sentence went onto a tile in the middle of a line whose other
+half was the panel's:
+
+```
+not updating: Unable to resolve host "openapi.tuyaeu.com"
+```
+
+Two things were wrong with that and only one is about language. The string is *unbounded*, and it
+was the last unbounded thing on the wall — so a vendor's error text decided how tall a tile came
+out, which is what the whole anatomy above exists to stop anything doing.
+
+`reason(Throwable)` in `BulbTiles.kt` maps it, **by exception type and never by message**, onto:
+
+| Reason | What throws it |
+| --- | --- |
+| `unreachable` | `UnknownHostException`, `NoRouteToHostException` — the tablet's Wi-Fi or DNS |
+| `timed out` | `SocketTimeoutException`, and `InterruptedIOException`, which is what OkHttp's own call timeout arrives as |
+| `refused` | `ConnectException` |
+| `failed` | everything else |
+
+`describe()` writes the exception to `Log` and returns one of the four. Every error string on any
+tile state comes through it, so a tile's `error` is one of these words by construction.
+
+**`failed` covers two very different things and that is the price of this.** An I/O failure with no
+name of its own, and the panel's *own* `error(…)` checks on a response it did not like — `HTTP 403`,
+a `status` that is not `ok`, and the two configuration sentences the clients used to put on the wall
+outright: Yandex's «no Yandex token stored — set yandex.oauth.token in local.properties and
+reinstall» and Tuya's equivalent. Those are 76 characters and could not be on a 188 dp tile under
+any rule; they are in `Log`, docs/yandex.md and docs/tuya.md say so, and finding them a home on the
+wall belongs with `docs/design/panel-redesign.md` item 8.
+
+**It is the tile's second line, not the first.** A quarter tile's status line is 156 dp — about
+sixteen characters of `bodyMedium` — so `on · 20 d ago · not updating: unreachable` was never going
+to be one line of anything. The rule is one for every kind: *why the panel is not updating this
+tile, if it is not; otherwise the tile's second reading, or the one thing it has to say that is not
+a reading.* A second reading is stale by definition once the poll behind it stopped landing, so the
+strip's colour and the recuperator's climate give way to the reason while it lasts and come straight
+back when the poll does.
+
+**The lights group is the one tile that can be not updating with nothing to name**, since a poll can
+stop landing without any call having failed. It says `not updating` for that and the reason for the
+other, which are two facts and get two words.
+
+**An offline recuperator stopped echoing what it can no longer confirm.** Tuya's `offline` used to
+lead a queue of them — `offline · unknown · low + medium + high · not updating: timeout`, 62
+characters on a tile that holds about 24, wrapped onto three lines and the longest thing on the
+panel. `offline` replaces the power word now and the speed goes with it; what is left is the state,
+its age, and the reason on the line below. The values are still on `RecuperatorTileState` — they are
+not forgotten, they are not claimed.
 
 ### The recuperators before the first poll
 
@@ -301,7 +376,8 @@ coming up is retried before anybody reaches the hallway. Tuya is five calls ever
 the recuperator tiles exist only once the inventory call has answered — so a tablet that rebooted
 into a network that was not up yet shows **one line of error where five tiles belong, for six
 minutes**. Seen on the wall on 2026-08-16: `Бризеры: not updating: Unable to resolve host
-"openapi.tuyaeu.com"`, with the Yandex tiles already back.
+"openapi.tuyaeu.com"`, with the Yandex tiles already back. _That string is quoted as it was seen;_
+the same failure reads `Бризеры: not updating: unreachable` now — see "Why a poll failed".
 
 So the panel remembers who they are. `KnownRecuperators` keeps the last successful inventory — **id,
 name, room, and nothing else** — in the same encrypted store as the credentials, because device ids
@@ -963,7 +1039,7 @@ measured. A screenshot at any other width is a picture of a panel that does not 
 column widths are sized from that 753 and from nothing else.
 
 The one exception is the swatch sheet, and only in *height*: `tiles-light` and `tiles-dark` are
-captured at 753 × 1700 dp. Thirteen swatches at 328 dp is 1656 dp of column, and in a 1204 dp frame
+captured at 753 × 1700 dp. Thirteen swatches at 280 dp is 1400 dp of column, and in a 1204 dp frame
 the failing row and the outlined case fell off the bottom and were recorded as nothing at all. They
 are not a picture of the wall; the two Главная captures are, and those keep the wall's own frame.
 
@@ -1033,6 +1109,14 @@ out wrong. None of them can be settled from a screenshot.
   card on the wall for ever. If that is wrong on the glass, the answer is not a lighter step for
   everything: it is that a launcher's "no state to read" is a different thing from a device's
   "never reported", and `mood` has no value for it today.
+- **Is a truncated package name useful or just untidy?** `com.example.vac…` is the wall's one
+  ellipsis, on the tile of an app that is not installed. It is read at 30 cm by whoever is about to
+  go and install it, so it may be that a cut package is no use at all and the honest answer is the
+  first half of the name and the tile's *name* doing the rest. If so, the fix is a shorter string,
+  not a second line: the cap stays.
+- **Is 280 dp a tile that reads better or one that reads tighter?** The card lost the 48 dp of
+  unfilled status reserve at its foot, so the wall shows about a row and a half more. If it comes
+  out cramped, the space to give back is padding at the foot of the card, not the reserve.
 - **Does a 20 dp on mark carry at four metres?** It is beside a switch that says the same thing on
   five kinds and beside nothing at all on the curtain, the lights group and the launcher. If it does
   not carry, it grows before it changes shape.
@@ -1048,6 +1132,14 @@ out wrong. None of them can be settled from a screenshot.
 
 ## Open
 
+- **Where the two configuration sentences go.** «no Yandex token stored — set yandex.oauth.token in
+  local.properties and reinstall» and Tuya's equivalent are the most useful thing either client can
+  say, and since "Why a poll failed" they are in `Log` and not on the wall: 76 characters do not fit
+  a tile, and the group failure line at the top of Главная — which is 753 dp wide and could hold
+  them — takes the same mapped word every tile does. A fresh install with no `local.properties` now
+  says `Кондиционеры: not updating: failed` five times over and names nothing. This is a real loss
+  and it wants a home; item 8 in `docs/design/panel-redesign.md` is the commit that would give it
+  one.
 - Status strings are English today (`on`, `never read`, `not updating`) while room names arrive in
   Russian from the vendors. The mosaic does not change that, and it should not be changed quietly as
   part of this work; if the panel is to speak one language it is its own commit.

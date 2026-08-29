@@ -62,7 +62,7 @@ class AcTilesTest {
         assertEquals(false, tile.isOn)
         assertEquals(18.0, tile.targetTemperature)
         assertEquals(Bounds(min = 16.0, max = 32.0, precision = 1.0), tile.bounds)
-        assertEquals("off · 18 °C · 81 d ago", statusLine(tile, now(hours = 2), error = null))
+        assertEquals("off · 18 °C · 81 d ago", statusLine(tile, now(hours = 2)))
     }
 
     @Test
@@ -95,7 +95,7 @@ class AcTilesTest {
         // And the age is the on/off's 2 hours rather than the temperature's 81 days: a capability
         // that reported no value has none to age, and "unknown" is the whole of what is known
         // about it.
-        assertEquals("off · unknown · 2 h ago", statusLine(tile, now(hours = 2), error = null))
+        assertEquals("off · unknown · 2 h ago", statusLine(tile, now(hours = 2)))
     }
 
     @Test
@@ -108,7 +108,7 @@ class AcTilesTest {
 
         val tile = acs.state.value.tiles.single { it.id == "ac-01" }
         assertNull(tile.isOn)
-        assertEquals("unknown · 18 °C · 81 d ago", statusLine(tile, now(hours = 2), error = null))
+        assertEquals("unknown · 18 °C · 81 d ago", statusLine(tile, now(hours = 2)))
     }
 
     @Test
@@ -122,7 +122,7 @@ class AcTilesTest {
         poll.refresh()
 
         val tile = acs.state.value.tiles.single { it.id == "ac-01" }
-        assertEquals("off · 18 · 81 d ago", statusLine(tile, now(hours = 2), error = null))
+        assertEquals("off · 18 · 81 d ago", statusLine(tile, now(hours = 2)))
     }
 
     @Test
@@ -219,10 +219,11 @@ class AcTilesTest {
         assertNotNull(after.error)
         assertEquals(before, after.tiles)
         val tile = after.tiles.single { it.id == "ac-01" }
-        assertTrue(
-            statusLine(tile, now(hours = 2), after.error).startsWith("off · 18 °C · 81 d ago · not updating"),
-            "the tile has to keep its values and say why they are not moving: " +
-                statusLine(tile, now(hours = 2), after.error),
+        assertEquals("off · 18 °C · 81 d ago", statusLine(tile, now(hours = 2)))
+        assertEquals(
+            "failed",
+            anatomy(tile, now(hours = 2), after.error).detail,
+            "the tile has to keep its values and say why they are not moving",
         )
     }
 
@@ -238,21 +239,20 @@ class AcTilesTest {
         acs.setTemperature("ac-01", 24.0)
 
         assertEquals(before, acs.state.value.tiles)
-        assertTrue(acs.state.value.error.orEmpty().contains("404"))
+        assertEquals("failed", acs.state.value.error)
     }
 
     @Test
-    fun `a panel with no token stored says so instead of standing there empty`() = runTest {
+    fun `a panel with no token stored reports a failed poll instead of standing there empty`() = runTest {
+        // The sentence naming the token goes to `Log` now rather than to the wall — see
+        // BulbTilesTest, which is where that trade is written down.
         val poll = YandexPoll(client(token = { "" }))
         val acs = poll.acs
 
         poll.refresh()
 
         assertTrue(acs.state.value.tiles.isEmpty())
-        assertTrue(
-            acs.state.value.error.orEmpty().contains("token"),
-            "the panel must name the missing token: ${acs.state.value.error}",
-        )
+        assertEquals("failed", acs.state.value.error)
     }
 
     @Test
