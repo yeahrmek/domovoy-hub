@@ -7,6 +7,7 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
+    alias(libs.plugins.roborazzi)
 }
 
 // The flat's household id and the Yandex OAuth token are apartment-identifying, so they live in
@@ -80,6 +81,14 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
+
+    testOptions {
+        // Robolectric draws the panel from the real resources — the drawables every tile's glyph
+        // comes from and the strings under them — and without this it is handed a stub package
+        // where `painterResource` finds nothing. It is what makes the screenshots pictures of the
+        // panel rather than of a grid of empty cards.
+        unitTests.isIncludeAndroidResources = true
+    }
 }
 
 kotlin {
@@ -126,4 +135,14 @@ dependencies {
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.okhttp.mockwebserver)
     testRuntimeOnly(libs.junit.platform.launcher)
+
+    // The screenshot tests. Robolectric gives the panel an Android to be drawn on, Compose's test
+    // rule puts it there, and Roborazzi is what writes the PNG and compares it to the recorded one.
+    // The vintage engine is here and nowhere else: these three are JUnit4 and the other 40-odd
+    // tests in this module stay JUnit5.
+    testImplementation(libs.robolectric)
+    testImplementation(libs.roborazzi)
+    testImplementation(libs.roborazzi.compose)
+    testImplementation(libs.compose.ui.test.junit4)
+    testRuntimeOnly(libs.junit.vintage.engine)
 }

@@ -11,8 +11,12 @@ import kotlin.test.assertNull
 
 /**
  * The three decisions in the mosaic that have a right and a wrong answer. They live out here rather
- * than inside a `@Composable` because there is no Compose test dependency and adding one is an
- * "ask first" — and because a decision no test can reach is a decision nobody checks.
+ * than inside a `@Composable` because a decision no test can reach is a decision nobody checks.
+ *
+ * There is a Compose test dependency now — [PanelScreenshotTest] draws the panel and records what
+ * it looks like — and it does not replace any of this. A screenshot says the recuperator came out
+ * half-width; only the assertions below say it did so *because it reports a climate line*, and only
+ * they fail with the reason written out rather than as a rectangle that moved.
  */
 class TileLayoutTest {
     private val now = Instant.ofEpochSecond(1_786_000_000)

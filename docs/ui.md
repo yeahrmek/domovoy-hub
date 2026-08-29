@@ -751,11 +751,15 @@ release notes.
 
 TDD, and the test comes first in the same commit.
 
-The unit test dependencies are JUnit5, kotlin.test, Turbine and MockK — **there is no Compose test
-dependency**, and adding one is an "ask first". So every rule in this doc that can be got wrong is
-written as a pure function over the tile states and tested directly, the way `RoomSectionsTest`
-tests `roomSections`. That is not a workaround; it is the same reason the room order is a function
-and not a layout.
+The unit test dependencies are JUnit5, kotlin.test, Turbine and MockK. Every rule in this doc that
+can be got wrong is written as a pure function over the tile states and tested directly, the way
+`RoomSectionsTest` tests `roomSections`. That is not a workaround; it is the same reason the room
+order is a function and not a layout, and it stays the first choice for anything with an answer to
+assert on.
+
+There is now a Compose test dependency, and it is there for the things that have no such answer —
+see "Screenshots" below. It changed nothing about the rule above: a decision that can be a function
+is still a function, and no assertion moved into a `@Composable`.
 
 What gets a test, each asserting the value returned and not which composable was called:
 
@@ -779,10 +783,53 @@ What gets a test, each asserting the value returned and not which composable was
   `R.drawable.*` ids directly — the generated `R` is on the unit test classpath, so this needs no
   Compose and no Robolectric.
 
-What does not get a unit test, and is checked on the tablet instead: the grid spans, the shapes, the
-dark palette, the touch targets, the idle reset actually firing, and **whether a glyph draws at all** —
-a vector drawable with bad path data is not a build error and not a test failure, it is an empty box
-on the wall.
+What no assertion can reach — the spans as drawn, the shapes, the two palettes side by side,
+**whether a glyph draws at all** — is now recorded as images rather than only looked at. A vector
+drawable with bad path data is still not a build error and still not a test failure; it is an empty
+box, and an empty box is visible in a screenshot. See "Screenshots".
+
+What remains the tablet's alone, because nothing off the glass can answer it: the touch targets in
+real px, the idle reset actually firing, the blue light filter over the palette, and whether any of
+it is legible from four metres.
+
+### Screenshots
+
+Six images in `app/src/test/screenshots/`, committed, drawn by Robolectric and Roborazzi at the
+wall's own geometry — **753 × 1204 dp at 340 dpi, portrait**, which is the 1600 × 2560 px the tablet
+measured. A screenshot at any other width is a picture of a panel that does not exist, since six
+columns is sized from that 753 and from nothing else.
+
+| Image | What it is for |
+| --- | --- |
+| `panel-home-light`, `panel-home-dark` | Главная whole, in both schemes: the spans, the corners, the mosaic as one thing |
+| `tiles-light`, `tiles-dark` | Every `TileHue` × `TileMood` pair, plus the group-failure outline. This is the ΔE table in `PanelTheme.kt` made visible |
+| `lights-group` | The row of 72 dp circles, and the `Never` bulb broken out above it |
+| `tabs-marked` | A strip with three rooms carrying the dot and the error colour |
+
+```bash
+source scripts/env.sh && ./gradlew verifyRoborazziDebug
+```
+
+```bash
+source scripts/env.sh && ./gradlew recordRoborazziDebug
+```
+
+`verify` fails on any difference and writes the expected, the actual and a side-by-side into
+`app/build/outputs/roborazzi/`. `record` rewrites the references — run it after a deliberate change,
+then **look at what it wrote**. A reference nobody opened is a test that asserts whatever the code
+did on the day, which is not the same as asserting the panel is right. A plain `./gradlew test` runs
+these six as ordinary tests and neither records nor compares, so the other 241 keep costing what
+they cost.
+
+The fixtures are in `app/src/test/kotlin/ru/domovoy/panel/Flat.kt`: one flat's worth of tiles with a
+fixed `NOW` and fixed readings. A clock in a screenshot test is a test that fails every minute —
+every tile on this panel prints how old its reading is.
+
+**These render on the JVM, not on the tablet.** Robolectric has its own fonts and its own text
+layout, so an image here is the panel's *layout and palette* and not a preview of the Galaxy Tab.
+There is no CI, so the references are whatever machine last recorded them — a diff that is nothing
+but text antialiasing is a machine difference, not a regression. What they are trusted for is
+geometry and colour; the row in "Watch on the wall" that only the glass can answer did not move.
 
 **Do the tablet check before calling a layout commit done, not after.** Commit 2 shipped its span
 table twice: once from a guessed panel width, and again from the measured one after the wall showed
