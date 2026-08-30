@@ -22,6 +22,9 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedIconButton
+import androidx.compose.material3.SwitchColors
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -32,6 +35,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import ru.domovoy.R
 
 /**
  * The corner every tile on the wall wears. **One radius, not two.**
@@ -187,6 +191,12 @@ internal fun TileCard(
     toggle: @Composable () -> Unit = {},
     /** The slider, on its own band. Empty on the tiles that have none, and reserved all the same. */
     level: @Composable () -> Unit = {},
+    /**
+     * What the top-right button does, on the one kind of tile that has one — see [TileAction]. It
+     * is never called on a tile whose [TileAnatomy.action] is null, because no button is drawn
+     * there: an unreachable callback rather than a dead tap.
+     */
+    onAction: () -> Unit = {},
 ) {
     val shape = RoundedCornerShape(TILE_CORNER)
     val outer = modifier.fillMaxWidth().padding(TILE_PADDING).heightIn(min = TILE_HEIGHT)
@@ -194,13 +204,13 @@ internal fun TileCard(
     val border = groupFailureBorder(paint)
     if (onClick == null) {
         Card(modifier = outer, shape = shape, colors = colors, border = border) {
-            TileBody(anatomy, hue, paint.mood, toggle, level)
+            TileBody(anatomy, hue, paint.mood, toggle, level, onAction)
         }
     } else {
         // The clickable Card rather than a `Modifier.clickable` outside it, so the ripple is
         // clipped to the corner it is drawn on and the tap lands on the tile and not on the gutter.
         Card(onClick = onClick, modifier = outer, shape = shape, colors = colors, border = border) {
-            TileBody(anatomy, hue, paint.mood, toggle, level)
+            TileBody(anatomy, hue, paint.mood, toggle, level, onAction)
         }
     }
 }
@@ -213,6 +223,7 @@ private fun TileBody(
     mood: TileMood,
     toggle: @Composable () -> Unit,
     level: @Composable () -> Unit,
+    onAction: () -> Unit,
 ) {
     Column(modifier = Modifier.fillMaxWidth().padding(TILE_CONTENT_PADDING)) {
         Row(
@@ -222,10 +233,22 @@ private fun TileBody(
             TileArt(anatomy.art, hue, mood)
             TileStatusMark(hue, mood)
             Spacer(modifier = Modifier.weight(1f))
+            // **What the tile's state says, then what a finger can do about it**, and that split is
+            // the order of this line rather than an accident of when each was written: the art and
+            // the on mark at the left end, the offline glyph closing the reading, and the controls
+            // gathered after it — one region for the eye and one for the hand, instead of a control
+            // between two status marks.
+            TileOfflineMark(mood)
             // The 64 dp floor, for the switch inside it: a Switch is 52×32 dp, so the finger gets
             // the box rather than the graphic. Drawn whether or not a switch arrives, which is what
             // keeps the art line one height on all six kinds.
             Box(modifier = Modifier.touchable(), contentAlignment = Alignment.Center) { toggle() }
+            // **Last, so that the button is in the corner** — which is where the reference puts it
+            // and, on the three kinds with no switch, the only way it gets there: the switch's box
+            // is reserved on every tile, so a button drawn before it would sit 64 dp in from the
+            // edge with an empty box beside it. Inboard of it on a tile that has both, which is the
+            // reference's order too: power first, then the one that is not power.
+            TileActionButton(anatomy.action, onAction)
         }
         Slot(LEVEL_ROW) { level() }
         Slot(PROMOTED_ROW) { PromotedValue(anatomy.promoted, tileAccent(hue)) }
@@ -357,7 +380,7 @@ private fun TileArt(
     hue: TileHue,
     mood: TileMood,
 ) {
-    if (mark(mood) == TileMark.Failure) {
+    if (TileMark.Failure in marks(mood)) {
         Box(
             modifier =
             Modifier.size(GLYPH_SIZE).clip(RoundedCornerShape(CHIP_CORNER))
@@ -377,6 +400,20 @@ private val MARK_SIZE = 20.dp
 private val MARK_GAP = 8.dp
 
 /**
+ * How big a mark that is a *glyph* rather than a disc is: 28 dp, half the art's 48 and a third more
+ * than the dot's 20.
+ *
+ * A filled circle is legible at any size that is visible at all; line art is not, and the whole of
+ * what this particular glyph means is the bar struck through it. At 20 dp that bar is under a
+ * pixel and a half of stroke on this tablet and the mark reads as a wifi symbol — which says the
+ * opposite of what it is there to say.
+ *
+ * Still small against the art it sits opposite, which is the reference's proportion: the tile's
+ * identity is the device, and this is a note in the corner about it.
+ */
+private val MARK_GLYPH_SIZE = 28.dp
+
+/**
  * **The on mark**: a filled dot in the tile's family accent, beside the glyph, and nothing at all in
  * any other mood.
  *
@@ -394,9 +431,101 @@ private fun TileStatusMark(
     hue: TileHue,
     mood: TileMood,
 ) {
-    if (mark(mood) != TileMark.Family) return
+    if (TileMark.Family !in marks(mood)) return
     Spacer(modifier = Modifier.width(MARK_GAP))
     Box(modifier = Modifier.size(MARK_SIZE).clip(CircleShape).background(tileAccent(hue)))
+}
+
+/**
+ * **The unreachable mark**: a small struck-through wifi glyph in the error colour, at the right of
+ * the tile's top line, and nothing at all in any other mood.
+ *
+ * The reference's one offline mark, and the only glyph on this wall that is not a device. What it
+ * adds to the error chip [TileArt] already draws is *what the bad news is*: the chip says which tile
+ * has stopped being read and keeps its art legible, and this says the panel cannot get to it. Two
+ * marks for one state, on the same argument as the two that say "on" — see [TileMark].
+ *
+ * **"Top-right" as far as the switch allows.** In the reference the top-right corner of a tile holds
+ * small round buttons and there is room beside them; here it holds the 64 dp touch box every tile
+ * reserves for its switch, so the mark sits immediately left of that box rather than in the corner
+ * itself. It is the right-hand end of the art line either way, which is what the mark has to be: the
+ * eye that has already found the art at the left finds this at the other end of the same line.
+ *
+ * Nothing moves when it appears — the row's spacer absorbs it, and on the narrowest tile the wall
+ * has (188 dp, of which 156 is content) the art, this and the touch box come to 148.
+ *
+ * `contentDescription` is null for the reason every glyph on this wall has a null one: the tile's
+ * own second line already says, in words, that the panel is not updating it and why.
+ */
+@Composable
+private fun TileOfflineMark(mood: TileMood) {
+    if (TileMark.Offline !in marks(mood)) return
+    Icon(
+        painter = painterResource(R.drawable.ic_wifi_off),
+        contentDescription = null,
+        modifier = Modifier.size(MARK_GLYPH_SIZE),
+        tint = MaterialTheme.colorScheme.error,
+    )
+    Spacer(modifier = Modifier.width(MARK_GAP))
+}
+
+/**
+ * How big the button's own circle is: **40 dp, drawn inside the 64 dp box a finger actually gets.**
+ *
+ * The reference's buttons are "roughly a third the width of the art", which on a 48 dp glyph is
+ * 16 dp — a phone's measurement, taken from something held 30 cm from the face. [MIN_TOUCH] is this
+ * panel's floor for anything tappable and is not negotiable, so the two numbers are split: the
+ * target is 64 and the ring drawn in the middle of it is 40, which is smaller than the art beside it
+ * and larger than anything else on the line. Quiet by being outlined and neutral rather than by
+ * being too small to hit.
+ */
+private val ACTION_BUTTON_SIZE = 40.dp
+
+/** The glyph inside that ring. Half the art's 48, and 8 dp of ring left around it. */
+private val ACTION_GLYPH_SIZE = 24.dp
+
+/**
+ * **The tile's one secondary control**: a small outlined circle at the top right, or nothing at all
+ * on the kinds that have no second action — which is every kind but the curtain. See [TileAction].
+ *
+ * **Outlined and neutral rather than filled.** The four steps of the neutral ramp are 5 L\* apart in
+ * dark and 2 in light, so a filled disc in any of them is a disc that disappears on one mood; the
+ * ring is `outline` against `onSurface` and reads on all four. It is also what keeps the colour
+ * budget where the last commit put it — the saturated things on a tile are the on mark, the accented
+ * switch and the error chip, and a control that is merely *available* is not news.
+ *
+ * **Where it sits was decided rather than discovered.** It is the last thing on the art line: the
+ * status marks end the reading half of it, the switch's reserved box follows, and this closes the
+ * line in the corner the reference puts its buttons in. Drawing it *before* the switch was tried
+ * and looked wrong on exactly the tile that has one — a curtain has no switch and the box is
+ * reserved anyway, so the button came out 64 dp in from the edge with an empty square beside it.
+ * Nothing has to move for it — the row's spacer
+ * absorbs the width — and the arithmetic is in [TileAction]: on the third-width tile that is the
+ * only kind carrying one, the art, the on mark, this button and the switch's box come to 204 dp of
+ * 219. The offline glyph cannot appear on that tile today — a curtain's errors are its group's, and
+ * a group's failure outlines — and the line holds if it ever does: an offline tile wears no on mark,
+ * so the art, that glyph, this button and the switch come to 212. What does not fit either way is a
+ * second button, which is the whole of why [action] answers with one and not with a set.
+ *
+ * The `contentDescription` is the one on this wall that is not null: every other glyph here is
+ * decorative and sits beside a name that says the same thing, and this one is a button whose whole
+ * meaning is what pressing it does.
+ */
+@Composable
+private fun TileActionButton(
+    action: TileAction?,
+    onAction: () -> Unit,
+) {
+    if (action == null) return
+    Box(modifier = Modifier.touchable(), contentAlignment = Alignment.Center) {
+        OutlinedIconButton(onClick = onAction, modifier = Modifier.size(ACTION_BUTTON_SIZE)) {
+            Icon(
+                painter = painterResource(glyph(action)),
+                contentDescription = action.label,
+                modifier = Modifier.size(ACTION_GLYPH_SIZE),
+            )
+        }
+    }
 }
 
 /**
@@ -504,6 +633,59 @@ internal fun tileAccent(hue: TileHue): Color = when (hue) {
     TileHue.Climate -> MaterialTheme.colorScheme.primary
     TileHue.Light -> MaterialTheme.colorScheme.tertiary
     TileHue.Neutral -> MaterialTheme.colorScheme.secondary
+}
+
+/**
+ * **The colour the accents are written on**, for the one accent that is a field rather than a mark:
+ * the switch's track is filled with [tileAccent], so its thumb has to be the `on` role of the same
+ * family or it is a pale disc on a pale track.
+ *
+ * The pairs Material generates and this panel writes out — see `PanelTheme.kt`, where every one of
+ * them is a tone off the same two seeds as the accent it belongs to.
+ */
+@Composable
+private fun tileOnAccent(hue: TileHue): Color = when (hue) {
+    TileHue.Climate -> MaterialTheme.colorScheme.onPrimary
+    TileHue.Light -> MaterialTheme.colorScheme.onTertiary
+    TileHue.Neutral -> MaterialTheme.colorScheme.onSecondary
+}
+
+/**
+ * **The tile's power control, in the family's colour when the device is on and neutral grey when it
+ * is not** — the second of the marks a lit tile wears, see [TileMark.Power].
+ *
+ * Material's default switch is `primary` when checked, whatever it is switching. On a wall where
+ * `primary` *means climate* that is a lamp with a blue switch on it: the loudest coloured object on
+ * the tile saying the wrong family, next to a glyph, a value and a dot that all say the right one.
+ * So the checked track is [tileAccent] — one table for all five accents on a tile — and a lit lamp's
+ * switch is amber like the rest of it.
+ *
+ * **It reads the mood and not the checkbox**, which is the whole of why it is worth a function. A
+ * failing tile's switch is still drawn *checked* when the device last reported on — that is the last
+ * thing known and blanking it would be worse — but it is grey, because a coloured switch there is
+ * the panel asserting a state nobody has confirmed. The same refusal [surface] makes, in the one
+ * place on the tile a finger is already going.
+ *
+ * The unchecked half is Material's own values, written out rather than defaulted: they are the
+ * "neutral grey" half of the rule and a rule that is half implicit is a rule that gets changed by
+ * accident.
+ */
+@Composable
+internal fun tileSwitchColors(
+    hue: TileHue,
+    mood: TileMood,
+): SwitchColors {
+    val accented = TileMark.Power in marks(mood)
+    val track = if (accented) tileAccent(hue) else MaterialTheme.colorScheme.surfaceContainerHighest
+    val thumb = if (accented) tileOnAccent(hue) else MaterialTheme.colorScheme.outline
+    return SwitchDefaults.colors(
+        checkedThumbColor = thumb,
+        checkedTrackColor = track,
+        checkedBorderColor = if (accented) track else MaterialTheme.colorScheme.outline,
+        uncheckedThumbColor = MaterialTheme.colorScheme.outline,
+        uncheckedTrackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+        uncheckedBorderColor = MaterialTheme.colorScheme.outline,
+    )
 }
 
 /**

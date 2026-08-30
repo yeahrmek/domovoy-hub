@@ -74,4 +74,42 @@ class PanelPollingTest {
         // state that went stale for the length of the call.
         assertEquals(2, polls)
     }
+
+    @Test
+    fun `a call puts away whatever was left open in front of the wall`() = runTest {
+        // The panel's second way of getting out of the way, and it exists because the panel now has
+        // something a passer-by can leave in front of the tiles: a device sheet. It cannot cover
+        // Domonap's screen — that is another app's activity and is in front of this one by
+        // construction — but it can be sitting there when the call ends, over the wall somebody is
+        // about to want. So it goes at the *start* of the call.
+        val calls = MutableStateFlow<CallState>(CallState.Idle)
+        var closes = 0
+        backgroundScope.launch { closeOnCall(calls) { closes++ } }
+        runCurrent()
+        assertEquals(0, closes)
+
+        calls.value = ringing
+        runCurrent()
+
+        assertEquals(1, closes)
+    }
+
+    @Test
+    fun `the call ending does not open anything back up`() = runTest {
+        // Whoever was reading a tile before the intercom rang has answered the door by now. The
+        // panel comes back as a panel — the wall, at the top — rather than as the one device
+        // somebody was looking at four minutes ago.
+        val calls = MutableStateFlow<CallState>(CallState.Idle)
+        var closes = 0
+        backgroundScope.launch { closeOnCall(calls) { closes++ } }
+        runCurrent()
+
+        calls.value = ringing
+        runCurrent()
+        calls.value = CallState.Idle
+        advanceTimeBy(interval * 4)
+        runCurrent()
+
+        assertEquals(1, closes)
+    }
 }

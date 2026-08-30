@@ -27,19 +27,29 @@ fun LightStripTile(
     now: Instant,
     modifier: Modifier = Modifier,
     error: String? = null,
+    /** What a tap on the card does: open this device's sheet. Null when there is none — see [AcTile]. */
+    onOpen: (() -> Unit)? = null,
     onToggle: (String) -> Unit = {},
     onSetBrightness: (String, Double) -> Unit = { _, _ -> },
 ) {
     // The colour it reports is the second line of the status slot rather than more dots on the
     // first — it carries an age of its own, and all six values in one run is a line nobody reads.
     // Which is [anatomy]'s answer now; see [colorLine].
+    // Worked out once and read twice: the card takes it, and so does the switch, whose colour is
+    // the tile's second on-mark — amber here rather than Material's blue. See [tileSwitchColors].
+    val paint = paint(tile, error)
     TileCard(
         anatomy = anatomy(tile, now, error),
         hue = hue(tile),
-        paint = paint(tile, error),
+        paint = paint,
         modifier = modifier,
+        onClick = onOpen,
         toggle = {
-            Switch(checked = tile.isOn == true, onCheckedChange = { onToggle(tile.id) })
+            Switch(
+                checked = tile.isOn == true,
+                onCheckedChange = { onToggle(tile.id) },
+                colors = tileSwitchColors(hue(tile), paint.mood),
+            )
         },
         level = {
             val bounds = tile.bounds

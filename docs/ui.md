@@ -27,6 +27,9 @@ on it, on 2026-08-16.
    room's bulbs behind one group tile that opens them.
 3. **Both themes, following the system.** The panel is light by day and dark by night, driven by
    `isSystemInDarkTheme()`.
+4. **A tap on a tile opens that device's sheet.** Not the reference app's split — nothing moves off
+   a tile into it. What the sheet adds is an age per reading and the actions a third-width card had
+   no room for. See "The device sheet".
 
 Rejected, and why, so it is not re-proposed: **fill-level tiles** (the tile's fill height or width
 is the value, Apple-Home style). The recorded `/v1.0/user/info` holds 28 `devices.types.light`
@@ -532,10 +535,34 @@ This is a pure function of the room sections. It gets a test.
   - **State picks the step of the neutral ramp** the card sits on, through `surface`: `On`
     `surfaceContainerHighest`, `Failing` `High`, `Off` `surfaceContainer`, `Unknown` `Lowest`. One
     content colour, `onSurface`, on all four — they are all neutral surfaces now.
-  - **The mark is the third thing**, and it is where the colour budget went: a 20 dp dot in the
-    family accent when the device is on, the glyph on a filled `error` chip when this device's own
-    poll failed, and nothing at all otherwise. `mark` in `TileLayout.kt`.
-- `hue(...)` is the domain half and lives in `TileLayout.kt` beside `mood`, `surface`, `mark`,
+  - **The marks are the third thing**, and they are where the colour budget went. `marks` in
+    `TileLayout.kt`, and it answers with a **set** rather than with one mark, because a state is
+    allowed more than one way of saying itself:
+
+    | State | Marks |
+    | --- | --- |
+    | on | a 20 dp dot in the family accent, beside the art |
+    | on | the switch's track in the family accent — neutral grey in every other mood |
+    | on | *the art itself lighting up — not built; it needs a lit and an unlit image per kind* |
+    | this device's own poll failed | the glyph on a filled `error` chip |
+    | this device's own poll failed | a 28 dp struck-through wifi glyph in `error`, right of the art line |
+    | off, or never read | nothing at all |
+
+    **The redundancy is the point and is copied deliberately.** The reference says "on" three times
+    on one tile, and this wall is read behind a blue light filter that erodes a saturated colour
+    against a neutral — the same thing that made a room heading's mark a `•` *and* a colour. A mark
+    carrying a state on its own is a state that can be lost.
+
+    **The switch reads the mood and not its own `checked`.** A failing tile whose device last
+    reported on is still drawn thrown — that is the last thing known — and its track is grey, because
+    a coloured switch there is the panel asserting something it can no longer confirm. It is also why
+    the switch stopped being Material's default: `primary` means *climate* on this wall, so the
+    default put a blue switch on an amber lamp, next to a glyph, a value and a dot that all said
+    light.
+
+    **The wifi glyph is a tile's own failure only.** Keyed on the group's it would draw on 34 of the
+    35 tiles at once, which is the wall going red — the thing the outline exists to avoid.
+- `hue(...)` is the domain half and lives in `TileLayout.kt` beside `mood`, `surface`, `marks`,
   `paint` and `span` — a pure function per tile type, out where a test reaches it. The composable
   maps them to roles and does no thinking of its own.
 - **No hex literals in the panel package.** A hardcoded colour is a tile that is unreadable in one of
@@ -693,6 +720,12 @@ whole of what it added outside `panel/`. It added nine; `ic_bulb_filled.xml` wen
 | Bulb | Tabler `bulb`, outlined — **not Material Symbols** | `ic_bulb.xml` | `lightbulb`, `wb_incandescent`, `tips_and_updates`, `emoji_objects`, `flare`, `lightbulb_circle` |
 | Домофон | `video_camera_front` | `ic_video_camera_front.xml` | `doorbell`, `ring_volume` |
 | Пылесос | `vacuum` | `ic_vacuum.xml` | `robot_2`, `smart_toy`, `cleaning_services` |
+| *Not a tile* — the unreachable mark | `wifi_off` | `ic_wifi_off.xml` | `signal_wifi_off`, `cloud_off`, `sync_problem`, `link_off` |
+
+**The eighth is the only glyph here that is not a device**, and it is drawn at 28 dp rather than 48:
+it is a note in the corner about a tile, not the tile's identity. `wifi_off` ships with the strike
+already in the path, which is what it was chosen for — a bar composited over a wifi symbol is a bar
+that lands differently at every size, and the strike is the whole of what the mark means.
 
 **The bulb comes from Tabler and the other seven from Material Symbols, and that mix is a
 decision rather than an accident.** Six Material bulbs were rendered and none was the one wanted:
@@ -959,6 +992,126 @@ nobody standing at a wall gets a tooltip. The three tiles that have one are the 
 line already prints a number and a unit, which is the hint there is; whether that is enough is a
 thing to watch on the wall rather than to argue about here.
 
+## The button at the top right
+
+The reference app carries one or two small round buttons on every tile and picks them by device
+type — power and a fan mode on an air conditioner, power and a reset on a lamp, power and an
+overflow on a TV. Here power is the switch and is not repeated as a button, so what was missing was
+the *second* action and the fact that it should differ per kind. It is `action` in `TileLayout.kt`,
+beside `controls`, `promoted` and `span`, and it is a pure function of the type and the state.
+
+**One kind has one, and the rest have none.** The curtain gets the end of travel it is not already
+at — Open when it is shut, Close otherwise, including when its position has never been read, which
+is the branch `curtainGlyph` already takes for a null position. It drives to the ends of the range
+*the vendor reported* rather than to 0 and 100, on the same rule `Bounds.snap` exists for.
+
+**Why the others are empty is the whole of the decision, and each one is a refusal made elsewhere in
+this repo already:**
+
+- **The air conditioner's fan mode is an unverified endpoint.** docs/yandex.md still lists "what a
+  `devices.capabilities.mode` action body looks like for this AC, and whether it is accepted" as
+  open. AGENTS.md: say what is unknown rather than write against it.
+- **The recuperators' speeds are unverified in the same way, and Tuya is metered.** A button that
+  reads spends monthly allowance every time somebody walks past and fidgets.
+- **The strip's colour is reported and not controllable**, which the tile already says in words.
+- **The launchers get nothing.** They open somebody else's app; there is no state to act on.
+- **The lock gets nothing, and gets nothing when it exists.** There is no lock tile in `panel/` yet,
+  so this is a rule waiting for a subject rather than a case an assertion can reach; it is written
+  where the overload would go. It reports and does not act — no action, no switch, no slider. See
+  docs/aqara.md.
+
+**Never two, and never on a quarter tile — that is width and not taste.** The target is 64 dp
+(`MIN_TOUCH`; the reference's "a third the width of the art" is a phone's measurement, and the ring
+drawn inside it is 40 dp). A third tile is 219 dp of content: art 48, on mark 28, switch box 64,
+button 64 — 204, with 15 to spare. A quarter tile has 156 and cannot hold the first one; a second
+one fits on nothing.
+
+**It is drawn last on the art line, after the reserved switch box**, so that it lands in the corner.
+Drawn before it, the one tile that has a button — a curtain, which has no switch — came out with the
+button 64 dp in from the edge and an empty square beside it. Outlined and neutral rather than
+filled: the four steps of the ramp are 5 L\* apart in dark and 2 in light, so a filled disc
+disappears on one mood, and a control that is merely available is not news worth spending the
+colour budget on. Its glyph is the state it produces, which is the two shades glyphs the curtain's
+own art is already told apart by; nothing new was drawn. Its `contentDescription` is the one on this
+wall that is not null — every other glyph here sits beside a name that says the same thing.
+
+## The device sheet
+
+A tap on a tile opens one surface over the wall showing that device whole: `DeviceSheet.kt` draws
+it, `TileSheet.kt` decides what is on it. Everything that decides is a pure function next to
+`anatomy`, `controls` and `action`, for the reason all of those are out there.
+
+**It is not the reference app's split, and the rule is the one thing to read before changing it.** A
+phone app is opened, tapped, read and closed, so its tile can be almost empty; this panel is read
+*without being touched*, so the tile is where detail belongs. **Nothing moves off a tile into the
+sheet.** A number that lives only behind a tap has turned a glance into a walk, and a change that
+does it is wrong however much better the tile looks afterwards. What the sheet adds is the two
+things a 251 dp card genuinely could not hold:
+
+- **An age per reading.** "One age per tile" is right for a wall read from four metres and is not an
+  answer to "how old is *this* number" — on `ac-01` the on/off and the target were read 81 days
+  apart and the tile prints the older of the two for both. The sheet breaks the pair back out. Its
+  wording is its own, `sheetAge`, and deliberately not `ageLine`: the wall says nothing under an
+  hour, and the sheet always answers, minutes included, because that is the question it was opened
+  with.
+- **The actions that did not fit.** One 64 dp button is a third-width tile's lot; the sheet is
+  753 dp wide.
+
+**What a kind offers is `sheetActions`, and it is a table with a refused row.**
+
+| Subject | Actions |
+| --- | --- |
+| air conditioner | power, level |
+| light strip | power, level |
+| curtain | level, open, close |
+| bulb | power |
+| recuperator | power |
+| **lock** | **nothing** |
+
+Power is `on_off` and the level is `range` — the two requests this panel has actually sent to real
+devices (docs/yandex.md, "Run on the tablet"). Everything else the reference sheet has is left out
+rather than guessed: the `Color` section and `Modes` need a `color_setting` and a `mode` action body
+that are still open questions, `reset` is not a capability any vendor here reported, and the
+recuperators' three speeds are an unverified Tuya command path *and* a metered allowance. The
+strip's colour is on its sheet as a reading and still says "not controllable".
+
+**The lock's empty row is the load-bearing line.** It reports and does not act — no unlock, no open,
+no door release, and no power switch that could be mistaken for one (CLAUDE.md, docs/aqara.md).
+There is no lock tile in `panel/` because Aqara's project is still in review, so `SheetSubject.Lock`
+exists with nothing constructing it: the rule is written before the tile that would have to obey it,
+and `TileSheetTest` asserts it as its own case rather than as an absence.
+
+**Two tiles open no sheet at all**, and `subject` says so out loud rather than by omission. The
+launchers open somebody else's app and have no readable state behind them — Xiaomi will issue no
+credentials and Domonap has no API the panel calls. The lights group's tap was already spoken for:
+it opens the room's lamps in the grid, each of which is a bulb with a sheet of its own.
+
+**It is drawn inside the panel's own composition**, in a `Box` over the grid, and not in a `Dialog`
+or a Material `ModalBottomSheet`. Two reasons, both practical: a sheet in a window of its own is a
+sheet `compose.onRoot().captureRoboImage` cannot see, and this wall is checked by picture; and the
+overlay makes it obvious that the sheet is a thing *this* app draws, which is why it cannot be in
+front of Domonap's call screen — that is another app's activity.
+
+**Which device is open is hoisted out of `PanelRooms`**, next to the scroll position and for the
+same reason: two things outside the composable close it.
+
+- **The idle reset.** `returnToHome` is what the two-minute reset calls now — close the sheet, then
+  scroll to the top. A sheet left open by a passer-by is a panel that has stopped being a panel.
+- **An intercom call.** `closeOnCall` puts it away at the *start* of the call, so that when the call
+  is over the wall is a wall rather than the one device somebody was looking at. Nothing there
+  cancels, delays, covers or silences anything of Domonap's; it only lets go of our own screen.
+
+**The state is a device id, not a tile.** A poll lands every fifteen seconds and replaces every tile
+state in the panel, so a held tile would be a sheet frozen at the moment somebody touched it; an id
+is looked up again each frame, which also means **the sheet starts no poll of its own**. Tuya is
+metered by the month, and a sheet that read faster while open would spend that allowance on being
+looked at. An id matching nothing draws nothing.
+
+The controls carry no words of their own — the reading directly above names them, exactly as a
+tile's unlabelled switch is named by the status line under it. The one word on the sheet that is not
+a reading or an action is `done`, which closes it, and it is not called "close" because the curtain's
+own action is.
+
 ## Compose APIs
 
 The Compose BOM is already `2026.08.00`, so Material 3 Expressive is on the classpath and **no new
@@ -1033,7 +1186,7 @@ it is legible from four metres.
 
 ### Screenshots
 
-Six images in `app/src/test/screenshots/`, committed, drawn by Robolectric and Roborazzi at the
+Eight images in `app/src/test/screenshots/`, committed, drawn by Robolectric and Roborazzi at the
 wall's own geometry — **753 × 1204 dp at 340 dpi, portrait**, which is the 1600 × 2560 px the tablet
 measured. A screenshot at any other width is a picture of a panel that does not exist, since the
 column widths are sized from that 753 and from nothing else.
@@ -1046,8 +1199,9 @@ are not a picture of the wall; the two Главная captures are, and those ke
 | Image | What it is for |
 | --- | --- |
 | `panel-home-light`, `panel-home-dark` | Главная whole, in both schemes: the spans, the corner, whether two kinds of tile actually end on the same line |
-| `tiles-light`, `tiles-dark` | Every `TileHue` × `TileMood` pair, plus the group-failure outline. This is the ΔE table in `PanelTheme.kt` made visible |
+| `tiles-light`, `tiles-dark` | Every `TileHue` × `TileMood` pair, plus the group-failure outline. This is the ΔE table in `PanelTheme.kt` made visible — and, since the marks became a set, the one picture of every mark: each swatch carries a switch, thrown on the lit row *and* on the failing one, so a row of three that comes out one colour is Material's `primary` leaking back in |
 | `lights-group` | The `Never` bulb's own tile beside its room's group tile, closed and open — three cards at the quarter width, which is where a group tile that stopped agreeing with an ordinary one would show |
+| `device-sheet-light`, `device-sheet-dark` | One device sheet over the real Главная, in both schemes. The recuperator on purpose: it is the tile whose four separately-timestamped datapoints the wall prints one age for, so its sheet is the four rows and four ages that are the argument for a sheet existing. What the picture is for is the pair of things no assertion sees — that the tiles behind the scrim are still legible, and that the sheet is unmistakably in front of them |
 | `headings` | A plain heading, a marked one, and the longest room name in the flat at heading size |
 
 ```bash
@@ -1062,7 +1216,7 @@ source scripts/env.sh && ./gradlew recordRoborazziDebug
 `app/build/outputs/roborazzi/`. `record` rewrites the references — run it after a deliberate change,
 then **look at what it wrote**. A reference nobody opened is a test that asserts whatever the code
 did on the day, which is not the same as asserting the panel is right. A plain `./gradlew test` runs
-these six as ordinary tests and neither records nor compares, so the other 241 keep costing what
+these eight as ordinary tests and neither records nor compares, so the other 342 keep costing what
 they cost.
 
 The fixtures are in `app/src/test/kotlin/ru/domovoy/panel/Flat.kt`: one flat's worth of tiles with a
@@ -1117,9 +1271,24 @@ out wrong. None of them can be settled from a screenshot.
 - **Is 280 dp a tile that reads better or one that reads tighter?** The card lost the 48 dp of
   unfilled status reserve at its foot, so the wall shows about a row and a half more. If it comes
   out cramped, the space to give back is padding at the foot of the card, not the reserve.
-- **Does a 20 dp on mark carry at four metres?** It is beside a switch that says the same thing on
-  five kinds and beside nothing at all on the curtain, the lights group and the launcher. If it does
-  not carry, it grows before it changes shape.
+- **Does a 20 dp on mark carry at four metres?** It is beside a switch that now says the same thing
+  in the same colour on five kinds, and beside nothing at all on the curtain, the lights group and
+  the launcher. **Those three are the ones to look at**: they have no switch, so the dot is the only
+  mark they wear until the art can light up. If it does not carry, it grows before it changes shape.
+- **Does a struck-through wifi glyph read as "not installed"?** It is a tile's own failure, and on
+  Пылесос that failure is a missing app rather than a network. "The panel cannot get to this device"
+  covers both and the second line says which — but a wifi symbol on an app that was uninstalled may
+  be the panel naming the wrong cause. If it reads wrong on the wall, the mark takes a second glyph
+  keyed on the reason rather than on the mood.
+- **Are two red marks one too many on a failing tile?** The chip and the wifi glyph say the same bad
+  news twice, on the same argument as the marks that say "on" twice. The chip is the one to drop if
+  the pair reads as noise: the glyph is the reference's own mark and the one that says *what* is
+  wrong.
+- **The unreachable mark is not in the corner on the narrowest tiles.** Every tile reserves a 64 dp
+  touch box for a switch whether it has one or not, so on a 188 dp tile the mark sits inboard of it —
+  on Пылесос, which has no switch at all, it comes out beside the art rather than opposite it. The
+  fix, if it matters, is the launcher giving up its reserved control box, which costs the one
+  anatomy.
 - **Does the Tabler bulb look foreign beside seven Material Symbols?** If it does, move the other
   seven to Tabler rather than the bulb back to Material.
 - ~~**Can a finger find an _unlit_ lamp?**~~ **Dissolved by the group tile, not answered.** The
@@ -1163,6 +1332,19 @@ out wrong. None of them can be settled from a screenshot.
   mockups decides; see "The size, and the family question that is still open".
 - **Whether 48 dp is the right glyph size**, which only the hallway can say. It is reasoned from the
   size the disc's lamp was already defended at, not measured at four metres.
+- **The device sheet has never been opened on the wall.** Two numbers in it are guesses and are one
+  constant each: `SCRIM_ALPHA` at 0.6, which is meant to leave the tiles behind it legible while
+  putting the sheet unmistakably in front, and `LABEL_WIDTH` at 220 dp, which lines the values up
+  and holds the longest label the flat produces (`temperature`). Both look right in the two recorded
+  captures and neither has been seen from four metres, or behind the blue light filter — which is
+  exactly what erodes a low-contrast neutral. The sheet is also anchored to the bottom of a
+  head-height panel, which is the half of the screen a hand reaches most easily and the half the
+  eye finds last; nobody has stood in front of it to say whether that is right.
+- **Whether the recuperator's sheet should carry a power switch at all.** It does, on the grounds
+  that the tile's switch already sends the same Tuya command and a second surface is not a second
+  cost per tap. But Tuya is metered by the month and the command path is unverified (docs/tuya.md),
+  so this is the one row of `sheetActions` that is a judgement rather than a verified capability. If
+  the allowance turns out tight, it is the first thing to drop.
 - The tablet is locked with a PIN and locks itself on screen-off. Nothing in the panel handles that
   — the wall goes to a lock screen rather than to the panel, and the Domonap takeover's behaviour
   over a locked screen is unverified. See `docs/domonap.md`.

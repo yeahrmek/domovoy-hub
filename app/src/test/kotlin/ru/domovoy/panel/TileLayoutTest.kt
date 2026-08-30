@@ -302,13 +302,50 @@ class TileLayoutTest {
 
     @Test
     fun `the marks are the on indicator and the failure, and nothing else is marked`() {
-        // The whole colour budget of a tile, after the fields went neutral: a small saturated mark
-        // for a device that is on, a filled one for a device whose own poll failed, and nothing at
-        // all for the two states where the panel has no news.
-        assertEquals(TileMark.Family, mark(TileMood.On))
-        assertEquals(TileMark.Failure, mark(TileMood.Failing))
-        assertEquals(TileMark.None, mark(TileMood.Off))
-        assertEquals(TileMark.None, mark(TileMood.Unknown))
+        // The whole colour budget of a tile, after the fields went neutral: small saturated marks
+        // for a device that is on, for a device whose own poll failed, and nothing at all for the
+        // two states where the panel has no news.
+        //
+        // **A set rather than one mark**, which is the change: a state is allowed more than one way
+        // of saying itself, and on this wall it needs one. The reference says "on" three times over
+        // — a dot, an accented power button, and the art lighting up — because a single mark
+        // carrying a single state is a mark that can be lost behind a blue light filter.
+        assertEquals(setOf(TileMark.Family, TileMark.Power), marks(TileMood.On))
+        assertEquals(setOf(TileMark.Failure, TileMark.Offline), marks(TileMood.Failing))
+        assertEquals(emptySet(), marks(TileMood.Off))
+        assertEquals(emptySet(), marks(TileMood.Unknown))
+    }
+
+    @Test
+    fun `on and unreachable share no mark`() {
+        // The two moods that mark at all, and they must not have a mark in common: a wall where one
+        // symbol means either "this is on" or "this cannot be reached" is a wall that has to be
+        // walked up to before it can be read, which is the one thing a panel is for.
+        assertEquals(emptySet(), marks(TileMood.On) intersect marks(TileMood.Failing))
+    }
+
+    @Test
+    fun `only a tile the panel is asserting is on gets an accented power control`() {
+        // The second of the three on-marks — the switch takes the tile's family accent, and is
+        // neutral grey in every other mood. **Including a failing tile whose device last reported
+        // on**: the switch is drawn checked there, because that is the last thing known, and it is
+        // grey all the same. A coloured switch on a tile nobody can reach is the panel asserting a
+        // state it has not confirmed, which is the refusal `mood` already makes for the surface.
+        assertEquals(listOf(TileMood.On), TileMood.entries.filter { TileMark.Power in marks(it) })
+    }
+
+    @Test
+    fun `the unreachable mark is a tile's own failure and never its group's`() {
+        // One Yandex call feeds 34 of the 35 tiles, so a mark keyed on the group's error would put
+        // a red wifi glyph on nearly every tile in the flat at once — the wall going red, which is
+        // exactly what the outline exists to avoid (`docs/design/panel-redesign.md` item 4). The
+        // marks read the mood and the mood is this tile's own bad news; `groupFailing` is separate
+        // and stays that way.
+        val ownFailure = paint(recuperator(temperature = null, humidity = null, isOn = true, error = "timed out"), null)
+        val groupFailure = paint(recuperator(temperature = 26.4, humidity = 41.0), "HTTP 500")
+
+        assertTrue(TileMark.Offline in marks(ownFailure.mood))
+        assertTrue(TileMark.Offline !in marks(groupFailure.mood))
     }
 
     // --- The two kinds of bad news ------------------------------------------------------------
@@ -667,6 +704,96 @@ class TileLayoutTest {
     }
 
     @Test
+    fun `which button a tile carries at its top right is its type's, and most types carry none`() {
+        // The reference app puts one or two small round buttons on every tile and picks them by
+        // device type — power and fan mode, power and reset, power and an overflow. The switch is
+        // the power half of that and is not repeated as a button; what is asserted here is the
+        // *other* one, and on this wall there is far less of it than in the reference. A second
+        // action is a vendor write, and the writes those buttons stand for are endpoints nobody
+        // here has ever sent: see [TileAction] for which, and why each is refused rather than
+        // invented.
+        assertNull(action(ac(isOn = true)))
+        assertNull(action(strip(isOn = true)))
+        assertNull(action(bulb(isOn = true)))
+        assertNull(action(recuperator(temperature = 29.3, humidity = 32.2)))
+        assertNull(action(lamps(on = 5, off = 2)))
+        // The launcher's is a rule and not an absence: it opens somebody else's app and has no
+        // state to act on, so it gets no button however installed it is.
+        assertNull(action(launcher(openable = true)))
+        assertNull(action(launcher(openable = false)))
+        // The one kind that has a button: the curtain, whose ends of travel are the same verified
+        // `range` action its slider already sends.
+        assertEquals(TileAction.Close, action(curtain(openPercent = 40.0)))
+    }
+
+    @Test
+    fun `a curtain offers the end of travel it is not already at`() {
+        // A button whose press changes nothing is a dead tap, which is the thing the launcher tile
+        // exists not to be. A shut curtain can only be opened; anything else can be shut.
+        assertEquals(TileAction.Open, action(curtain(openPercent = 0.0)))
+        assertEquals(TileAction.Close, action(curtain(openPercent = 1.0)))
+        assertEquals(TileAction.Close, action(curtain(openPercent = 40.0)))
+        assertEquals(TileAction.Close, action(curtain(openPercent = 100.0)))
+        // A position nobody has read takes the branch every other rule on this tile takes for it:
+        // [curtainGlyph] draws a null position open, so the button offered is the one that shuts
+        // it. It is an action and not a claim — nothing the tile prints says the curtain is open.
+        assertEquals(TileAction.Close, action(curtain(openPercent = null)))
+    }
+
+    @Test
+    fun `a curtain whose vendor never sent bounds gets no button`() {
+        // The same refusal the slider makes, in the same place: with no reported range there is no
+        // "fully open" to drive to, and a button that picks one is the panel inventing a position.
+        assertNull(action(curtain(openPercent = 40.0, bounds = null)))
+        assertNull(action(curtain(openPercent = 0.0, bounds = null)))
+    }
+
+    @Test
+    fun `the button drives to the end of the range the vendor reported, not to 0 and 100`() {
+        val curtain = curtain(openPercent = 40.0)
+        assertEquals(0.0, actionTarget(curtain, TileAction.Close))
+        assertEquals(100.0, actionTarget(curtain, TileAction.Open))
+        // A curtain that reported a narrower range is driven to *its* ends. 0 and 100 are this
+        // flat's numbers and not the panel's, and the action Yandex rejects reaches the wall as
+        // "not updating" for a reason that was ours.
+        val narrow = curtain(openPercent = 40.0, bounds = Bounds(min = 10.0, max = 90.0, precision = 1.0))
+        assertEquals(10.0, actionTarget(narrow, TileAction.Close))
+        assertEquals(90.0, actionTarget(narrow, TileAction.Open))
+        assertNull(actionTarget(curtain(openPercent = 40.0, bounds = null), TileAction.Close))
+    }
+
+    @Test
+    fun `nothing drawn at a quarter width carries a button, because there is nowhere to put one`() {
+        // **The button set is bounded by width and not only by what the vendors accept.** A quarter
+        // tile is 188 dp, 156 of it content, and the art and the switch's reserved touch box take
+        // 112 of that — one more 64 dp target, which is this panel's floor for anything a finger
+        // lands on, does not fit. So a kind that can be drawn narrow cannot carry one, the
+        // recuperator with nothing beyond its speeds to report included.
+        val narrow = recuperator(temperature = null, humidity = null)
+        assertEquals(NARROW_SPAN, span(narrow))
+        assertNull(action(narrow))
+        assertNull(action(bulb(isOn = true)))
+        assertNull(action(launcher(openable = true)))
+        assertNull(action(lamps(on = 5, off = 2)))
+    }
+
+    @Test
+    fun `a button is drawn as the state it produces`() {
+        // The two shades glyphs the curtain's art already uses, so the button says where it would
+        // send the curtain in the same picture the tile says where the curtain is.
+        assertEquals(R.drawable.ic_vertical_shades, glyph(TileAction.Open))
+        assertEquals(R.drawable.ic_vertical_shades_closed, glyph(TileAction.Close))
+    }
+
+    @Test
+    fun `a tile keeps its button while its poll is failing`() {
+        // Same split as [controls] and [hue]: the call behind a tile failing is not the vendor
+        // withdrawing the range, so the one-tap action stays where the finger expects to find it.
+        assertEquals(TileAction.Close, anatomy(curtain(openPercent = 40.0), now, "timed out").action)
+        assertEquals(TileAction.Open, anatomy(curtain(openPercent = 0.0), now, "timed out").action)
+    }
+
+    @Test
     fun `the anatomy says exactly what the tile's own functions say`() {
         // It composes them rather than re-deriving them, so a tile cannot print one string at the
         // top of the card and a differently-rounded one underneath.
@@ -674,6 +801,9 @@ class TileLayoutTest {
         assertEquals(statusLine(ac, now), anatomy(ac, now, "timed out").status)
         assertEquals(promoted(ac), anatomy(ac, now, error = null).promoted)
         assertEquals(glyph(ac), anatomy(ac, now, error = null).art)
+        assertEquals(action(ac), anatomy(ac, now, error = null).action)
+        val curtain = curtain(openPercent = 40.0)
+        assertEquals(action(curtain), anatomy(curtain, now, error = null).action)
         val recuperator = recuperator(temperature = 29.3, humidity = 32.2)
         assertEquals(climateLine(recuperator), anatomy(recuperator, now, groupError = null).detail)
         val launcher = launcher(openable = false)
