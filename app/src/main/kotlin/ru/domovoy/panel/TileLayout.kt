@@ -181,34 +181,66 @@ internal fun surface(mood: TileMood): TileSurface = when (mood) {
     TileMood.Unknown -> TileSurface.Lowest
 }
 
-/** The small saturated thing a tile is allowed to draw, now that its surface is neutral. */
+/**
+ * **The small saturated things a tile is allowed to draw**, now that its surface is neutral — the
+ * whole state vocabulary of the wall, and there is nothing else.
+ *
+ * It was one mark per mood and it is a set per mood, which is the change: **a state is allowed more
+ * than one way of saying itself.** The reference app says "on" three times over — a dot at the
+ * corner of the art, a power button in the accent colour, and the art itself lighting up — and that
+ * redundancy is deliberate rather than sloppy. This wall is read behind Samsung's blue light filter,
+ * which erodes a saturated colour against a neutral (the reason a room heading's mark is a `•` as
+ * well as a colour), so a mark carrying a state on its own is a state that can be lost.
+ */
 internal enum class TileMark {
-    /** Nothing. An off tile and an unread one have no news, and the reference app marks neither. */
-    None,
-
-    /** **On**: a filled dot in the tile's family accent — see [TileHue]. */
+    /** **On**: a filled dot in the tile's family accent, beside the art — see [TileHue]. */
     Family,
+
+    /**
+     * **On, again**: the tile's power control takes the family accent instead of neutral grey.
+     *
+     * It is the same fact as [Family] said in the place a finger is already going, and it costs
+     * nothing that was not already drawn — the switch is on every tile that has a power state.
+     */
+    Power,
 
     /** **This device's own poll failed**: the glyph on a filled error chip. */
     Failure,
+
+    /**
+     * **The same, said as what it is**: a small struck-through wifi glyph in the error colour, at
+     * the right of the tile's top line.
+     *
+     * [Failure] says *which* tile has bad news by taking over its art; this says *what* the bad news
+     * is — the panel cannot get to this device. It is the reference's one offline mark and the only
+     * glyph on the wall that is not a device.
+     *
+     * **A tile's own failure only.** A group's failure is an outline and stays one: one
+     * `/v1.0/user/info` feeds 34 of the 35 tiles here, so a mark keyed on the group would draw this
+     * glyph on nearly every tile in the flat at once — see [TilePaint].
+     */
+    Offline,
 }
 
 /**
- * The mark one tile wears, from its mood.
+ * The marks one tile wears, from its mood.
  *
  * This is where the colour budget went. A filled card said "on" with the whole surface and said
- * "failing" with the loudest thing available; a 20 dp dot and a 48 dp chip say the same two things
- * and cost an eighth of the tile between them.
+ * "failing" with the loudest thing available; a 20 dp dot, an accented switch, a 48 dp chip and a
+ * 28 dp glyph say both things between them and cost an eighth of the tile.
  *
- * The mark is deliberately *not* the only place either state is said: the switch and the status
- * line say on and off too, and [TileSurface] moves under both. Samsung's blue light filter erodes a
- * saturated colour against a neutral on this tablet — the reason the heading's mark is a `•` as well
- * as a colour — so a mark that were the only signal would be a signal this wall cannot always carry.
+ * **The third of the reference's three on-marks is missing and is not forgotten: the art itself
+ * lighting up.** That one needs a lit and an unlit image per device kind — photographs of the actual
+ * hardware — and no agent can produce them. It is its own task, blocked on those assets, and this
+ * enum is where its mark goes when they exist.
+ *
+ * The marks are deliberately *not* the only place either state is said: the status line says on, off
+ * and why in words, and [TileSurface] moves under both.
  */
-internal fun mark(mood: TileMood): TileMark = when (mood) {
-    TileMood.On -> TileMark.Family
-    TileMood.Failing -> TileMark.Failure
-    TileMood.Off, TileMood.Unknown -> TileMark.None
+internal fun marks(mood: TileMood): Set<TileMark> = when (mood) {
+    TileMood.On -> setOf(TileMark.Family, TileMark.Power)
+    TileMood.Failing -> setOf(TileMark.Failure, TileMark.Offline)
+    TileMood.Off, TileMood.Unknown -> emptySet()
 }
 
 /**

@@ -23,13 +23,21 @@ fun BulbTile(
     error: String? = null,
     onToggle: (String) -> Unit = {},
 ) {
+    // The paint is worked out once and read twice: the card takes it, and so does the switch, whose
+    // colour is the tile's second on-mark. Passing the tile's own `isOn` to the switch and its mood
+    // to the card would be two answers to one question — see [tileSwitchColors].
+    val paint = paint(tile, error)
     TileCard(
         anatomy = anatomy(tile, now, error),
         hue = hue(tile),
-        paint = paint(tile, error),
+        paint = paint,
         modifier = modifier,
         toggle = {
-            Switch(checked = tile.isOn == true, onCheckedChange = { onToggle(tile.id) })
+            Switch(
+                checked = tile.isOn == true,
+                onCheckedChange = { onToggle(tile.id) },
+                colors = tileSwitchColors(hue(tile), paint.mood),
+            )
         },
     )
 }

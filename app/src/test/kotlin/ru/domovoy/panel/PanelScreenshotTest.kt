@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.junit4.v2.createComposeRule
@@ -219,6 +220,21 @@ class PanelScreenshotTest {
                             hue = hue,
                             paint = TilePaint(mood, groupFailing = false),
                             modifier = Modifier.weight(1f),
+                            // **The switch is here because it is a mark now.** It takes the family
+                            // accent when the tile is on and neutral grey otherwise, so a row of
+                            // three that is one colour in this picture is Material's `primary`
+                            // leaking back in — a lamp with a blue switch on it.
+                            //
+                            // Checked on the failing row as well as the lit one, and that pair is
+                            // the picture: a device that last reported on keeps its switch thrown,
+                            // and it is grey there because nobody can confirm it any more.
+                            toggle = {
+                                Switch(
+                                    checked = mood == TileMood.On || mood == TileMood.Failing,
+                                    onCheckedChange = {},
+                                    colors = tileSwitchColors(hue, mood),
+                                )
+                            },
                         )
                     }
                 }
@@ -234,6 +250,15 @@ class PanelScreenshotTest {
                     hue = TileHue.Climate,
                     paint = TilePaint(TileMood.On, groupFailing = true),
                     modifier = Modifier.weight(1f),
+                    // The same switch the `On · Climate` cell above has, so that "differs by a red
+                    // line and by nothing else" is still what the pair shows.
+                    toggle = {
+                        Switch(
+                            checked = true,
+                            onCheckedChange = {},
+                            colors = tileSwitchColors(TileHue.Climate, TileMood.On),
+                        )
+                    },
                 )
                 // The row's other two thirds, left empty: the outline is one case and not three,
                 // and a second card here would be a pair that does not exist.
@@ -250,7 +275,7 @@ class PanelScreenshotTest {
      */
     private fun swatch(name: String) = TileAnatomy(
         art = R.drawable.ic_bulb,
-        controls = TileControls.None,
+        controls = TileControls.Toggle,
         name = name,
         promoted = "22 °C",
         status = "on · 2 h ago",

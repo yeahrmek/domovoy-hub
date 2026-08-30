@@ -27,15 +27,21 @@ fun AcTile(
     // The words, the art and which controls this tile offers, all from one pure function — see
     // [TileAnatomy]. What is left here is the two things a data class cannot hold: the switch and
     // the slider, which carry callbacks and a drag of their own.
+    // [error] is the *group's* — one Yandex call feeds every ac in the flat — so it outlines this
+    // tile rather than filling it. See [TilePaint]. Worked out once and read twice: the card takes
+    // it, and so does the switch, whose colour is the tile's second on-mark.
+    val paint = paint(tile, error)
     TileCard(
         anatomy = anatomy(tile, now, error),
         hue = hue(tile),
-        // [error] is the *group's* — one Yandex call feeds every ac in the flat — so it outlines
-        // this tile rather than filling it. See [TilePaint].
-        paint = paint(tile, error),
+        paint = paint,
         modifier = modifier,
         toggle = {
-            Switch(checked = tile.isOn == true, onCheckedChange = { onToggle(tile.id) })
+            Switch(
+                checked = tile.isOn == true,
+                onCheckedChange = { onToggle(tile.id) },
+                colors = tileSwitchColors(hue(tile), paint.mood),
+            )
         },
         level = {
             val bounds = tile.bounds

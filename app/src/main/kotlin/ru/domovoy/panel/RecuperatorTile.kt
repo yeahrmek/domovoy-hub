@@ -33,13 +33,22 @@ fun RecuperatorTile(
 ) {
     // The card no longer needs the span — one radius, one anatomy, one height — and the grid still
     // asks [span] for the width, which is the one width in the panel decided by content.
+    // Worked out once and read twice: the card takes it, and so does the switch. **This is the tile
+    // that made the switch read the mood rather than `isOn`** — a recuperator that timed out keeps
+    // whatever it last reported on its switch, and the switch goes grey because the panel has
+    // stopped being able to confirm it. See [tileSwitchColors].
+    val paint = paint(tile, groupError)
     TileCard(
         anatomy = anatomy(tile, now, groupError),
         hue = hue(tile),
-        paint = paint(tile, groupError),
+        paint = paint,
         modifier = modifier,
         toggle = {
-            Switch(checked = tile.isOn == true, onCheckedChange = { onToggle(tile.id) })
+            Switch(
+                checked = tile.isOn == true,
+                onCheckedChange = { onToggle(tile.id) },
+                colors = tileSwitchColors(hue(tile), paint.mood),
+            )
         },
     )
 }

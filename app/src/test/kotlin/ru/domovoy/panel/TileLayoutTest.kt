@@ -302,13 +302,50 @@ class TileLayoutTest {
 
     @Test
     fun `the marks are the on indicator and the failure, and nothing else is marked`() {
-        // The whole colour budget of a tile, after the fields went neutral: a small saturated mark
-        // for a device that is on, a filled one for a device whose own poll failed, and nothing at
-        // all for the two states where the panel has no news.
-        assertEquals(TileMark.Family, mark(TileMood.On))
-        assertEquals(TileMark.Failure, mark(TileMood.Failing))
-        assertEquals(TileMark.None, mark(TileMood.Off))
-        assertEquals(TileMark.None, mark(TileMood.Unknown))
+        // The whole colour budget of a tile, after the fields went neutral: small saturated marks
+        // for a device that is on, for a device whose own poll failed, and nothing at all for the
+        // two states where the panel has no news.
+        //
+        // **A set rather than one mark**, which is the change: a state is allowed more than one way
+        // of saying itself, and on this wall it needs one. The reference says "on" three times over
+        // — a dot, an accented power button, and the art lighting up — because a single mark
+        // carrying a single state is a mark that can be lost behind a blue light filter.
+        assertEquals(setOf(TileMark.Family, TileMark.Power), marks(TileMood.On))
+        assertEquals(setOf(TileMark.Failure, TileMark.Offline), marks(TileMood.Failing))
+        assertEquals(emptySet(), marks(TileMood.Off))
+        assertEquals(emptySet(), marks(TileMood.Unknown))
+    }
+
+    @Test
+    fun `on and unreachable share no mark`() {
+        // The two moods that mark at all, and they must not have a mark in common: a wall where one
+        // symbol means either "this is on" or "this cannot be reached" is a wall that has to be
+        // walked up to before it can be read, which is the one thing a panel is for.
+        assertEquals(emptySet(), marks(TileMood.On) intersect marks(TileMood.Failing))
+    }
+
+    @Test
+    fun `only a tile the panel is asserting is on gets an accented power control`() {
+        // The second of the three on-marks — the switch takes the tile's family accent, and is
+        // neutral grey in every other mood. **Including a failing tile whose device last reported
+        // on**: the switch is drawn checked there, because that is the last thing known, and it is
+        // grey all the same. A coloured switch on a tile nobody can reach is the panel asserting a
+        // state it has not confirmed, which is the refusal `mood` already makes for the surface.
+        assertEquals(listOf(TileMood.On), TileMood.entries.filter { TileMark.Power in marks(it) })
+    }
+
+    @Test
+    fun `the unreachable mark is a tile's own failure and never its group's`() {
+        // One Yandex call feeds 34 of the 35 tiles, so a mark keyed on the group's error would put
+        // a red wifi glyph on nearly every tile in the flat at once — the wall going red, which is
+        // exactly what the outline exists to avoid (`docs/design/panel-redesign.md` item 4). The
+        // marks read the mood and the mood is this tile's own bad news; `groupFailing` is separate
+        // and stays that way.
+        val ownFailure = paint(recuperator(temperature = null, humidity = null, isOn = true, error = "timed out"), null)
+        val groupFailure = paint(recuperator(temperature = 26.4, humidity = 41.0), "HTTP 500")
+
+        assertTrue(TileMark.Offline in marks(ownFailure.mood))
+        assertTrue(TileMark.Offline !in marks(groupFailure.mood))
     }
 
     // --- The two kinds of bad news ------------------------------------------------------------

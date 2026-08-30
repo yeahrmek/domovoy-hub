@@ -532,10 +532,34 @@ This is a pure function of the room sections. It gets a test.
   - **State picks the step of the neutral ramp** the card sits on, through `surface`: `On`
     `surfaceContainerHighest`, `Failing` `High`, `Off` `surfaceContainer`, `Unknown` `Lowest`. One
     content colour, `onSurface`, on all four — they are all neutral surfaces now.
-  - **The mark is the third thing**, and it is where the colour budget went: a 20 dp dot in the
-    family accent when the device is on, the glyph on a filled `error` chip when this device's own
-    poll failed, and nothing at all otherwise. `mark` in `TileLayout.kt`.
-- `hue(...)` is the domain half and lives in `TileLayout.kt` beside `mood`, `surface`, `mark`,
+  - **The marks are the third thing**, and they are where the colour budget went. `marks` in
+    `TileLayout.kt`, and it answers with a **set** rather than with one mark, because a state is
+    allowed more than one way of saying itself:
+
+    | State | Marks |
+    | --- | --- |
+    | on | a 20 dp dot in the family accent, beside the art |
+    | on | the switch's track in the family accent — neutral grey in every other mood |
+    | on | *the art itself lighting up — not built; it needs a lit and an unlit image per kind* |
+    | this device's own poll failed | the glyph on a filled `error` chip |
+    | this device's own poll failed | a 28 dp struck-through wifi glyph in `error`, right of the art line |
+    | off, or never read | nothing at all |
+
+    **The redundancy is the point and is copied deliberately.** The reference says "on" three times
+    on one tile, and this wall is read behind a blue light filter that erodes a saturated colour
+    against a neutral — the same thing that made a room heading's mark a `•` *and* a colour. A mark
+    carrying a state on its own is a state that can be lost.
+
+    **The switch reads the mood and not its own `checked`.** A failing tile whose device last
+    reported on is still drawn thrown — that is the last thing known — and its track is grey, because
+    a coloured switch there is the panel asserting something it can no longer confirm. It is also why
+    the switch stopped being Material's default: `primary` means *climate* on this wall, so the
+    default put a blue switch on an amber lamp, next to a glyph, a value and a dot that all said
+    light.
+
+    **The wifi glyph is a tile's own failure only.** Keyed on the group's it would draw on 34 of the
+    35 tiles at once, which is the wall going red — the thing the outline exists to avoid.
+- `hue(...)` is the domain half and lives in `TileLayout.kt` beside `mood`, `surface`, `marks`,
   `paint` and `span` — a pure function per tile type, out where a test reaches it. The composable
   maps them to roles and does no thinking of its own.
 - **No hex literals in the panel package.** A hardcoded colour is a tile that is unreadable in one of
@@ -693,6 +717,12 @@ whole of what it added outside `panel/`. It added nine; `ic_bulb_filled.xml` wen
 | Bulb | Tabler `bulb`, outlined — **not Material Symbols** | `ic_bulb.xml` | `lightbulb`, `wb_incandescent`, `tips_and_updates`, `emoji_objects`, `flare`, `lightbulb_circle` |
 | Домофон | `video_camera_front` | `ic_video_camera_front.xml` | `doorbell`, `ring_volume` |
 | Пылесос | `vacuum` | `ic_vacuum.xml` | `robot_2`, `smart_toy`, `cleaning_services` |
+| *Not a tile* — the unreachable mark | `wifi_off` | `ic_wifi_off.xml` | `signal_wifi_off`, `cloud_off`, `sync_problem`, `link_off` |
+
+**The eighth is the only glyph here that is not a device**, and it is drawn at 28 dp rather than 48:
+it is a note in the corner about a tile, not the tile's identity. `wifi_off` ships with the strike
+already in the path, which is what it was chosen for — a bar composited over a wifi symbol is a bar
+that lands differently at every size, and the strike is the whole of what the mark means.
 
 **The bulb comes from Tabler and the other seven from Material Symbols, and that mix is a
 decision rather than an accident.** Six Material bulbs were rendered and none was the one wanted:
@@ -1046,7 +1076,7 @@ are not a picture of the wall; the two Главная captures are, and those ke
 | Image | What it is for |
 | --- | --- |
 | `panel-home-light`, `panel-home-dark` | Главная whole, in both schemes: the spans, the corner, whether two kinds of tile actually end on the same line |
-| `tiles-light`, `tiles-dark` | Every `TileHue` × `TileMood` pair, plus the group-failure outline. This is the ΔE table in `PanelTheme.kt` made visible |
+| `tiles-light`, `tiles-dark` | Every `TileHue` × `TileMood` pair, plus the group-failure outline. This is the ΔE table in `PanelTheme.kt` made visible — and, since the marks became a set, the one picture of every mark: each swatch carries a switch, thrown on the lit row *and* on the failing one, so a row of three that comes out one colour is Material's `primary` leaking back in |
 | `lights-group` | The `Never` bulb's own tile beside its room's group tile, closed and open — three cards at the quarter width, which is where a group tile that stopped agreeing with an ordinary one would show |
 | `headings` | A plain heading, a marked one, and the longest room name in the flat at heading size |
 
@@ -1117,9 +1147,24 @@ out wrong. None of them can be settled from a screenshot.
 - **Is 280 dp a tile that reads better or one that reads tighter?** The card lost the 48 dp of
   unfilled status reserve at its foot, so the wall shows about a row and a half more. If it comes
   out cramped, the space to give back is padding at the foot of the card, not the reserve.
-- **Does a 20 dp on mark carry at four metres?** It is beside a switch that says the same thing on
-  five kinds and beside nothing at all on the curtain, the lights group and the launcher. If it does
-  not carry, it grows before it changes shape.
+- **Does a 20 dp on mark carry at four metres?** It is beside a switch that now says the same thing
+  in the same colour on five kinds, and beside nothing at all on the curtain, the lights group and
+  the launcher. **Those three are the ones to look at**: they have no switch, so the dot is the only
+  mark they wear until the art can light up. If it does not carry, it grows before it changes shape.
+- **Does a struck-through wifi glyph read as "not installed"?** It is a tile's own failure, and on
+  Пылесос that failure is a missing app rather than a network. "The panel cannot get to this device"
+  covers both and the second line says which — but a wifi symbol on an app that was uninstalled may
+  be the panel naming the wrong cause. If it reads wrong on the wall, the mark takes a second glyph
+  keyed on the reason rather than on the mood.
+- **Are two red marks one too many on a failing tile?** The chip and the wifi glyph say the same bad
+  news twice, on the same argument as the marks that say "on" twice. The chip is the one to drop if
+  the pair reads as noise: the glyph is the reference's own mark and the one that says *what* is
+  wrong.
+- **The unreachable mark is not in the corner on the narrowest tiles.** Every tile reserves a 64 dp
+  touch box for a switch whether it has one or not, so on a 188 dp tile the mark sits inboard of it —
+  on Пылесос, which has no switch at all, it comes out beside the art rather than opposite it. The
+  fix, if it matters, is the launcher giving up its reserved control box, which costs the one
+  anatomy.
 - **Does the Tabler bulb look foreign beside seven Material Symbols?** If it does, move the other
   seven to Tabler rather than the bulb back to Material.
 - ~~**Can a finger find an _unlit_ lamp?**~~ **Dissolved by the group tile, not answered.** The
