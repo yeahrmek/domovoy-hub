@@ -31,7 +31,7 @@ first and extend it rather than replacing it.
 
 ---
 
-## N2 · Per-device-type controls on the tile
+## N2 · Per-device-type controls on the tile — **done 2026-08-30**
 
 Every tile in the reference carries one or two small round buttons at its top-right, and **which
 buttons depends on the device type**:
@@ -45,8 +45,10 @@ buttons depends on the device type**:
 They are secondary and quiet: circular, neutral, roughly a third the width of the art. The primary
 identity of the tile is still the art and the name.
 
-This wall currently has one control per tile — a `Switch` — plus a slider on three kinds. The switch
-is fine; what is missing is the *second* action, and the fact that it should differ per kind.
+Implemented with the reference's round power button: a 44 dp visible disc inside the panel's 64 dp
+touch target, accented only while a current reading says the device is on. Existing range sliders
+remain. The curtain keeps the one verified secondary action; unverified per-kind writes remain
+absent under the constraints below.
 
 **Constraints that decide the button set:**
 
@@ -104,33 +106,31 @@ lock's empty action set as an explicit case rather than an omission.
 
 ---
 
-## N4 · Realistic device art — **blocked on assets**
+## N4 · Realistic device art — **done 2026-08-30**
 
-Chosen: photo-like images, not glyphs. `PLAN.md` D4 lists three options; this settles it on the
-first, and **removes the null option** — keeping the glyphs is no longer acceptable.
+Chosen and implemented: photo-like images, not glyphs. The normalized transparent PNGs live in
+`app/src/main/res/drawable-nodpi/`, render untinted at 80 dp on tiles and sheets, and are selected
+by the pure `art(...)` functions in `TileLayout.kt`.
 
-**An agent cannot produce these.** There is no image generation in this toolchain, and inventing
-them is not on the table. The task is blocked until the files exist, so whoever picks it up should
-report the list and stop rather than substituting glyphs.
-
-What is needed, one image per device kind, light object on a transparent or neutral background:
+Included, one image per device kind, light object on a transparent background:
 
 - air conditioner
 - curtain / blind
 - bulb — **two states, lit and unlit** (see N1: the lit one glows warm, the unlit one is white)
-- LED strip
+- LED strip — **two matched states, lit and unlit**
 - recuperator / breather
 - door lock
 - vacuum
 - humidifier
 - intercom panel
 
-**Best source is your own hardware.** A phone, a neutral background, an hour. It is more honest than
-a stock render — the tile then shows the lamp that is actually in that room — and it sidesteps the
-licensing question entirely.
+The bulb and LED-strip pairs share the same object, framing and canvas between states; only the
+light changes. A positive `isOn == true` selects the glowing art. Off and unknown select the unlit
+art, while the tile's words and mood still distinguish those states.
 
-The bulb's two states are the load-bearing pair: N1's most legible on-indicator is the art lighting
-up, and it cannot be built from one image.
+The current panel uses the air conditioner, curtain, bulb, strip, recuperator, vacuum and intercom
+assets. Door-lock and humidifier art is already in resources for the tiles that will consume it;
+today the Xiaomi humidifier remains inside Xiaomi's hosted widget as required by N3.
 
 ---
 
