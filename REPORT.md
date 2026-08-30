@@ -87,6 +87,14 @@ BUILD SUCCESSFUL in 20s
 tests=315 failures=0 errors=0 skipped=0
 ```
 
+**None of this ran on hardware.** `test` is JUnit5 on the host JVM and Roborazzi renders Compose
+under Robolectric, also on the host; no APK was built during the run, nothing was installed, and
+`adb` was never invoked. There is also nothing to run on the tablet: `app/src/androidTest/` does not
+exist, so `connectedAndroidTest` is a no-op rather than a check. Device-side verification of this
+work is `installDebug` and then looking at the wall — which is why every judgement call below sits
+under *Wants a walk to the hallway* instead of being claimed as verified. The blue light filter and
+the 19:00–07:00 dark switch both make the glass differ from the capture.
+
 294 → 301 → 309 → 315. Across the whole run, **0 `@Test` lines removed and 21 added**; no `@Ignore`,
 no `@Disabled`, no `assumeTrue` anywhere in the diff. Several existing tests were re-pointed at
 changed behaviour — `a group whose poll failed is failing, however many of its lamps were lit`
