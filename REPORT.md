@@ -133,6 +133,36 @@ measured off the actual capture across all four column centres, not inferred fro
 A re-recorded reference is not evidence that a change is good, so the above is what the pictures
 show; the judgement calls in it are listed below as things to check on the glass.
 
+## On the wall
+
+Built, installed and launched on the tablet (`SM-T875`, Android 13) after the four commits above —
+`assembleDebug`, `installDebug`, `ru.domovoy/.MainActivity` focused, first frame drawn, and nothing
+from `describe()` in its logcat, so the polls landed. Captured at 08:14, which is the **light**
+scheme with the blue light filter on.
+
+- **D3 holds at the device's real font scale.** Nothing wraps: `off · 16 °C · 23 h ago`,
+  `2700 K · not controllable`, `off · no speed · 1 h ago` each sit on one line, and rows agree in
+  height across the grid.
+- **D1 holds.** No tile is a coloured field and the accents carry the family — blue `16 °C` and
+  `25.8 °C`, amber `26%` and `7 on`, amber on-marks.
+- **Under the filter the ramp separates less than the capture suggests.** The `Unknown` launcher
+  tiles read as lighter patches rather than as cards. The filter is out of scope by decision; this
+  is a note that the neutral ramp's margins are thinner behind it. Nobody has yet seen the dark
+  scheme on the glass — 08:14 is outside the 19:00–07:00 window.
+
+**And one thing no capture could have shown.** The wall prints `7 on · never read`,
+`3 on · never read` and `on · 26% · never read` — a live count and a "never read" on the same line.
+It is not a D2 regression and not a failed poll: the flat's real devices return `last_updated: 0.0`
+from Yandex, which maps to `Reading.Never`, which prints `never read`. Every recorded fixture carries
+a real timestamp, so the string cannot appear in any Roborazzi capture.
+
+The defect is the wording, and it lands on exactly the distinction *What must survive* protects —
+**when the device reported** against **when the panel last read it**. On the glass those have
+collapsed into a phrase that names the wrong party: the panel read the bulb a minute ago; Yandex
+merely never said when the bulb last changed. Under D2's own rule a fresh reading says nothing, so
+these lines should probably be silent rather than confessing to a failure that did not happen. Left
+untouched — it is outside D1–D3 and it is a wording decision, not a patch.
+
 ## Assumptions
 
 - **Two of the run's instructions named things that do not exist in this `PLAN.md`,** and I resolved
