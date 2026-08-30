@@ -481,8 +481,13 @@ which exists because a wall panel is not a phone:
    they ever had a tile. Those have no room to be marked in — a group with no tiles is in no room —
    so that line stays at the very top, above the Главная heading.
 5. **Без комнаты is a section like any other**, last: it holds the recuperators when `TUYA_ROOMS` is
-   unset and the vacuum's launcher tile, and a device falling off the wall because no vendor placed
-   it is the bug that section exists to prevent.
+   unset, and a device falling off the wall because no vendor placed it is the bug that section
+   exists to prevent.
+
+   **It no longer holds the vacuum's launcher tile.** "Пылесос" was roomless until 2026-08-30 and
+   rendered here, one scroll past all fourteen rooms; it is in the **Коридор** now, because that is
+   where the vacuum docks. The section is for tiles waiting on an answer, not for one that has been
+   given the answer "nowhere" — see docs/xiaomi.md.
 
    **A section with nothing in it gets no heading**, and that includes this one — which is a change
    from the strip, where Без комнаты was drawn empty or not. The strip's reason was that a tab that

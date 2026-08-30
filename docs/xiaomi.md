@@ -57,6 +57,9 @@ without one, and the tile would read "not installed" on a tablet that plainly ha
 opens the app · no state to read
 ```
 
+(The heading is **Коридор** as of 2026-08-30 — see "The room" below. The rest of this capture
+stands.)
+
 and tapping it brings `com.xiaomi.smarthome/.SmartHomeMainActivity` to the foreground — the same
 activity resolved above. The `<queries>` block is what makes that work, and the system confirms it:
 
@@ -72,10 +75,18 @@ queries via package name:                                    # dumpsys package q
 our device model, so there is nothing here that could go stale and nothing to say an age about. The
 line under the name says `opens the app · no state to read` rather than inventing a freshness.
 
-**The room: none.** The vacuum cleans every room and docks in one nobody has recorded, and the
-humidifier the same app holds is somewhere else again. The tile lands in the panel's "Без комнаты"
-section. That is an answer, not a gap — filling it in would mean picking a room the vacuum is not
-in.
+**The room: Коридор, since 2026-08-30.** The vacuum docks in the hallway, which is where it is
+fetched from and sent out from, and that is the room the tile is in.
+
+It was **none** until then, and the reasoning was not wrong: the vacuum cleans every room, so no
+single room owns it, and inventing one would have meant picking a room it is not in. What was
+missing was the dock — nobody had recorded it, so "no room" was the honest answer to a question
+nobody had answered. The cost showed on the wall: `roomSections` puts unplaced tiles last, so
+"Пылесос" rendered under "Без комнаты" one scroll past all fourteen rooms, and Главная was the only
+place it could be reached without scrolling the whole panel.
+
+**The humidifier is not covered by this.** It is somewhere else again, and Mi Home is one launcher
+tile named for the vacuum. A humidifier tile would get its own room, and it is not this one.
 
 ## Mi Home does ship widgets — five of them (2026-08-15)
 

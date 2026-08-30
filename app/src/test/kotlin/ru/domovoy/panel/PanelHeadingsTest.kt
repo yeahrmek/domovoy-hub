@@ -246,7 +246,10 @@ class PanelHeadingsTest {
             )
 
         assertFalse(headings.single { it.title == "Коридор" }.marked)
-        assertFalse(headings.single { it.title == "Без комнаты" }.marked)
+        // Both launchers are in the коридор, so that heading and Главная are the whole wall here —
+        // and nothing on it is marked. Stated over every heading rather than over a named one, so
+        // that where a launcher tile lives cannot quietly drop the assertion.
+        assertEquals(emptyList(), headings.filter { it.marked }.map { it.title })
     }
 
     @Test

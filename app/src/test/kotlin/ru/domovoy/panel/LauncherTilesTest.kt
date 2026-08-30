@@ -3,7 +3,6 @@ package ru.domovoy.panel
 import org.junit.jupiter.api.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
-import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
@@ -71,13 +70,14 @@ class LauncherTilesTest {
     }
 
     @Test
-    fun `the intercom is in the hallway the panel hangs in, and the vacuum's app in no room`() {
+    fun `both launcher tiles are in the hallway the panel hangs in`() {
         val tiles = launcherTiles(canOpen = { true }).associateBy { it.packageName }
 
         // The intercom is answered at the front door, which is the room the panel is in.
         assertEquals("Коридор", tiles.getValue("com.domonap.app").room)
-        // The vacuum cleans every room and is docked in none the panel knows about; no room is the
-        // honest answer, and it lands in the unplaced section rather than being invented one.
-        assertNull(tiles.getValue("com.xiaomi.smarthome").room)
+        // The vacuum docks in the коридор. It used to be roomless — an honest answer while nobody
+        // had recorded where it sits — and the tile then rendered under Без комнаты, one scroll past
+        // every room in the flat. Where it docks is where it is fetched from and sent out from.
+        assertEquals("Коридор", tiles.getValue("com.xiaomi.smarthome").room)
     }
 }

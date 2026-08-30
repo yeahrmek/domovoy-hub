@@ -39,10 +39,18 @@ data class LauncherTileState(
  *
  * - The intercom is answered at the front door, so its tile is in the **Коридор** — which is also
  *   the room the panel hangs in, and the first section on the wall.
- * - Mi Home gets **no room**, and that is an answer rather than a gap. The vacuum cleans every
- *   room in the flat and docks in one nobody has recorded; the humidifier the same app holds is
- *   somewhere else again. It lands in the panel's unplaced section, next to whatever the vendors
- *   failed to place — see [roomSections].
+ * - Mi Home is in the **Коридор** too, because that is where the vacuum docks. It used to be
+ *   roomless, and that was the honest answer while nobody had recorded where it sits: the vacuum
+ *   cleans every room, so no single room owns it. What settled it is the dock — a vacuum is fetched
+ *   from and sent out from one place, and that place is the hallway the panel hangs in.
+ *
+ *   The cost of the old answer was where the tile rendered: `roomSections` puts unplaced tiles last,
+ *   so "Пылесос" sat under **Без комнаты**, one scroll past all fourteen rooms, and Главная was the
+ *   only place it could be reached without scrolling the whole wall.
+ *
+ *   **The humidifier the same app holds is somewhere else again**, and this does not answer for it.
+ *   Mi Home is one launcher tile named for the vacuum; if the humidifier ever gets a tile of its
+ *   own it gets its own room, and that room is not this one — see docs/xiaomi.md.
  *
  * [canOpen] is the one thing that comes from the framework, passed in rather than reached for so
  * that nothing in `src/test/` needs a `PackageManager` to answer it. It is asked again on every
@@ -110,5 +118,5 @@ private class LauncherApp(
 private val CATALOGUE =
     listOf(
         LauncherApp(packageName = "com.domonap.app", name = "Домофон", room = "Коридор"),
-        LauncherApp(packageName = "com.xiaomi.smarthome", name = "Пылесос", room = null),
+        LauncherApp(packageName = "com.xiaomi.smarthome", name = "Пылесос", room = "Коридор"),
     )
