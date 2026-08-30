@@ -1,6 +1,5 @@
 package ru.domovoy.panel
 
-import androidx.compose.material3.Switch
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import java.time.Instant
@@ -12,7 +11,7 @@ import java.time.Instant
  *
  * Two kinds of bulb reach this composable, and they are the same tile: the one the panel has no
  * state for, which never joins its room's group, and the ones from inside a group that has been
- * opened. Both are a lamp with a name, a switch and an age, which is what a bulb is when there is
+ * opened. Both are a lamp with a name, a power button and an age, which is what a bulb is when there is
  * room to say so.
  */
 @Composable
@@ -25,9 +24,8 @@ fun BulbTile(
     onOpen: (() -> Unit)? = null,
     onToggle: (String) -> Unit = {},
 ) {
-    // The paint is worked out once and read twice: the card takes it, and so does the switch, whose
-    // colour is the tile's second on-mark. Passing the tile's own `isOn` to the switch and its mood
-    // to the card would be two answers to one question — see [tileSwitchColors].
+    // The paint is worked out once and read twice: the card takes it, and so does the power button,
+    // whose colour is the tile's second on-mark.
     val paint = paint(tile, error)
     TileCard(
         anatomy = anatomy(tile, now, error),
@@ -36,10 +34,11 @@ fun BulbTile(
         modifier = modifier,
         onClick = onOpen,
         toggle = {
-            Switch(
-                checked = tile.isOn == true,
-                onCheckedChange = { onToggle(tile.id) },
-                colors = tileSwitchColors(hue(tile), paint.mood),
+            TilePowerButton(
+                isOn = tile.isOn == true,
+                hue = hue(tile),
+                mood = paint.mood,
+                onToggle = { onToggle(tile.id) },
             )
         },
     )
@@ -58,7 +57,7 @@ fun BulbTile(
  *
  * **The other option was seven ordinary tiles, and the count is why it was not taken.** The flat has
  * 28 bulbs against 7 of everything else, and one Yandex call feeds all of them — so the moment that
- * call stops landing, [favourites] pulls all 28 onto Главная. At 280 dp each that is seven rows of
+ * call stops landing, [favourites] pulls all 28 onto Главная. At 296 dp each that is seven rows of
  * lamp before the wall says anything about the air conditioner, which is precisely the "fourteen
  * rows of lamps" the group was invented to prevent, four times taller. What the panel refuses to
  * hide behind a tap is a *reading* — see PLAN.md — and no reading is hidden here: how many lamps,

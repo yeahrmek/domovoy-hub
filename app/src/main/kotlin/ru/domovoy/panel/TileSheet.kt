@@ -58,7 +58,7 @@ enum class SheetAction(
      * this tablet on a real bulb and a real air conditioner; `switch` on Tuya, which the recuperator
      * tile has always driven.
      *
-     * It is the same switch the tile carries, drawn again at sheet size, and that repetition is
+     * It is the same round power button the tile carries, drawn again at sheet size, and that repetition is
      * deliberate: [TileAction] refuses a *second* power control on one card because a tile with two
      * things on it that both switch the device off is a tile nobody trusts, and a sheet is not that
      * card — it is a second surface, opened on purpose, with the tile behind a scrim.
@@ -114,7 +114,7 @@ internal fun sheetActions(subject: SheetSubject): Set<SheetAction> = when (subje
 /**
  * **Which kinds of tile a tap opens a sheet on — and which open none, which is a rule and not a gap.**
  *
- * Overloads per tile state for the reason [hue], [glyph] and [controls] have them: the tile states
+ * Overloads per tile state for the reason [hue], [art] and [controls] have them: the tile states
  * are unrelated data classes and there is no sealed type over them. The two that answer null are
  * written out rather than left absent, because "this tile has nothing behind it" is a claim this
  * file is making:
@@ -193,7 +193,7 @@ internal data class TileSheet(
     /** What the sheet offers a finger. Empty is an answer — see [sheetActions]. */
     val actions: Set<SheetAction>,
     /**
-     * Whether the device is on, for the power control. Null when it has never said — the switch is
+     * Whether the device is on, for the power control. Null when it has never said — the button is
      * drawn unchecked, on the tile's rule, and the reading above it says "unknown" rather than
      * "off".
      */
@@ -227,7 +227,7 @@ internal fun sheet(
     name = tile.name,
     room = tile.room,
     hue = hue(tile),
-    art = glyph(tile),
+    art = art(tile),
     readings = listOf(
         SheetReading("power", power(tile.isOn), sheetAge(tile.powerLastUpdated, now)),
         // The same formatter the tile promotes with, so the number at the top of the card and the
@@ -248,7 +248,7 @@ internal fun sheet(
     name = tile.name,
     room = tile.room,
     hue = hue(tile),
-    art = glyph(tile),
+    art = art(tile),
     readings = listOf(
         SheetReading("position", promoted(tile) ?: UNKNOWN, sheetAge(tile.lastUpdated, now)),
     ),
@@ -274,7 +274,7 @@ internal fun sheet(
     name = tile.name,
     room = tile.room,
     hue = hue(tile),
-    art = glyph(tile),
+    art = art(tile),
     readings = listOfNotNull(
         SheetReading("power", power(tile.isOn), sheetAge(tile.powerLastUpdated, now)),
         SheetReading("brightness", promoted(tile) ?: UNKNOWN, sheetAge(tile.brightnessLastUpdated, now)),
@@ -298,7 +298,7 @@ internal fun sheet(
     name = tile.name,
     room = tile.room,
     hue = hue(tile),
-    art = glyph(tile),
+    art = art(tile),
     readings = listOf(SheetReading("power", power(tile.isOn), sheetAge(tile.lastUpdated, now))),
     actions = sheetActions(subject(tile)),
     isOn = tile.isOn,
@@ -321,7 +321,7 @@ internal fun sheet(
     groupError: String?,
 ): TileSheet {
     // Tuya's own reachability flag, and the tile's refusal kept intact: a device Tuya says is
-    // offline is not confirming its switch or its speeds, so the sheet does not claim either. The
+    // offline is not confirming its power state or its speeds, so the sheet does not claim either. The
     // climate it measured is still printed — the tile keeps that too — with the age that says how
     // long ago it was measured.
     val offline = tile.online == false
@@ -329,7 +329,7 @@ internal fun sheet(
         name = tile.name,
         room = tile.room,
         hue = hue(tile),
-        art = glyph(tile),
+        art = art(tile),
         readings = listOfNotNull(
             SheetReading(
                 "power",

@@ -1,6 +1,5 @@
 package ru.domovoy.panel
 
-import androidx.compose.material3.Switch
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import ru.domovoy.core.Reading
@@ -16,10 +15,9 @@ import java.util.Locale
  * perfectly current.
  *
  * This is the only tile with both kinds of bad news at once, and the two are drawn differently on
- * purpose: [RecuperatorTileState.error] is one device's and *fills* that tile's art with the error
- * chip, [groupError] is the inventory call and *outlines* all five. Filling all five for a group
- * failure would say five recuperators broke; outlining the one that timed out would bury it among
- * four that are fine. Every other kind of tile follows the same rule now — see [TilePaint].
+ * purpose: [RecuperatorTileState.error] is one device's and adds the red offline mark, while
+ * [groupError] is the inventory call and outlines all five. Outlining the one that timed out would
+ * bury it among four that are fine. Every other kind follows the same rule — see [TilePaint].
  *
  * Its width is the one span in the panel decided by content — see [span].
  */
@@ -35,10 +33,9 @@ fun RecuperatorTile(
 ) {
     // The card no longer needs the span — one radius, one anatomy, one height — and the grid still
     // asks [span] for the width, which is the one width in the panel decided by content.
-    // Worked out once and read twice: the card takes it, and so does the switch. **This is the tile
-    // that made the switch read the mood rather than `isOn`** — a recuperator that timed out keeps
-    // whatever it last reported on its switch, and the switch goes grey because the panel has
-    // stopped being able to confirm it. See [tileSwitchColors].
+    // Worked out once and read twice: the card takes it, and so does the power button. A recuperator
+    // that timed out keeps its last-reported power direction, but the button goes grey because the
+    // panel has stopped being able to confirm it.
     val paint = paint(tile, groupError)
     TileCard(
         anatomy = anatomy(tile, now, groupError),
@@ -47,10 +44,11 @@ fun RecuperatorTile(
         modifier = modifier,
         onClick = onOpen,
         toggle = {
-            Switch(
-                checked = tile.isOn == true,
-                onCheckedChange = { onToggle(tile.id) },
-                colors = tileSwitchColors(hue(tile), paint.mood),
+            TilePowerButton(
+                isOn = tile.isOn == true,
+                hue = hue(tile),
+                mood = paint.mood,
+                onToggle = { onToggle(tile.id) },
             )
         },
     )

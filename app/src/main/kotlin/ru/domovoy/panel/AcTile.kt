@@ -1,6 +1,5 @@
 package ru.domovoy.panel
 
-import androidx.compose.material3.Switch
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -30,11 +29,11 @@ fun AcTile(
     onSetTemperature: (String, Double) -> Unit = { _, _ -> },
 ) {
     // The words, the art and which controls this tile offers, all from one pure function — see
-    // [TileAnatomy]. What is left here is the two things a data class cannot hold: the switch and
+    // [TileAnatomy]. What is left here is the two things a data class cannot hold: the power button and
     // the slider, which carry callbacks and a drag of their own.
     // [error] is the *group's* — one Yandex call feeds every ac in the flat — so it outlines this
     // tile rather than filling it. See [TilePaint]. Worked out once and read twice: the card takes
-    // it, and so does the switch, whose colour is the tile's second on-mark.
+    // it, and so does the power button, whose colour is the tile's second on-mark.
     val paint = paint(tile, error)
     TileCard(
         anatomy = anatomy(tile, now, error),
@@ -43,10 +42,11 @@ fun AcTile(
         modifier = modifier,
         onClick = onOpen,
         toggle = {
-            Switch(
-                checked = tile.isOn == true,
-                onCheckedChange = { onToggle(tile.id) },
-                colors = tileSwitchColors(hue(tile), paint.mood),
+            TilePowerButton(
+                isOn = tile.isOn == true,
+                hue = hue(tile),
+                mood = paint.mood,
+                onToggle = { onToggle(tile.id) },
             )
         },
         level = {

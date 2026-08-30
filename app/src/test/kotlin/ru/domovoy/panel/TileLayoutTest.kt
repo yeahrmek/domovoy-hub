@@ -145,20 +145,10 @@ class TileLayoutTest {
     }
 
     @Test
-    fun `only a shut curtain gets the closed glyph`() {
-        // The one glyph on the wall that carries state rather than labelling a type. A curtain 40 %
-        // open is open; only a shut one is shut, and the threshold is this one comparison.
-        assertEquals(R.drawable.ic_vertical_shades_closed, curtainGlyph(0.0))
-        assertEquals(R.drawable.ic_vertical_shades, curtainGlyph(40.0))
-        assertEquals(R.drawable.ic_vertical_shades, curtainGlyph(100.0))
-    }
-
-    @Test
-    fun `a curtain the panel has no position for gets the open glyph, not the closed one`() {
-        // The closed glyph is a positive claim that the curtain is shut, and the panel does not
-        // know. Same rule the strings have always followed — unknown is not off — and the paint
-        // must not undo what the words were careful about.
-        assertEquals(R.drawable.ic_vertical_shades, curtainGlyph(null))
+    fun `curtain art is the same two-half hardware at every position`() {
+        listOf(0.0, 40.0, 100.0, null).forEach { position ->
+            assertEquals(R.drawable.device_art_curtain, art(curtain(openPercent = position)))
+        }
     }
 
     @Test
@@ -176,6 +166,37 @@ class TileLayoutTest {
         assertEquals(TileMood.On, mood(lamps(on = 1, off = 6)))
         assertEquals(TileMood.On, mood(lamps(on = 7, off = 0)))
         assertEquals(TileMood.Off, mood(lamps(on = 0, off = 7)))
+    }
+
+    @Test
+    fun `bulb and strip art lights only when the device positively reports on`() {
+        assertEquals(R.drawable.device_art_bulb_on, art(bulb(isOn = true)))
+        assertEquals(R.drawable.device_art_bulb_off, art(bulb(isOn = false)))
+        assertEquals(R.drawable.device_art_bulb_off, art(bulb(isOn = null)))
+
+        assertEquals(R.drawable.device_art_light_strip_on, art(strip(isOn = true)))
+        assertEquals(R.drawable.device_art_light_strip_off, art(strip(isOn = false)))
+        assertEquals(R.drawable.device_art_light_strip_off, art(strip(isOn = null)))
+    }
+
+    @Test
+    fun `a room's bulb art lights when any lamp in it is on`() {
+        assertEquals(R.drawable.device_art_bulb_on, art(lamps(on = 1, off = 6)))
+        assertEquals(R.drawable.device_art_bulb_off, art(lamps(on = 0, off = 7)))
+    }
+
+    @Test
+    fun `every current tile kind resolves to its real device art`() {
+        assertEquals(R.drawable.device_art_air_conditioner, art(ac(isOn = true)))
+        assertEquals(
+            R.drawable.device_art_recuperator,
+            art(recuperator(temperature = 29.3, humidity = 32.2)),
+        )
+        assertEquals(R.drawable.device_art_curtain, art(curtain(openPercent = 40.0)))
+
+        val launchers = launcherTiles { true }.associateBy { it.packageName }
+        assertEquals(R.drawable.device_art_intercom, art(launchers.getValue("com.domonap.app")))
+        assertEquals(R.drawable.device_art_vacuum, art(launchers.getValue("com.xiaomi.smarthome")))
     }
 
     @Test
@@ -242,36 +263,6 @@ class TileLayoutTest {
         assertEquals(TileControls.None, controls(lamps(on = 5, off = 2)))
     }
 
-    @Test
-    fun `a bulb tile's glyph is the lamp, and only ever the lamp`() {
-        // The bulb is not the curtain: its glyph labels a type and carries no state. A lamp is a
-        // lamp whether it is standing on its own or opened out of its room's group, and the group
-        // tile wears the same one — so the two cannot come out as different lamps.
-        assertEquals(R.drawable.ic_bulb, glyph(bulb(isOn = null)))
-        assertEquals(R.drawable.ic_bulb, glyph(lamps(on = 5, off = 2)))
-    }
-
-    @Test
-    fun `every tile on the wall resolves to a glyph, and every launcher to its own`() {
-        // Seven tile types and two apps, and the failure this catches is a device arriving with no
-        // art: `painterResource(0)` throws, and the tile it was going to be drawn on takes the whole
-        // panel down with it. Asserted as ids rather than as pictures — what the drawables look like
-        // is the screenshots' job, that there *is* one for everything is this one's.
-        assertNotEquals(0, glyph(ac(isOn = true)))
-        assertNotEquals(0, glyph(recuperator(temperature = 29.3, humidity = 32.2)))
-        assertNotEquals(0, glyph(bulb(isOn = true)))
-        assertNotEquals(0, glyph(lamps(on = 5, off = 2)))
-        assertNotEquals(0, glyph(strip(isOn = true)))
-        assertNotEquals(0, glyph(curtain(openPercent = 100.0)))
-
-        // The launcher is the one whose glyph is keyed on an id, so it is the one that can drift:
-        // the catalogue is where a third app gets added and `glyph(LauncherTileState)` is where it
-        // would be forgotten. Driven through `launcherTiles` so the two cannot be listed apart.
-        val launchers = launcherTiles { true }.associateBy { it.packageName }
-        assertEquals(R.drawable.ic_video_camera_front, glyph(launchers.getValue("com.domonap.app")))
-        assertEquals(R.drawable.ic_vacuum, glyph(launchers.getValue("com.xiaomi.smarthome")))
-    }
-
     // --- What the surface carries, and what the marks do -------------------------------------
     //
     // A tile's card is on the neutral ramp and on nothing else: the family is an accent now — the
@@ -311,7 +302,8 @@ class TileLayoutTest {
         // — a dot, an accented power button, and the art lighting up — because a single mark
         // carrying a single state is a mark that can be lost behind a blue light filter.
         assertEquals(setOf(TileMark.Family, TileMark.Power), marks(TileMood.On))
-        assertEquals(setOf(TileMark.Failure, TileMark.Offline), marks(TileMood.Failing))
+        // The red wifi icon is enough: the hardware image itself remains unchanged and untinted.
+        assertEquals(setOf(TileMark.Offline), marks(TileMood.Failing))
         assertEquals(emptySet(), marks(TileMood.Off))
         assertEquals(emptySet(), marks(TileMood.Unknown))
     }
@@ -734,9 +726,8 @@ class TileLayoutTest {
         assertEquals(TileAction.Close, action(curtain(openPercent = 1.0)))
         assertEquals(TileAction.Close, action(curtain(openPercent = 40.0)))
         assertEquals(TileAction.Close, action(curtain(openPercent = 100.0)))
-        // A position nobody has read takes the branch every other rule on this tile takes for it:
-        // [curtainGlyph] draws a null position open, so the button offered is the one that shuts
-        // it. It is an action and not a claim — nothing the tile prints says the curtain is open.
+        // Unknown still offers the useful one-tap default. It is an action and not a claim —
+        // nothing the tile prints says the curtain is open.
         assertEquals(TileAction.Close, action(curtain(openPercent = null)))
     }
 
@@ -779,8 +770,7 @@ class TileLayoutTest {
 
     @Test
     fun `a button is drawn as the state it produces`() {
-        // The two shades glyphs the curtain's art already uses, so the button says where it would
-        // send the curtain in the same picture the tile says where the curtain is.
+        // The tile keeps the real curtain image; the button alone uses a vector target-state icon.
         assertEquals(R.drawable.ic_vertical_shades, glyph(TileAction.Open))
         assertEquals(R.drawable.ic_vertical_shades_closed, glyph(TileAction.Close))
     }
@@ -800,7 +790,7 @@ class TileLayoutTest {
         val ac = ac(isOn = true)
         assertEquals(statusLine(ac, now), anatomy(ac, now, "timed out").status)
         assertEquals(promoted(ac), anatomy(ac, now, error = null).promoted)
-        assertEquals(glyph(ac), anatomy(ac, now, error = null).art)
+        assertEquals(art(ac), anatomy(ac, now, error = null).art)
         assertEquals(action(ac), anatomy(ac, now, error = null).action)
         val curtain = curtain(openPercent = 40.0)
         assertEquals(action(curtain), anatomy(curtain, now, error = null).action)

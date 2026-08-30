@@ -65,7 +65,7 @@ The baseline commits 1 and 2 replaced, kept so the diff stays legible:
 ## Tile sizes
 
 A **twelve-column** grid, laid out in thirds and quarters. The span is a property of the tile type,
-not of the room, and **every tile is 280 dp tall whatever its span** — see "One tile anatomy":
+not of the room, and **every tile is 296 dp tall whatever its span** — see "One tile anatomy":
 
 | Tile | Count | Span | Width | What it shows |
 | --- | --- | --- | --- | --- |
@@ -110,22 +110,23 @@ Five slots, in this order, on every tile of every kind:
 
 | Slot | Reserved | What is in it |
 | --- | --- | --- |
-| Art and controls | 64 dp | The glyph, left; the switch, right, inside its 64 dp touch box |
+| Art and controls | 80 dp | The untinted hardware art, left; the round power button, right, inside its 64 dp touch box |
 | Level | 64 dp | The slider, centred — the same 64 dp `SlimSlider`'s track slot measures |
 | Promoted value | 52 dp | One line of `displaySmall`, or nothing |
 | Name | 28 dp | One line of `titleMedium`, wrapped rather than truncated |
 | Status line | 48 dp | **Two lines of `bodyMedium`, and a ceiling rather than a reserve**: the status line, and the second line — the strip's colour, the recuperator's climate, or why the poll stopped landing |
 
-**280 dp = 64 + 64 + 52 + 28 + 48 + 2 × 12 of padding**, and the same 280 for a bulb as for an air
+**296 dp = 80 + 64 + 52 + 28 + 48 + 2 × 12 of padding**, and the same 296 for a bulb as for an air
 conditioner. Before this the mosaic had four heights — the air conditioner 169 dp with a dead area
 under its slider, the strip shorter, the recuperator shorter again, the launchers shorter still —
 because each kind laid itself out around whatever it happened to have.
 
 It was 328 while the status slot reserved four lines. Two of the four were never filled by anything
 the flat produces, and the 48 dp they left at the foot of every card read as a reserve showing
-rather than as padding; capping the slot is what let them go.
+rather than as padding; capping the slot took the tile to 280. Enlarging the art row from 64 to 80
+then brought it to 296.
 
-**An empty slot is empty, not absent.** A launcher has no switch, no slider and no value and
+**An empty slot is empty, not absent.** A launcher has no power button, no slider and no value and
 reserves all three anyway. That is what buys bottom edges that line up across kinds, and it is the
 whole cost of it too: a bulb tile carries a 64 dp band where a slider would go.
 
@@ -197,7 +198,7 @@ other kind agreed on.
 
 **The other option was seven ordinary tiles, and the count is why it was not taken.** One
 `/v1.0/user/info` call feeds every bulb in the flat, so the moment it stops landing `favourites`
-pulls all 28 onto Главная — at 280 dp each that is seven rows of lamp before the wall says anything
+pulls all 28 onto Главная — at 296 dp each that is seven rows of lamp before the wall says anything
 about the air conditioner, which is the "fourteen rows of lamps" the group exists to prevent, four
 times taller.
 
@@ -527,8 +528,8 @@ This is a pure function of the room sections. It gets a test.
   reference that paints every tile the same neutral dark grey and spends its whole colour budget on
   three small marks.
   - **Domain picks the accent**, through one table, `tileAccent`: climate `primary`, light
-    `tertiary`, everything else `secondary`. Four things wear it — the 48 dp glyph, the promoted
-    value, the on mark, and the slider fill. Three families and no more; a fourth hue on a wall read
+    `tertiary`, everything else `secondary`. Four things wear it — the round power button, promoted
+    value, on mark, and slider fill. Three families and no more; a fourth hue on a wall read
     from four metres is decoration rather than information. The accent and not the container,
     because all four are drawn *on* a neutral surface and have to show against it: worst ratio 5.0
     in light and 7.2 in dark, on 44sp type that needs 3.
@@ -541,11 +542,10 @@ This is a pure function of the room sections. It gets a test.
 
     | State | Marks |
     | --- | --- |
-    | on | a 20 dp dot in the family accent, beside the art |
-    | on | the switch's track in the family accent — neutral grey in every other mood |
-    | on | *the art itself lighting up — not built; it needs a lit and an unlit image per kind* |
-    | this device's own poll failed | the glyph on a filled `error` chip |
-    | this device's own poll failed | a 28 dp struck-through wifi glyph in `error`, right of the art line |
+    | on | a 20 dp dot in the family accent, over the top-right of the art |
+    | on | the round power button in the family accent — neutral grey in every other mood |
+    | on | the bulb and LED-strip art itself lights up |
+    | this device's own poll failed | a 28 dp struck-through wifi glyph in `error`, over the top-right of the unchanged art |
     | off, or never read | nothing at all |
 
     **The redundancy is the point and is copied deliberately.** The reference says "on" three times
@@ -553,12 +553,9 @@ This is a pure function of the room sections. It gets a test.
     against a neutral — the same thing that made a room heading's mark a `•` *and* a colour. A mark
     carrying a state on its own is a state that can be lost.
 
-    **The switch reads the mood and not its own `checked`.** A failing tile whose device last
-    reported on is still drawn thrown — that is the last thing known — and its track is grey, because
-    a coloured switch there is the panel asserting something it can no longer confirm. It is also why
-    the switch stopped being Material's default: `primary` means *climate* on this wall, so the
-    default put a blue switch on an amber lamp, next to a glyph, a value and a dot that all said
-    light.
+    **The power button reads the mood and not only its last Boolean.** A failing tile whose device
+    last reported on keeps that direction — it is the last thing known — but its disc is grey,
+    because an accented button there would assert something the panel can no longer confirm.
 
     **The wifi glyph is a tile's own failure only.** Keyed on the group's it would draw on 34 of the
     35 tiles at once, which is the wall going red — the thing the outline exists to avoid.
@@ -588,19 +585,18 @@ This is a pure function of the room sections. It gets a test.
   saturated red rectangles, by a wide margin the loudest thing on the panel, spending the strongest
   signal available on "this one is offline".
 
-  The third answer is the mark: the glyph on a filled `error` chip, 48 dp, at the top-left of the
-  tile. Loud, local, an eighth of the card, and it leaves the tile still saying what kind of thing
-  it is and what it last read.
+  The third answer is the reference's red struck-through wifi mark, over the corner of the unchanged
+  hardware art. It is local and explicit without making the device itself look red.
 
   **The boot case is answered rather than accepted.** Until the first poll lands every tile is
   `Unknown` rather than rose — a wall of quiet unmarked cards, which is what "nothing has been read
   yet" looks like. The `lastPolledAt == null` special case this doc held in reserve is not needed.
-- **A group's failure outlines and a tile's own failure fills** — `docs/design/panel-redesign.md`
+- **A group's failure outlines and a tile's own failure gets the offline glyph** — `docs/design/panel-redesign.md`
   item 4, landed with the neutral surfaces because it is the same question. One `/v1.0/user/info`
   feeds every ac, curtain, strip and bulb in the flat, so one failed call used to repaint about 34 of
   the 35 tiles in a single frame and erase the family coding exactly when somebody needed it. Now
   every kind follows the rule the recuperator already had: the group's bad news is a 3 dp `error`
-  border and *nothing else* changes on the tile; the device's own bad news is the chip. `TilePaint`
+  border and *nothing else* changes on the tile; the device's own bad news is the wifi glyph. `TilePaint`
   carries both and is the seam a test reaches.
 - **Every tile on the wall is a card, so there is one colour table again.** The bulbs used to draw as
   72 dp discs reaching into `tileColors` through a `when` of their own, and that second copy had
@@ -698,6 +694,11 @@ existing file **silently writes nothing** and the analysis then measures the pre
 "the setting made no difference" results came from exactly that. Use `>|`.
 
 ## Icons
+
+**Current as of N4:** tile identity is the untinted 80 dp realistic PNG art in
+`res/drawable-nodpi/`; the vector set below is the superseded implementation record. Vectors remain
+for control and status symbols — power, curtain target position, and offline wifi — rather than for
+device identity.
 
 Every tile carries one. The panel today has none at all — no `Icon(` anywhere in `ru.domovoy`, and
 `app/src/main/res` holds only `themes.xml` and `strings.xml` — which is why a wall of it reads as
@@ -996,13 +997,13 @@ thing to watch on the wall rather than to argue about here.
 
 The reference app carries one or two small round buttons on every tile and picks them by device
 type — power and a fan mode on an air conditioner, power and a reset on a lamp, power and an
-overflow on a TV. Here power is the switch and is not repeated as a button, so what was missing was
-the *second* action and the fact that it should differ per kind. It is `action` in `TileLayout.kt`,
-beside `controls`, `promoted` and `span`, and it is a pure function of the type and the state.
+overflow on a TV. Here power is now the same round button — a 44 dp disc inside the 64 dp touch
+target — and is not repeated as a second action. `action` in `TileLayout.kt` is the additional
+per-kind control, beside `controls`, `promoted` and `span`, and is a pure function of type and state.
 
 **One kind has one, and the rest have none.** The curtain gets the end of travel it is not already
-at — Open when it is shut, Close otherwise, including when its position has never been read, which
-is the branch `curtainGlyph` already takes for a null position. It drives to the ends of the range
+at — Open when it is shut, Close otherwise, including when its position has never been read. It
+drives to the ends of the range
 *the vendor reported* rather than to 0 and 100, on the same rule `Bounds.snap` exists for.
 
 **Why the others are empty is the whole of the decision, and each one is a refusal made elsewhere in
@@ -1017,23 +1018,23 @@ this repo already:**
 - **The launchers get nothing.** They open somebody else's app; there is no state to act on.
 - **The lock gets nothing, and gets nothing when it exists.** There is no lock tile in `panel/` yet,
   so this is a rule waiting for a subject rather than a case an assertion can reach; it is written
-  where the overload would go. It reports and does not act — no action, no switch, no slider. See
+  where the overload would go. It reports and does not act — no action, no power button, no slider. See
   docs/aqara.md.
 
 **Never two, and never on a quarter tile — that is width and not taste.** The target is 64 dp
 (`MIN_TOUCH`; the reference's "a third the width of the art" is a phone's measurement, and the ring
-drawn inside it is 40 dp). A third tile is 219 dp of content: art 48, on mark 28, switch box 64,
-button 64 — 204, with 15 to spare. A quarter tile has 156 and cannot hold the first one; a second
+drawn inside it is 40 dp). A third tile is 219 dp of content: art 80, reserved power box 64, and
+button 64 — 208, with 11 to spare. The state mark overlays the art. A quarter tile has 156 and cannot hold the first one; a second
 one fits on nothing.
 
-**It is drawn last on the art line, after the reserved switch box**, so that it lands in the corner.
-Drawn before it, the one tile that has a button — a curtain, which has no switch — came out with the
+**It is drawn last on the art line, after the reserved power box**, so that it lands in the corner.
+Drawn before it, the one tile that has a button — a curtain, which has no power control — came out with the
 button 64 dp in from the edge and an empty square beside it. Outlined and neutral rather than
 filled: the four steps of the ramp are 5 L\* apart in dark and 2 in light, so a filled disc
 disappears on one mood, and a control that is merely available is not news worth spending the
-colour budget on. Its glyph is the state it produces, which is the two shades glyphs the curtain's
-own art is already told apart by; nothing new was drawn. Its `contentDescription` is the one on this
-wall that is not null — every other glyph here sits beside a name that says the same thing.
+colour budget on. Its vector glyph is the state it produces; the realistic curtain art remains the
+hardware identity. Its `contentDescription` is the one on this wall that is not null — the device
+art itself sits beside a name that says the same thing.
 
 ## The device sheet
 
@@ -1192,14 +1193,14 @@ measured. A screenshot at any other width is a picture of a panel that does not 
 column widths are sized from that 753 and from nothing else.
 
 The one exception is the swatch sheet, and only in *height*: `tiles-light` and `tiles-dark` are
-captured at 753 × 1700 dp. Thirteen swatches at 280 dp is 1400 dp of column, and in a 1204 dp frame
+captured at 753 × 1700 dp. Thirteen swatches at 296 dp is 1480 dp of column, and in a 1204 dp frame
 the failing row and the outlined case fell off the bottom and were recorded as nothing at all. They
 are not a picture of the wall; the two Главная captures are, and those keep the wall's own frame.
 
 | Image | What it is for |
 | --- | --- |
 | `panel-home-light`, `panel-home-dark` | Главная whole, in both schemes: the spans, the corner, whether two kinds of tile actually end on the same line |
-| `tiles-light`, `tiles-dark` | Every `TileHue` × `TileMood` pair, plus the group-failure outline. This is the ΔE table in `PanelTheme.kt` made visible — and, since the marks became a set, the one picture of every mark: each swatch carries a switch, thrown on the lit row *and* on the failing one, so a row of three that comes out one colour is Material's `primary` leaking back in |
+| `tiles-light`, `tiles-dark` | Every `TileHue` × `TileMood` pair, plus the group-failure outline. This is the ΔE table in `PanelTheme.kt` made visible — and, since the marks became a set, the one picture of every mark: each swatch carries a round power button, accented on the lit row and neutral on the failing one, so a row of three that comes out one colour is Material's `primary` leaking back in |
 | `lights-group` | The `Never` bulb's own tile beside its room's group tile, closed and open — three cards at the quarter width, which is where a group tile that stopped agreeing with an ordinary one would show |
 | `device-sheet-light`, `device-sheet-dark` | One device sheet over the real Главная, in both schemes. The recuperator on purpose: it is the tile whose four separately-timestamped datapoints the wall prints one age for, so its sheet is the four rows and four ages that are the argument for a sheet existing. What the picture is for is the pair of things no assertion sees — that the tiles behind the scrim are still legible, and that the sheet is unmistakably in front of them |
 | `headings` | A plain heading, a marked one, and the longest room name in the flat at heading size |
@@ -1268,27 +1269,21 @@ out wrong. None of them can be settled from a screenshot.
   go and install it, so it may be that a cut package is no use at all and the honest answer is the
   first half of the name and the tile's *name* doing the rest. If so, the fix is a shorter string,
   not a second line: the cap stays.
-- **Is 280 dp a tile that reads better or one that reads tighter?** The card lost the 48 dp of
-  unfilled status reserve at its foot, so the wall shows about a row and a half more. If it comes
-  out cramped, the space to give back is padding at the foot of the card, not the reserve.
-- **Does a 20 dp on mark carry at four metres?** It is beside a switch that now says the same thing
-  in the same colour on five kinds, and beside nothing at all on the curtain, the lights group and
-  the launcher. **Those three are the ones to look at**: they have no switch, so the dot is the only
-  mark they wear until the art can light up. If it does not carry, it grows before it changes shape.
+- **Is 296 dp a tile that reads better or one that reads tighter?** The 80 dp art row gives the
+  hardware room without restoring the old unfilled status reserve. If it comes out cramped, the
+  space to give back is padding at the foot of the card, not the reserve.
+- **Does a 20 dp on mark carry at four metres?** It overlays the enlarged art and is reinforced by
+  the round power button on power-capable kinds and by lit art on bulbs and strips. If it does not
+  carry, it grows before it changes shape.
 - **Does a struck-through wifi glyph read as "not installed"?** It is a tile's own failure, and on
   Пылесос that failure is a missing app rather than a network. "The panel cannot get to this device"
   covers both and the second line says which — but a wifi symbol on an app that was uninstalled may
   be the panel naming the wrong cause. If it reads wrong on the wall, the mark takes a second glyph
   keyed on the reason rather than on the mood.
-- **Are two red marks one too many on a failing tile?** The chip and the wifi glyph say the same bad
-  news twice, on the same argument as the marks that say "on" twice. The chip is the one to drop if
-  the pair reads as noise: the glyph is the reference's own mark and the one that says *what* is
-  wrong.
-- **The unreachable mark is not in the corner on the narrowest tiles.** Every tile reserves a 64 dp
-  touch box for a switch whether it has one or not, so on a 188 dp tile the mark sits inboard of it —
-  on Пылесос, which has no switch at all, it comes out beside the art rather than opposite it. The
-  fix, if it matters, is the launcher giving up its reserved control box, which costs the one
-  anatomy.
+- ~~**Are two red marks one too many on a failing tile?**~~ **Resolved:** yes. The filled error chip
+  is gone; the red wifi glyph alone overlays the unchanged device art.
+- ~~**The unreachable mark is not in the corner on the narrowest tiles.**~~ **Resolved:** the glyph
+  now overlays the top-right of the art and consumes no row width.
 - **Does the Tabler bulb look foreign beside seven Material Symbols?** If it does, move the other
   seven to Tabler rather than the bulb back to Material.
 - ~~**Can a finger find an _unlit_ lamp?**~~ **Dissolved by the group tile, not answered.** The

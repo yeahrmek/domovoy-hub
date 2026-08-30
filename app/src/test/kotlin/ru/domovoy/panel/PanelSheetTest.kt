@@ -53,7 +53,7 @@ class PanelSheetTest {
         compose.setContent { Panel() }
         compose.onNodeWithText("target").assertDoesNotExist()
 
-        compose.onNodeWithText("Кондиционер").performClick()
+        compose.onNodeWithText("Кондиционер", useUnmergedTree = true).performClick()
 
         compose.onNodeWithText("power").assertIsDisplayed()
         compose.onNodeWithText("target").assertIsDisplayed()
@@ -69,7 +69,7 @@ class PanelSheetTest {
         compose.setContent { Panel() }
         compose.onAllNodesWithText("24 °C").assertCountEquals(1)
 
-        compose.onNodeWithText("Кондиционер").performClick()
+        compose.onNodeWithText("Кондиционер", useUnmergedTree = true).performClick()
 
         compose.onAllNodesWithText("24 °C").assertCountEquals(2)
     }
@@ -77,7 +77,7 @@ class PanelSheetTest {
     @Test
     fun `the sheet goes away when it is done with`() {
         compose.setContent { Panel() }
-        compose.onNodeWithText("Кондиционер").performClick()
+        compose.onNodeWithText("Кондиционер", useUnmergedTree = true).performClick()
         compose.onNodeWithText("done").assertIsDisplayed()
 
         compose.onNodeWithText("done").performClick()
@@ -97,7 +97,7 @@ class PanelSheetTest {
             scroll = rememberLazyGridState()
             Panel(scroll = scroll, openSheet = openSheet)
         }
-        compose.onNodeWithText("Кондиционер").performClick()
+        compose.onNodeWithText("Кондиционер", useUnmergedTree = true).performClick()
         compose.onNodeWithText("done").assertIsDisplayed()
 
         runBlocking { returnToHome(scroll, openSheet) }
@@ -134,7 +134,7 @@ class PanelSheetTest {
         compose.onNodeWithText("done").assertDoesNotExist()
         compose.onNodeWithText("Лампа 1").assertIsDisplayed()
 
-        compose.onNodeWithText("Лампа 1").performClick()
+        compose.onNodeWithText("Лампа 1", useUnmergedTree = true).performClick()
 
         compose.onNodeWithText("done").assertIsDisplayed()
         compose.onNodeWithText("power").assertIsDisplayed()

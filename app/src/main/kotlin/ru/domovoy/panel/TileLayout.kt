@@ -34,7 +34,7 @@ internal const val COLUMNS = 12
 internal const val WIDE_SPAN = 4
 
 /**
- * A quarter of the panel, 188 dp: a name, a status line and a switch. The bulbs, the launchers, and
+ * A quarter of the panel, 188 dp: a name, a status line and a power button. The bulbs, the launchers, and
  * a recuperator with nothing beyond its speeds to report. **Four of these fill a row exactly.**
  *
  * 188 dp was measured once before and rejected — the launcher's one line wrapped onto two at that
@@ -149,7 +149,7 @@ internal enum class TileSurface {
  * `errorContainer`. On the wall that came out as a patchwork of coloured blocks — a deep blue air
  * conditioner beside a dark amber strip beside two saturated red rectangles — where the thing being
  * aimed at is one neutral dark grey for every tile and colour spent only on small marks. So the
- * hue moved to the accents ([TileMark], the glyph, the promoted value, the slider fill) and the
+ * hue moved to the accents ([TileMark], the promoted value, the slider fill) and the
  * surface was left free to carry one thing.
  *
  * **It carries the mood, and the mood is an ordering: how much the tile is asserting.** A lit device
@@ -169,7 +169,7 @@ internal enum class TileSurface {
  * _The steps are close together and that is what a neutral ramp has to give._ Measured on the four
  * roles this maps to: **light 90.1, 91.9, 94.0, 100.0 L\*** and **dark 22.1, 17.0, 12.2, 3.9** —
  * gaps of 2, 2 and 6 in light and 5, 5 and 8 in dark. So the ramp is a reinforcement and the mark,
- * the switch and the words are the signal; a wall that had to read four moods off lightness alone
+ * the power button and the words are the signal; a wall that had to read four moods off lightness alone
  * would want a spread neither scheme can hold. The end step is the one that carries: [Lowest] sits
  * 2 L\* *past* the wall's own background in both schemes, so a tile nobody has read reads as a hole
  * rather than as a card, which is the intended answer and is the thing to look at in the hallway.
@@ -200,20 +200,16 @@ internal enum class TileMark {
      * **On, again**: the tile's power control takes the family accent instead of neutral grey.
      *
      * It is the same fact as [Family] said in the place a finger is already going, and it costs
-     * nothing that was not already drawn — the switch is on every tile that has a power state.
+     * nothing that was not already drawn — the button is on every tile that has a power state.
      */
     Power,
 
-    /** **This device's own poll failed**: the glyph on a filled error chip. */
-    Failure,
-
     /**
-     * **The same, said as what it is**: a small struck-through wifi glyph in the error colour, at
-     * the right of the tile's top line.
+     * **This device's own poll failed**: a small struck-through wifi glyph in the error colour, at
+     * the corner of its art.
      *
-     * [Failure] says *which* tile has bad news by taking over its art; this says *what* the bad news
-     * is — the panel cannot get to this device. It is the reference's one offline mark and the only
-     * glyph on the wall that is not a device.
+     * It says both which tile has bad news and what the bad news is: the panel cannot get to this
+     * device. The hardware image remains untouched, so failure never looks like a red device.
      *
      * **A tile's own failure only.** A group's failure is an outline and stays one: one
      * `/v1.0/user/info` feeds 34 of the 35 tiles here, so a mark keyed on the group would draw this
@@ -226,20 +222,16 @@ internal enum class TileMark {
  * The marks one tile wears, from its mood.
  *
  * This is where the colour budget went. A filled card said "on" with the whole surface and said
- * "failing" with the loudest thing available; a 20 dp dot, an accented switch, a 48 dp chip and a
- * 28 dp glyph say both things between them and cost an eighth of the tile.
- *
- * **The third of the reference's three on-marks is missing and is not forgotten: the art itself
- * lighting up.** That one needs a lit and an unlit image per device kind — photographs of the actual
- * hardware — and no agent can produce them. It is its own task, blocked on those assets, and this
- * enum is where its mark goes when they exist.
+ * "failing" with the loudest thing available; a 20 dp dot, an accented power button and a 28 dp
+ * offline glyph say both things locally. Bulbs and strips add the
+ * reference's third on-mark: the hardware image itself lights up.
  *
  * The marks are deliberately *not* the only place either state is said: the status line says on, off
  * and why in words, and [TileSurface] moves under both.
  */
 internal fun marks(mood: TileMood): Set<TileMark> = when (mood) {
     TileMood.On -> setOf(TileMark.Family, TileMark.Power)
-    TileMood.Failing -> setOf(TileMark.Failure, TileMark.Offline)
+    TileMood.Failing -> setOf(TileMark.Offline)
     TileMood.Off, TileMood.Unknown -> emptySet()
 }
 
@@ -400,7 +392,7 @@ private const val PERCENT_UNIT = "unit.percent"
  * underneath a tile that has gone rose. Two axes again: this says *which* value, [mood] says how
  * much to trust it.
  *
- * Six overloads for the same reason [hue] and [glyph] have them: the tile states are six unrelated
+ * Six overloads for the same reason [hue] and [art] have them: the tile states are six unrelated
  * data classes and there is no sealed type over them. Each is also the *only* formatter for that
  * value — the status lines call these and add the word for absent — so a tile cannot print one
  * number at the top and a differently-rounded one underneath.
@@ -458,62 +450,52 @@ internal fun promoted(tile: LauncherTileState): String? = null
 internal fun promoted(group: BulbGroup): String = "${group.on} on"
 
 /**
- * The glyph one tile wears, as a drawable in `res/drawable/`: eight of them exported to vector XML
- * rather than `material-icons-extended`, which is a large artifact for eight of them and a
- * dependency, which is an "ask first". Seven are Material Symbols and the bulb's is Tabler's, which
- * is a decision rather than an accident. See docs/ui.md, "Icons".
+ * The real device art one tile wears, as an untinted raster drawable in `drawable-nodpi`.
  *
- * Overloads per tile state for the same reason [hue] has them, and — apart from the curtain's —
- * every one of them is a constant. A tile is recognised across a hallway by its shape and its glyph
- * long before its name is legible, which on a panel looked at on the way past is most of the
- * looking.
- */
-@DrawableRes
-internal fun glyph(tile: AcTileState): Int = R.drawable.ic_ac_unit
-
-@DrawableRes
-internal fun glyph(tile: RecuperatorTileState): Int = R.drawable.ic_mode_fan
-
-/**
- * The outlined lamp, whatever the tile says — a constant like the other six, because the bulb's
- * state is carried by the colour it is drawn on and not by which lamp is drawn. It is the same lamp
- * the group tile wears, so a lamp on its own and a room's lamps together cannot come out as
- * different lamps.
- */
-@DrawableRes
-internal fun glyph(tile: BulbTileState): Int = R.drawable.ic_bulb
-
-/**
- * The same lamp again, and one of it. A group tile drawing seven small lamps would be the row of
- * discs redrawn inside a card — the thing it replaces — and the count is already on the tile in
- * words, where it can say "7" without anybody counting.
- */
-@DrawableRes
-internal fun glyph(group: BulbGroup): Int = R.drawable.ic_bulb
-
-/**
- * `wb_iridescent` rather than `horizontal_rule`, which was the other candidate: the plain rule is a
- * minus sign — correct as a shape, carrying no light, and indistinguishable from a divider on a
- * panel that has dividers.
- */
-@DrawableRes
-internal fun glyph(tile: LightStripTileState): Int = R.drawable.ic_wb_iridescent
-
-@DrawableRes
-internal fun glyph(tile: CurtainTileState): Int = curtainGlyph(tile.openPercent)
-
-/**
- * The two launcher tiles, told apart by the app they open — the only thing a launcher tile carries
- * that says which device it is.
+ * Most kinds have one photograph-like cutout. Bulbs and strips have a matched pair because the art
+ * lighting up is one of the wall's redundant "on" marks: only a positive `true` selects it. Null
+ * stays unlit — it is not a claim that the device is off, it is the refusal to claim it is on. The
+ * status line and [TileMood.Unknown] still say what the panel actually knows.
  *
- * The intercom is the named branch because it is the one that has to be right: it is why somebody
- * walks up to this panel at all. Mi Home is the other of the two the catalogue holds, and a third
- * launcher tile would need its own branch here — this `when` is where it goes.
+ * Overloads per tile state for the same reason [hue] has them: the tile states are unrelated data
+ * classes, and the resource choice is a pure decision a test can hold.
  */
 @DrawableRes
-internal fun glyph(tile: LauncherTileState): Int = when (tile.packageName) {
-    DOMONAP_PACKAGE -> R.drawable.ic_video_camera_front
-    else -> R.drawable.ic_vacuum
+internal fun art(tile: AcTileState): Int = R.drawable.device_art_air_conditioner
+
+@DrawableRes
+internal fun art(tile: RecuperatorTileState): Int = R.drawable.device_art_recuperator
+
+@DrawableRes
+internal fun art(tile: BulbTileState): Int = if (tile.isOn == true) {
+    R.drawable.device_art_bulb_on
+} else {
+    R.drawable.device_art_bulb_off
+}
+
+/** A room's art is lit when at least one lamp in it is lit, which is the same rule [mood] uses. */
+@DrawableRes
+internal fun art(group: BulbGroup): Int = if (group.on > 0) {
+    R.drawable.device_art_bulb_on
+} else {
+    R.drawable.device_art_bulb_off
+}
+
+@DrawableRes
+internal fun art(tile: LightStripTileState): Int = if (tile.isOn == true) {
+    R.drawable.device_art_light_strip_on
+} else {
+    R.drawable.device_art_light_strip_off
+}
+
+@DrawableRes
+internal fun art(tile: CurtainTileState): Int = R.drawable.device_art_curtain
+
+/** The two launchers are told apart by the hardware belonging to the app they open. */
+@DrawableRes
+internal fun art(tile: LauncherTileState): Int = when (tile.packageName) {
+    DOMONAP_PACKAGE -> R.drawable.device_art_intercom
+    else -> R.drawable.device_art_vacuum
 }
 
 /**
@@ -523,31 +505,11 @@ internal fun glyph(tile: LauncherTileState): Int = when (tile.packageName) {
 private const val DOMONAP_PACKAGE = "com.domonap.app"
 
 /**
- * The curtain's glyph, which is the one on the wall that carries **state** rather than labelling a
- * type — Material Symbols ships the covering icons as an open/closed pair, so the flat's one curtain
- * can say what it is doing from across the room instead of only in its status line.
- *
- * Closed at 0 and open above it. A curtain 40 % open is open; only a shut one is shut, and _the
- * threshold is a guess and is this one comparison_ — if a curtain that has crept to 2 % reads as
- * open on the wall and should not, this is the number.
- *
- * **A null position takes the open glyph, not the closed one.** The closed glyph is a positive claim
- * that the curtain is shut, and the panel does not know. Same rule the strings have always
- * followed — unknown is not off — and the paint must not undo what the words were careful about.
- */
-@DrawableRes
-internal fun curtainGlyph(openPercent: Double?): Int = if (openPercent != null && openPercent <= 0.0) {
-    R.drawable.ic_vertical_shades_closed
-} else {
-    R.drawable.ic_vertical_shades
-}
-
-/**
- * What a tile puts in the **controls** slot: nothing, a switch, a slider, or both.
+ * What a tile puts in the **controls** slot: nothing, a power button, a slider, or both.
  *
  * The two are separate axes of one answer rather than four unrelated cases, because they sit in
- * two different places on the card — the switch on the top line beside the art, the slider on its
- * own band under it (see `TileCard`). A curtain has a slider and no switch, which is the pairing a
+ * two different places on the card — power on the top line beside the art, the slider on its own
+ * band under it (see `TileCard`). A curtain has a slider and no power button, which is the pairing a
  * single "has controls" boolean could not have said.
  *
  * It changes no layout on its own: **both bands are reserved on every tile whether they are filled
@@ -560,7 +522,7 @@ enum class TileControls {
     /** Nothing to drive. The launcher, which only opens somebody else's app. */
     None,
 
-    /** A switch and nothing else: the bulbs, the recuperators. */
+    /** A power button and nothing else: the bulbs, the recuperators. */
     Toggle,
 
     /** A slider and nothing else: the curtain, which is a position and not a power state. */
@@ -577,18 +539,18 @@ enum class TileControls {
  * A tile whose vendor never sent bounds gets no slider rather than one over an invented range: the
  * same refusal [promoted] makes when it declines to set the word "unknown" at display size.
  *
- * Six overloads for the same reason [hue] and [glyph] have them — the tile states are six unrelated
+ * Six overloads for the same reason [hue] and [art] have them — the tile states are six unrelated
  * data classes and there is no sealed type over them.
  */
 internal fun controls(tile: AcTileState): TileControls = if (tile.bounds == null) TileControls.Toggle else TileControls.ToggleAndLevel
 
-/** No switch: a curtain is a position, and "shut" is a position rather than a power state. */
+/** No power button: a curtain is a position, and "shut" is a position rather than a power state. */
 internal fun controls(tile: CurtainTileState): TileControls = if (tile.bounds == null) TileControls.None else TileControls.Level
 
 internal fun controls(tile: LightStripTileState): TileControls = if (tile.bounds == null) TileControls.Toggle else TileControls.ToggleAndLevel
 
 /**
- * A switch and no slider. The fan speeds are three booleans on Tuya rather than a range, so there
+ * A power button and no slider. The fan speeds are three booleans on Tuya rather than a range, so there
  * is nothing here a slider would be the honest control for — see [RecuperatorTileState.speeds].
  */
 internal fun controls(tile: RecuperatorTileState): TileControls = TileControls.Toggle
@@ -605,9 +567,9 @@ internal fun controls(tile: LauncherTileState): TileControls = TileControls.None
  * Nothing, on the launcher's rule and for the launcher's reason: the tap is the whole card, and
  * what it does is open the lamps behind it.
  *
- * **Deliberately not a switch over all seven.** Yandex has no group action — one lamp is one call —
- * so a master switch here would be seven HTTP requests behind one finger, each able to fail
- * separately, with one status line to report the mixture. The lamps keep their own switches, on
+ * **Deliberately not a power button over all seven.** Yandex has no group action — one lamp is one call —
+ * so a master button here would be seven HTTP requests behind one finger, each able to fail
+ * separately, with one status line to report the mixture. The lamps keep their own power buttons, on
  * their own tiles, one tap further in.
  */
 internal fun controls(group: BulbGroup): TileControls = TileControls.None
@@ -631,17 +593,15 @@ internal fun controls(group: BulbGroup): TileControls = TileControls.None
  *
  * **The lock is the rule here with no subject yet.** There is no lock tile in `panel/` — Aqara is
  * not wired to one — so there is no overload below to leave empty, and this is where the rule waits.
- * When that tile arrives it gets no action, no switch and no slider: CLAUDE.md and docs/aqara.md say
+ * When that tile arrives it gets no action, no power button and no slider: CLAUDE.md and docs/aqara.md say
  * it reports and does not act, and that is a rule about *every* control on the tile rather than
  * about which button it is given. The launcher is the same answer for an unrelated reason and can be
  * asserted today — it opens somebody else's app and has no state to act on.
  *
  * **One button and never two, and that is width rather than taste.** A third-width tile is 251 dp,
- * 219 of it content once the tile's own padding and the card's are off. The art takes 48, the on
- * mark 28 with its gap, and the switch's touch box 64 whether a switch arrives or not — so 79 dp is
- * left for a control that has to be 64 dp square, since [MIN_TOUCH] is this panel's floor for
- * anything a finger lands on and the reference's "roughly a third the width of the art" is a phone's
- * measurement. One fits with 15 dp to spare and a second does not fit at all. On a quarter tile —
+ * 219 of it content once the tile's own padding and the card's are off. The art takes 80 and the
+ * reserved power target takes 64; the state mark overlays the art and takes no additional width.
+ * That leaves room for one 64 dp action target and 11 dp to spare. On a quarter tile —
  * 156 dp of content — even the first does not, which is the other half of why the bulbs, the
  * launchers and the lights group have none.
  */
@@ -666,11 +626,11 @@ enum class TileAction(
  *
  * Out here beside [controls], [promoted] and [span] for the reason all of them are: which control a
  * kind of tile offers is a decision with a right and a wrong answer, and one that only exists inside
- * a `@Composable` is one no test can reach. The switch is deliberately not repeated here — power is
+ * a `@Composable` is one no test can reach. The power button is deliberately not repeated here — power is
  * [TileControls.Toggle] and lives on the top line already, and a wall panel with two things on one
- * tile that both switch it off is a wall panel nobody trusts.
+ * tile that both turn it off is a wall panel nobody trusts.
  *
- * Seven overloads for the reason [hue], [glyph] and [controls] have them: the tile states are
+ * Seven overloads for the reason [hue], [art] and [controls] have them: the tile states are
  * unrelated data classes and there is no sealed type over them. Six of them are the constant `null`
  * and are written out rather than defaulted, because "this kind has no second action" is an answer
  * this file is asserting and not a gap in it — see [TileAction] for what each of them refuses.
@@ -700,11 +660,9 @@ internal fun action(group: BulbGroup): TileAction? = null
  * one-tap action at the end of the day is shutting the curtain, and opening it part-way is what the
  * slider is for.
  *
- * **A position nobody has read takes the same branch [curtainGlyph] takes for it**: null is drawn
- * open, so the button offered is the one that shuts it. That is an action rather than a claim —
- * nothing this tile prints says the curtain is open, its status line says "unknown" — and the two
- * rules agreeing is the point, since a glyph saying open above a button offering to open would be
- * the paint and the control disagreeing on one tile.
+ * **A position nobody has read offers Close.** That is an action rather than a claim — nothing this
+ * tile prints says the curtain is open, its status line says "unknown" — and Close is the useful
+ * one-tap default for a wall panel at the end of the day.
  *
  * Null when the vendor named no bounds, which is [controls]'s refusal in the same place: with no
  * reported range there is no "fully open" to drive to, and a button that picks one is the panel
@@ -734,13 +692,12 @@ internal fun actionTarget(
 }
 
 /**
- * **A button is drawn as the state it produces**: the same two shades glyphs the curtain's art is
- * already told apart by.
+ * **A button is drawn as the state it produces.** The tile's device art identifies the hardware;
+ * this smaller vector icon identifies the target position of the action beside it.
  *
- * So the tile says where the curtain is with a 48 dp glyph in its family accent and says where a
- * finger can send it with a 28 dp one in a quiet outlined circle — one picture, at two sizes, in two
- * weights. Nothing new was drawn for this, which is worth saying outright: the alternative was a
- * pair of arrows, and an arrow on a wall panel is a direction without a subject.
+ * The device status says where the curtain is now; the quiet outlined button says where a finger
+ * can send it. The alternative was a pair of arrows, and an arrow on a wall panel is a direction
+ * without a subject.
  */
 @DrawableRes
 internal fun glyph(action: TileAction): Int = when (action) {
@@ -767,8 +724,7 @@ internal fun glyph(action: TileAction): Int = when (action) {
  */
 internal data class TileAnatomy(
     /**
-     * **Art.** Top-left, the size every glyph on the wall is. A drawable today and photographs of
-     * the hardware one day — that is its own task and this slot is where it lands.
+     * **Art.** Top-left, the same-size untinted hardware cutout on every tile.
      */
     @DrawableRes val art: Int,
     /** **Controls.** Which of the two bands the card reserves are filled. See [TileControls]. */
@@ -828,7 +784,7 @@ internal fun anatomy(
     now: Instant,
     error: String?,
 ): TileAnatomy = TileAnatomy(
-    art = glyph(tile),
+    art = art(tile),
     controls = controls(tile),
     action = action(tile),
     name = tile.name,
@@ -842,7 +798,7 @@ internal fun anatomy(
     now: Instant,
     error: String?,
 ): TileAnatomy = TileAnatomy(
-    art = glyph(tile),
+    art = art(tile),
     controls = controls(tile),
     action = action(tile),
     name = tile.name,
@@ -861,7 +817,7 @@ internal fun anatomy(
     now: Instant,
     error: String?,
 ): TileAnatomy = TileAnatomy(
-    art = glyph(tile),
+    art = art(tile),
     controls = controls(tile),
     action = action(tile),
     name = tile.name,
@@ -884,7 +840,7 @@ internal fun anatomy(
     now: Instant,
     groupError: String?,
 ): TileAnatomy = TileAnatomy(
-    art = glyph(tile),
+    art = art(tile),
     controls = controls(tile),
     action = action(tile),
     name = tile.name,
@@ -898,7 +854,7 @@ internal fun anatomy(
     now: Instant,
     error: String?,
 ): TileAnatomy = TileAnatomy(
-    art = glyph(tile),
+    art = art(tile),
     controls = controls(tile),
     action = action(tile),
     name = tile.name,
@@ -936,7 +892,7 @@ internal fun anatomy(
     /** Whether the lamps are showing under it, which is the only thing the tile says about itself. */
     open: Boolean,
 ): TileAnatomy = TileAnatomy(
-    art = glyph(group),
+    art = art(group),
     controls = controls(group),
     action = action(group),
     name = lampCount(group),
@@ -955,7 +911,7 @@ internal fun anatomy(
  * package it cannot open. See [detailLine], which is where the wall's one truncation lives.
  */
 internal fun anatomy(tile: LauncherTileState): TileAnatomy = TileAnatomy(
-    art = glyph(tile),
+    art = art(tile),
     controls = controls(tile),
     action = action(tile),
     name = tile.name,

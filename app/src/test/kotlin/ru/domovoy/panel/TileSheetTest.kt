@@ -240,6 +240,6 @@ class TileSheetTest {
         assertEquals("Кондиционер", sheet(ac, now, error = null).name)
         assertEquals("Зал", sheet(ac, now, error = null).room)
         assertEquals(TileHue.Climate, sheet(ac, now, error = null).hue)
-        assertEquals(glyph(ac), sheet(ac, now, error = null).art)
+        assertEquals(art(ac), sheet(ac, now, error = null).art)
     }
 }
