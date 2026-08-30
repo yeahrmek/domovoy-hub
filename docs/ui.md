@@ -27,6 +27,9 @@ on it, on 2026-08-16.
    room's bulbs behind one group tile that opens them.
 3. **Both themes, following the system.** The panel is light by day and dark by night, driven by
    `isSystemInDarkTheme()`.
+4. **A tap on a tile opens that device's sheet.** Not the reference app's split — nothing moves off
+   a tile into it. What the sheet adds is an age per reading and the actions a third-width card had
+   no room for. See "The device sheet".
 
 Rejected, and why, so it is not re-proposed: **fill-level tiles** (the tile's fill height or width
 is the value, Apple-Home style). The recorded `/v1.0/user/info` holds 28 `devices.types.light`
@@ -1032,6 +1035,83 @@ colour budget on. Its glyph is the state it produces, which is the two shades gl
 own art is already told apart by; nothing new was drawn. Its `contentDescription` is the one on this
 wall that is not null — every other glyph here sits beside a name that says the same thing.
 
+## The device sheet
+
+A tap on a tile opens one surface over the wall showing that device whole: `DeviceSheet.kt` draws
+it, `TileSheet.kt` decides what is on it. Everything that decides is a pure function next to
+`anatomy`, `controls` and `action`, for the reason all of those are out there.
+
+**It is not the reference app's split, and the rule is the one thing to read before changing it.** A
+phone app is opened, tapped, read and closed, so its tile can be almost empty; this panel is read
+*without being touched*, so the tile is where detail belongs. **Nothing moves off a tile into the
+sheet.** A number that lives only behind a tap has turned a glance into a walk, and a change that
+does it is wrong however much better the tile looks afterwards. What the sheet adds is the two
+things a 251 dp card genuinely could not hold:
+
+- **An age per reading.** "One age per tile" is right for a wall read from four metres and is not an
+  answer to "how old is *this* number" — on `ac-01` the on/off and the target were read 81 days
+  apart and the tile prints the older of the two for both. The sheet breaks the pair back out. Its
+  wording is its own, `sheetAge`, and deliberately not `ageLine`: the wall says nothing under an
+  hour, and the sheet always answers, minutes included, because that is the question it was opened
+  with.
+- **The actions that did not fit.** One 64 dp button is a third-width tile's lot; the sheet is
+  753 dp wide.
+
+**What a kind offers is `sheetActions`, and it is a table with a refused row.**
+
+| Subject | Actions |
+| --- | --- |
+| air conditioner | power, level |
+| light strip | power, level |
+| curtain | level, open, close |
+| bulb | power |
+| recuperator | power |
+| **lock** | **nothing** |
+
+Power is `on_off` and the level is `range` — the two requests this panel has actually sent to real
+devices (docs/yandex.md, "Run on the tablet"). Everything else the reference sheet has is left out
+rather than guessed: the `Color` section and `Modes` need a `color_setting` and a `mode` action body
+that are still open questions, `reset` is not a capability any vendor here reported, and the
+recuperators' three speeds are an unverified Tuya command path *and* a metered allowance. The
+strip's colour is on its sheet as a reading and still says "not controllable".
+
+**The lock's empty row is the load-bearing line.** It reports and does not act — no unlock, no open,
+no door release, and no power switch that could be mistaken for one (CLAUDE.md, docs/aqara.md).
+There is no lock tile in `panel/` because Aqara's project is still in review, so `SheetSubject.Lock`
+exists with nothing constructing it: the rule is written before the tile that would have to obey it,
+and `TileSheetTest` asserts it as its own case rather than as an absence.
+
+**Two tiles open no sheet at all**, and `subject` says so out loud rather than by omission. The
+launchers open somebody else's app and have no readable state behind them — Xiaomi will issue no
+credentials and Domonap has no API the panel calls. The lights group's tap was already spoken for:
+it opens the room's lamps in the grid, each of which is a bulb with a sheet of its own.
+
+**It is drawn inside the panel's own composition**, in a `Box` over the grid, and not in a `Dialog`
+or a Material `ModalBottomSheet`. Two reasons, both practical: a sheet in a window of its own is a
+sheet `compose.onRoot().captureRoboImage` cannot see, and this wall is checked by picture; and the
+overlay makes it obvious that the sheet is a thing *this* app draws, which is why it cannot be in
+front of Domonap's call screen — that is another app's activity.
+
+**Which device is open is hoisted out of `PanelRooms`**, next to the scroll position and for the
+same reason: two things outside the composable close it.
+
+- **The idle reset.** `returnToHome` is what the two-minute reset calls now — close the sheet, then
+  scroll to the top. A sheet left open by a passer-by is a panel that has stopped being a panel.
+- **An intercom call.** `closeOnCall` puts it away at the *start* of the call, so that when the call
+  is over the wall is a wall rather than the one device somebody was looking at. Nothing there
+  cancels, delays, covers or silences anything of Domonap's; it only lets go of our own screen.
+
+**The state is a device id, not a tile.** A poll lands every fifteen seconds and replaces every tile
+state in the panel, so a held tile would be a sheet frozen at the moment somebody touched it; an id
+is looked up again each frame, which also means **the sheet starts no poll of its own**. Tuya is
+metered by the month, and a sheet that read faster while open would spend that allowance on being
+looked at. An id matching nothing draws nothing.
+
+The controls carry no words of their own — the reading directly above names them, exactly as a
+tile's unlabelled switch is named by the status line under it. The one word on the sheet that is not
+a reading or an action is `done`, which closes it, and it is not called "close" because the curtain's
+own action is.
+
 ## Compose APIs
 
 The Compose BOM is already `2026.08.00`, so Material 3 Expressive is on the classpath and **no new
@@ -1106,7 +1186,7 @@ it is legible from four metres.
 
 ### Screenshots
 
-Six images in `app/src/test/screenshots/`, committed, drawn by Robolectric and Roborazzi at the
+Eight images in `app/src/test/screenshots/`, committed, drawn by Robolectric and Roborazzi at the
 wall's own geometry — **753 × 1204 dp at 340 dpi, portrait**, which is the 1600 × 2560 px the tablet
 measured. A screenshot at any other width is a picture of a panel that does not exist, since the
 column widths are sized from that 753 and from nothing else.
@@ -1121,6 +1201,7 @@ are not a picture of the wall; the two Главная captures are, and those ke
 | `panel-home-light`, `panel-home-dark` | Главная whole, in both schemes: the spans, the corner, whether two kinds of tile actually end on the same line |
 | `tiles-light`, `tiles-dark` | Every `TileHue` × `TileMood` pair, plus the group-failure outline. This is the ΔE table in `PanelTheme.kt` made visible — and, since the marks became a set, the one picture of every mark: each swatch carries a switch, thrown on the lit row *and* on the failing one, so a row of three that comes out one colour is Material's `primary` leaking back in |
 | `lights-group` | The `Never` bulb's own tile beside its room's group tile, closed and open — three cards at the quarter width, which is where a group tile that stopped agreeing with an ordinary one would show |
+| `device-sheet-light`, `device-sheet-dark` | One device sheet over the real Главная, in both schemes. The recuperator on purpose: it is the tile whose four separately-timestamped datapoints the wall prints one age for, so its sheet is the four rows and four ages that are the argument for a sheet existing. What the picture is for is the pair of things no assertion sees — that the tiles behind the scrim are still legible, and that the sheet is unmistakably in front of them |
 | `headings` | A plain heading, a marked one, and the longest room name in the flat at heading size |
 
 ```bash
@@ -1135,7 +1216,7 @@ source scripts/env.sh && ./gradlew recordRoborazziDebug
 `app/build/outputs/roborazzi/`. `record` rewrites the references — run it after a deliberate change,
 then **look at what it wrote**. A reference nobody opened is a test that asserts whatever the code
 did on the day, which is not the same as asserting the panel is right. A plain `./gradlew test` runs
-these six as ordinary tests and neither records nor compares, so the other 241 keep costing what
+these eight as ordinary tests and neither records nor compares, so the other 342 keep costing what
 they cost.
 
 The fixtures are in `app/src/test/kotlin/ru/domovoy/panel/Flat.kt`: one flat's worth of tiles with a
@@ -1251,6 +1332,19 @@ out wrong. None of them can be settled from a screenshot.
   mockups decides; see "The size, and the family question that is still open".
 - **Whether 48 dp is the right glyph size**, which only the hallway can say. It is reasoned from the
   size the disc's lamp was already defended at, not measured at four metres.
+- **The device sheet has never been opened on the wall.** Two numbers in it are guesses and are one
+  constant each: `SCRIM_ALPHA` at 0.6, which is meant to leave the tiles behind it legible while
+  putting the sheet unmistakably in front, and `LABEL_WIDTH` at 220 dp, which lines the values up
+  and holds the longest label the flat produces (`temperature`). Both look right in the two recorded
+  captures and neither has been seen from four metres, or behind the blue light filter — which is
+  exactly what erodes a low-contrast neutral. The sheet is also anchored to the bottom of a
+  head-height panel, which is the half of the screen a hand reaches most easily and the half the
+  eye finds last; nobody has stood in front of it to say whether that is right.
+- **Whether the recuperator's sheet should carry a power switch at all.** It does, on the grounds
+  that the tile's switch already sends the same Tuya command and a second surface is not a second
+  cost per tap. But Tuya is metered by the month and the command path is unverified (docs/tuya.md),
+  so this is the one row of `sheetActions` that is a judgement rather than a verified capability. If
+  the allowance turns out tight, it is the first thing to drop.
 - The tablet is locked with a PIN and locks itself on screen-off. Nothing in the panel handles that
   — the wall goes to a lock screen rather than to the panel, and the Domonap takeover's behaviour
   over a locked screen is unverified. See `docs/domonap.md`.

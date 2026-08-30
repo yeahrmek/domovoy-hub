@@ -29,6 +29,8 @@ fun RecuperatorTile(
     now: Instant,
     modifier: Modifier = Modifier,
     groupError: String? = null,
+    /** What a tap on the card does: open this device's sheet. Null when there is none — see [AcTile]. */
+    onOpen: (() -> Unit)? = null,
     onToggle: (String) -> Unit = {},
 ) {
     // The card no longer needs the span — one radius, one anatomy, one height — and the grid still
@@ -43,6 +45,7 @@ fun RecuperatorTile(
         hue = hue(tile),
         paint = paint,
         modifier = modifier,
+        onClick = onOpen,
         toggle = {
             Switch(
                 checked = tile.isOn == true,
@@ -106,8 +109,9 @@ private fun RecuperatorTileState.readings(): List<Reading> = listOfNotNull(
 )
 
 // "no speed" and "unknown" are different answers: the first is three booleans that all came back
-// false, the second is a device that reported no speed datapoint at all.
-private fun speedLabel(tile: RecuperatorTileState): String = when {
+// false, the second is a device that reported no speed datapoint at all. Shared with the tile's
+// sheet, which prints the same speeds with an age of their own — see [TileSheet].
+internal fun speedLabel(tile: RecuperatorTileState): String = when {
     tile.speeds.isNotEmpty() -> tile.speeds.joinToString(" + ") { it.label }
     tile.speedLastUpdated == Reading.Never -> "unknown"
     else -> "no speed"

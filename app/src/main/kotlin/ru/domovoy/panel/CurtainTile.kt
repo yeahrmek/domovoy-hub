@@ -19,6 +19,8 @@ fun CurtainTile(
     now: Instant,
     modifier: Modifier = Modifier,
     error: String? = null,
+    /** What a tap on the card does: open this device's sheet. Null when there is none — see [AcTile]. */
+    onOpen: (() -> Unit)? = null,
     onSetOpen: (String, Double) -> Unit = { _, _ -> },
 ) {
     // The curtain has no switch to read a mood off, so its position is the mood — which is [paint]'s
@@ -31,6 +33,7 @@ fun CurtainTile(
         hue = hue(tile),
         paint = paint(tile, error),
         modifier = modifier,
+        onClick = onOpen,
         // **The wall's one second control**, and the one tile that has it: the end of travel the
         // curtain is not already at — see [action]. It is not a new capability, which is why it is
         // the only one the panel can honestly draw: it sends the same verified `range` action the

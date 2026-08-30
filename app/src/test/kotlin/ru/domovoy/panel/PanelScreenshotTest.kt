@@ -10,6 +10,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onRoot
@@ -112,6 +114,26 @@ class PanelScreenshotTest {
         capture("tiles-dark", panelDarkScheme) { TileMatrix() }
     }
 
+    // **What a tap opens, over the wall it was tapped on**, in both schemes — because the sheet is a
+    // surface of its own and a palette that reads on twelve small cards is not automatically a
+    // palette that reads on one 753 dp panel with a scrim behind it.
+    //
+    // `xfj-01` is the recuperator, and it is the one chosen deliberately: it is the tile whose four
+    // separately-timestamped datapoints the wall prints one age for, so its sheet is the four rows
+    // and four ages that are the whole argument for a sheet existing. It is drawn over the real
+    // Главная rather than on its own, which is the only way to see the two things a picture is
+    // needed for at all — that the tiles behind the scrim are still legible, and that the sheet is
+    // unmistakably in front of them.
+    @Test
+    fun `the device sheet, light`() {
+        capture("device-sheet-light", panelLightScheme) { Panel(open = "xfj-01") }
+    }
+
+    @Test
+    fun `the device sheet, dark`() {
+        capture("device-sheet-dark", panelDarkScheme) { Panel(open = "xfj-01") }
+    }
+
     @Test
     fun `the lights group`() {
         // Коридор: three lamps the panel has a value for, standing behind one group tile, and the
@@ -183,7 +205,10 @@ class PanelScreenshotTest {
     }
 
     @Composable
-    private fun Panel() {
+    private fun Panel(
+        /** Which device's sheet is open over the wall, or null for the wall on its own. */
+        open: String? = null,
+    ) {
         PanelRooms(
             acs = Flat.acs,
             curtains = Flat.curtains,
@@ -194,6 +219,7 @@ class PanelScreenshotTest {
             now = Flat.NOW,
             yandexInterval = Flat.YANDEX_INTERVAL,
             tuyaInterval = Flat.TUYA_INTERVAL,
+            openSheet = remember { mutableStateOf(open) },
         )
     }
 

@@ -21,6 +21,11 @@ fun AcTile(
     now: Instant,
     modifier: Modifier = Modifier,
     error: String? = null,
+    /**
+     * What a tap on the card does: open this device's sheet. Null when nothing is behind the tap —
+     * the tile is then not clickable at all, rather than clickable and dead. See [DeviceSheet].
+     */
+    onOpen: (() -> Unit)? = null,
     onToggle: (String) -> Unit = {},
     onSetTemperature: (String, Double) -> Unit = { _, _ -> },
 ) {
@@ -36,6 +41,7 @@ fun AcTile(
         hue = hue(tile),
         paint = paint,
         modifier = modifier,
+        onClick = onOpen,
         toggle = {
             Switch(
                 checked = tile.isOn == true,

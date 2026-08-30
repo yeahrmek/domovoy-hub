@@ -27,6 +27,8 @@ fun LightStripTile(
     now: Instant,
     modifier: Modifier = Modifier,
     error: String? = null,
+    /** What a tap on the card does: open this device's sheet. Null when there is none — see [AcTile]. */
+    onOpen: (() -> Unit)? = null,
     onToggle: (String) -> Unit = {},
     onSetBrightness: (String, Double) -> Unit = { _, _ -> },
 ) {
@@ -41,6 +43,7 @@ fun LightStripTile(
         hue = hue(tile),
         paint = paint,
         modifier = modifier,
+        onClick = onOpen,
         toggle = {
             Switch(
                 checked = tile.isOn == true,

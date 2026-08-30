@@ -38,10 +38,12 @@ import ru.domovoy.integrations.yandex.YandexClient
 import ru.domovoy.panel.PanelRooms
 import ru.domovoy.panel.TuyaPoll
 import ru.domovoy.panel.YandexPoll
+import ru.domovoy.panel.closeOnCall
 import ru.domovoy.panel.launcherTiles
 import ru.domovoy.panel.pollPausingForCalls
 import ru.domovoy.panel.recuperatorRooms
 import ru.domovoy.panel.resetAfterIdle
+import ru.domovoy.panel.returnToHome
 import java.time.Instant
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
@@ -202,9 +204,20 @@ private fun Panel(secrets: PanelSecrets) {
     // The rooms are one scroll rather than a strip of tabs, so going back to Главная is going back
     // to the top: the state is held here because the reset drives it from outside the composable.
     val scroll = rememberLazyGridState()
+    // Which device somebody has open in front of the wall, if any. Held here for the same reason
+    // the scroll position is: two things outside the panel close it, and neither of them can reach
+    // state that lives inside a composable.
+    val openSheet = remember { mutableStateOf<String?>(null) }
     val touches = remember { MutableSharedFlow<Unit>(extraBufferCapacity = 1, onBufferOverflow = DROP_OLDEST) }
     LaunchedEffect(Unit) {
-        resetAfterIdle(touches, IDLE_RESET) { scope.launch { scroll.scrollToItem(0) } }
+        resetAfterIdle(touches, IDLE_RESET) { scope.launch { returnToHome(scroll, openSheet) } }
+    }
+
+    // The other one: an intercom call. Nothing here cancels, delays or covers Domonap's own screen —
+    // it only lets go of the panel's, so that when the call is over the wall is a wall again and not
+    // the sheet whoever answered the door had left open. See [closeOnCall].
+    LaunchedEffect(Unit) {
+        closeOnCall(domonapCalls.state) { openSheet.value = null }
     }
 
     // The launcher tiles hold no vendor state, so there is nothing here to poll — but whether an
@@ -267,6 +280,7 @@ private fun Panel(secrets: PanelSecrets) {
             }
         },
         scroll = scroll,
+        openSheet = openSheet,
         onToggleAc = { id -> scope.launch { acs.toggle(id) } },
         onSetTemperature = { id, celsius -> scope.launch { acs.setTemperature(id, celsius) } },
         onSetOpen = { id, percent -> scope.launch { curtains.setOpen(id, percent) } },

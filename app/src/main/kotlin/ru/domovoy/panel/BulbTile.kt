@@ -21,6 +21,8 @@ fun BulbTile(
     now: Instant,
     modifier: Modifier = Modifier,
     error: String? = null,
+    /** What a tap on the card does: open this device's sheet. Null when there is none — see [AcTile]. */
+    onOpen: (() -> Unit)? = null,
     onToggle: (String) -> Unit = {},
 ) {
     // The paint is worked out once and read twice: the card takes it, and so does the switch, whose
@@ -32,6 +34,7 @@ fun BulbTile(
         hue = hue(tile),
         paint = paint,
         modifier = modifier,
+        onClick = onOpen,
         toggle = {
             Switch(
                 checked = tile.isOn == true,
@@ -112,8 +115,12 @@ internal fun statusLine(
 /**
  * The three words a bulb's state comes in. "unknown" and never "off" for a bulb that reported
  * nothing — the same care the colours take, in the place the panel has always taken it.
+ *
+ * Shared with [TileSheet] rather than private now: every sheet with a power reading on it says the
+ * same three words, and a second copy of this `when` would be a second place for "unknown" to
+ * quietly become "off".
  */
-private fun power(isOn: Boolean?): String = when (isOn) {
+internal fun power(isOn: Boolean?): String = when (isOn) {
     true -> "on"
     false -> "off"
     null -> "unknown"
