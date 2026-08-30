@@ -15,10 +15,11 @@ import java.util.Locale
  * a tile that says "not updating" here means *this* recuperator, and the one next to it may be
  * perfectly current.
  *
- * This is the only tile with both kinds of bad news, and the two are drawn differently on purpose:
- * [RecuperatorTileState.error] is one device's and *fills* that tile, [groupError] is the inventory
- * call and *outlines* all five. Filling all five for a group failure would say five recuperators
- * broke; outlining the one that timed out would bury it among four that are fine.
+ * This is the only tile with both kinds of bad news at once, and the two are drawn differently on
+ * purpose: [RecuperatorTileState.error] is one device's and *fills* that tile's art with the error
+ * chip, [groupError] is the inventory call and *outlines* all five. Filling all five for a group
+ * failure would say five recuperators broke; outlining the one that timed out would bury it among
+ * four that are fine. Every other kind of tile follows the same rule now — see [TilePaint].
  *
  * Its width is the one span in the panel decided by content — see [span].
  */
@@ -35,9 +36,8 @@ fun RecuperatorTile(
     TileCard(
         anatomy = anatomy(tile, now, groupError),
         hue = hue(tile),
-        mood = mood(tile.isOn, tile.error),
+        paint = paint(tile, groupError),
         modifier = modifier,
-        border = groupFailureBorder(groupError),
         toggle = {
             Switch(checked = tile.isOn == true, onCheckedChange = { onToggle(tile.id) })
         },
@@ -45,34 +45,56 @@ fun RecuperatorTile(
 }
 
 /**
- * The line under the name: on/off and how old that is, then the fan speed and how old *that* is.
- * Two ages rather than one for the same reason the air conditioner prints two — the datapoints are
- * timestamped separately, and on the recorded response the humidity was minutes old while the
- * switch had not moved in days.
+ * The line under the name: on/off, the fan speed and **one age for the whole tile**. The reason it
+ * stopped updating is the tile's second line now — see [TileAnatomy].
  *
- * "offline" leads, when Tuya says so: everything after it is what the device last reported before
- * it went away, and reading it as current would be the tile's worst lie.
+ * This is the tile the one-age rule was written for. It printed four of them — two here and two on
+ * the climate line — and on the recorded response three were the same number: `on · 3 min ago · low
+ * + medium + high · 3 min ago` over `26.4 °C · 3 min ago · 41.0 % · 3 min ago`. The four datapoints
+ * really are timestamped separately, so the one printed is the **oldest** of them, the climate
+ * included: the tile under-claims how fresh it is rather than quoting the humidity's 26 seconds over
+ * a switch that has not moved in three days.
+ *
+ * **"offline" replaces the power word rather than leading a queue of echoes**, and this is the line
+ * on the wall that most needed it. `offline · unknown · low + medium + high · not updating: timeout`
+ * is 62 characters on a 251 dp tile that holds about twenty-four of them; it wrapped onto three
+ * lines and was the longest thing on the panel. What is dropped is the echo: a device Tuya says is
+ * offline is not confirming its switch or its speeds, and the panel's rule everywhere else is that
+ * it does not assert what it has not read. What survives is the state, its age, and — on the line
+ * below — why the panel is not reading it. The values themselves are still on
+ * [RecuperatorTileState]; nothing about the device is forgotten, it is only not claimed.
  */
 internal fun statusLine(
     tile: RecuperatorTileState,
     now: Instant,
-    /** The group's failure — the inventory call — which stops every tile from updating at once. */
-    groupError: String? = null,
 ): String {
-    val power =
-        when (tile.isOn) {
-            true -> "on"
-            false -> "off"
-            null -> "unknown"
-        }
-    val line =
-        "$power · ${ageLabel(tile.powerLastUpdated, now)} · " +
-            "${speedLabel(tile)} · ${ageLabel(tile.speedLastUpdated, now)}"
-    // This tile's own failure first: it is the more specific of the two.
-    val reason = tile.error ?: groupError
-    val reported = if (reason == null) line else "$line · not updating: $reason"
-    return if (tile.online == false) "offline · $reported" else reported
+    val offline = tile.online == false
+    return listOfNotNull(
+        if (offline) "offline" else powerLabel(tile.isOn),
+        speedLabel(tile).takeUnless { offline },
+        ageLine(oldest(tile.readings()), now),
+    ).joinToString(" · ")
 }
+
+/** The three words a recuperator's switch comes in, on the same rule every other tile follows. */
+private fun powerLabel(isOn: Boolean?): String = when (isOn) {
+    true -> "on"
+    false -> "off"
+    null -> "unknown"
+}
+
+/**
+ * The readings behind everything this tile shows, on both of its lines — and only the ones it has a
+ * value for, on [AcTileState]'s rule. A speed that reported nothing at all reads as "unknown" and
+ * brings no age with it; three booleans that all came back false are a reading like any other and
+ * bring theirs.
+ */
+private fun RecuperatorTileState.readings(): List<Reading> = listOfNotNull(
+    powerLastUpdated.takeIf { isOn != null },
+    speedLastUpdated.takeIf { it != Reading.Never || speeds.isNotEmpty() },
+    temperatureLastUpdated.takeIf { temperature != null },
+    humidityLastUpdated.takeIf { humidity != null },
+)
 
 // "no speed" and "unknown" are different answers: the first is three booleans that all came back
 // false, the second is a device that reported no speed datapoint at all.
@@ -83,20 +105,20 @@ private fun speedLabel(tile: RecuperatorTileState): String = when {
 }
 
 /**
- * The second line: what the recuperator measures, and how old each of those two readings is. They
- * get a line of their own because they are the only values here that move on their own — the
- * humidity was 26 s old on the recorded read while the switch had not changed in three days.
+ * The second line: what the recuperator measures. They get a line of their own because they are the
+ * only values here that move on their own — the humidity was 26 s old on the recorded read while the
+ * switch had not changed in three days.
+ *
+ * **Both of the ages it carried have gone to the status line**, where the tile says its age once and
+ * says the oldest, this pair included. It takes no `now` now, which is what makes [span] able to ask
+ * it whether there is a second line without inventing an instant to ask with.
  *
  * Null when the device reported neither, and the tile then has no second line at all: a row of
- * "unknown · never read · unknown · never read" says nothing the first line has not already said.
+ * "unknown · unknown" says nothing the first line has not already said.
  */
-internal fun climateLine(
-    tile: RecuperatorTileState,
-    now: Instant,
-): String? {
+internal fun climateLine(tile: RecuperatorTileState): String? {
     if (tile.temperature == null && tile.humidity == null) return null
-    return "${measured(tile.temperature, DEGREES)} · ${ageLabel(tile.temperatureLastUpdated, now)} · " +
-        "${measured(tile.humidity, PERCENT_SIGN)} · ${ageLabel(tile.humidityLastUpdated, now)}"
+    return "${measured(tile.temperature, DEGREES)} · ${measured(tile.humidity, PERCENT_SIGN)}"
 }
 
 /**

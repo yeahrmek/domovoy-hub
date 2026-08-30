@@ -157,10 +157,15 @@ restart. `local.properties` still seeds it:
    ignored. Reinstalling the same APK over a store that has a fresher token does not put the stale
    one back. *Uninstalling* wipes the store, and the next install seeds again from the APK.
 3. **Nothing stored.** No request is sent — an empty `Bearer` would come back as the same
-   plain-text `Forbidden` above and blame the scopes. The bulb group shows *«no Yandex token
-   stored — set yandex.oauth.token in local.properties and reinstall»*.
-4. **Store will not open.** A keystore lost across a restored backup or a wipe fails the poll with
-   *«secure storage unavailable: …»* on the tiles rather than taking the panel down.
+   plain-text `Forbidden` above and blame the scopes. The poll fails with *«no Yandex token stored —
+   set yandex.oauth.token in local.properties and reinstall»*, **and that sentence is now in `Log`
+   rather than on the wall**: every throwable reaching a tile goes through `reason`, which has four
+   words in it (`docs/ui.md`, "Why a poll failed"). What the panel shows is
+   `Лампы: not updating: failed`. That is a real loss and it is tracked —
+   `docs/design/panel-redesign.md` item 8 is the commit that would give the sentence the 753 dp
+   group-failure line it actually fits on.
+4. **Store will not open.** A keystore lost across a restored backup or a wipe fails the poll rather
+   than taking the panel down; *«secure storage unavailable: …»* is in `Log`, on 3's rule.
 
 **Still true, and the reason this is only half the fix:** the seed rides in the APK, and there is
 no way to type a token into the panel. So an expired token today still means edit
@@ -212,15 +217,16 @@ Built against the fixture; first run against the live API on the tablet on 2026-
 - **`last_updated: 0.0` is `Reading.Never`**, rendered "never read". A `Double` at this magnitude
   resolves only ~0.2 µs, so sub-second parts survive approximately — irrelevant for an age display,
   worth knowing before anyone compares two timestamps for equality.
-- **A failed or timed-out poll keeps the tiles on screen** with their last values and adds
-  "not updating: …". One `/v1.0/user/info` call is the whole house, so the failure belongs to the
+- **A failed or timed-out poll keeps the tiles on screen** with their last values and adds one of
+  four words — `unreachable`, `timed out`, `refused`, `failed` — on the tile's second line. One `/v1.0/user/info` call is the whole house, so the failure belongs to the
   bulb group rather than to one tile. Every call carries a 10 s call timeout.
 - **A toggle is not trusted.** `POST /v1.0/devices/actions` succeeding only means Yandex accepted
   it, so the tile is repainted from a fresh `/v1.0/user/info`, never from the action result — see
   the first open question below, still unanswered. The tablet run shows the round trip works; it
   does not show that the response could have been trusted.
 - **The OAuth token** is read at runtime from `EncryptedSharedPreferences`, not from `BuildConfig`
-  — see "How the token gets in" below. No token stored is a visible tile error, not an empty poll.
+  — see "How the token gets in" below. No token stored is a visible failure on every tile, not an
+  empty poll; what it is *not* any more is a sentence naming the token, which is in `Log`.
 
 ## What the curtain tile actually does with this
 
@@ -400,8 +406,8 @@ Each carries four capabilities: `on_off`, `range/brightness` (`1..100`, precisio
   meant both strips were dropped in `YandexClient` and rendered as nothing at all. They are now
   their own `DeviceKind`, mapped in the same `KINDS` table.
 - **Every capability on both strips carries `last_updated: 0.0`** — brightness, on/off and colour
-  alike. So both tiles read `on · never read · 26% · never read`, values present and read times
-  absent. These are the first tiles where that is the whole story rather than one field of it, and
+  alike. So both tiles read `on · 26% · never read`, values present and read times absent — one age
+  for the tile, which is the oldest of the three and here is the only one there is. These are the first tiles where that is the whole story rather than one field of it, and
   the reason `Reading.Never` existed before the strips did.
 - **Brightness is the existing `Range`,** the same model and the same `Bounds.snap` the curtain's
   `open` percent uses; the action is the same `POST /v1.0/devices/actions` with
@@ -410,7 +416,8 @@ Each carries four capabilities: `on_off`, `range/brightness` (`1..100`, precisio
   slider dragged to the bottom hands over a `0` the device never offered. Snapping turns that into
   `1` before it is sent, exactly as the AC's `40` becomes `32`.
 - **`color_setting` is parsed and modelled, and deliberately not controllable.** The tile prints it
-  — `2700 K · never read · not controllable` — and there is no `setColor` on the client. The
+  — `2700 K · not controllable`, its age folded into the one the status line prints — and there is
+  no `setColor` on the client. The
   capability differs from `range`/`mode`/`toggle` in one way that mattered: it names its instance
   only inside `state`, never in `parameters`. `light-strip-02`'s `state` is `null`, so it has
   neither instance nor value, and dropping such a capability would tell the tile the strip has no

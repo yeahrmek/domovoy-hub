@@ -92,11 +92,13 @@ class PanelScreenshotTest {
 
     // **A taller frame than the wall, and only here.** [TileMatrix] is thirteen colour swatches
     // rather than a picture of the panel — the wall's own 1204 dp is what the two Главная captures
-    // are for, and it is load-bearing there. A tile is 328 dp tall now that every kind fills the
-    // same five slots, so five rows of them — four moods and the outlined case — come to 1656 dp,
-    // and in a 1204 dp frame the failing row and the outline simply fell off the bottom and were
-    // recorded as nothing at all. The width stays 753: these cards sit three across, which is the
-    // wall's own wide column.
+    // are for, and it is load-bearing there. A tile is 280 dp tall now that every kind fills the
+    // same five slots and the status slot is capped at two lines, so five rows of them — four moods
+    // and the outlined case — come to 1400 dp, and in a 1204 dp frame the failing row and the
+    // outline simply fell off the bottom and were recorded as nothing at all. The frame stays at
+    // 1700 rather than following the tile down: it was 1656 dp of swatch and is 1400, and a height
+    // that has to be retuned every time a slot moves is a height that will be wrong once. The width
+    // stays 753 — these cards sit three across, which is the wall's own wide column.
     @Test
     @Config(qualifiers = "w753dp-h1700dp-port-340dpi")
     fun `the tile colours, light`() {
@@ -195,14 +197,16 @@ class PanelScreenshotTest {
     }
 
     /**
-     * Every colour a tile can be: the three hues across, the four moods down, plus the outlined
-     * case that only the recuperators have — a filled red tile is *this device*, an outlined one is
-     * all five.
+     * Every way a tile can be painted: the three hues across, the four moods down, plus the outlined
+     * case — which every kind of tile has now rather than only the recuperators. **The four rows are
+     * four steps of one neutral ramp and the columns differ only in their accents**, which is the
+     * whole of what this picture is here to hold: a card that goes back to being filled with its
+     * family's container shows up here as three coloured rows before it shows up anywhere else.
      *
      * [TileCard] directly rather than one real tile of each kind, because the thing being recorded
-     * is the twelve-plus-one colour pairs and nothing else. A grid of real tiles would take the
-     * same picture with four sliders and eleven status lines in front of it, and would change every
-     * time one of those did.
+     * is the twelve-plus-one pairs and nothing else. A grid of real tiles would take the same
+     * picture with four sliders and eleven status lines in front of it, and would change every time
+     * one of those did.
      */
     @Composable
     private fun TileMatrix() {
@@ -213,25 +217,26 @@ class PanelScreenshotTest {
                         TileCard(
                             anatomy = swatch("$hue · $mood"),
                             hue = hue,
-                            mood = mood,
+                            paint = TilePaint(mood, groupFailing = false),
                             modifier = Modifier.weight(1f),
                         )
                     }
                 }
             }
-            // The group failure outline, on a tile that is otherwise ordinary. It is the one piece
-            // of tile paint that is a border rather than a fill, and the only reason it exists is
-            // to be told apart from the filled red above it.
+            // The group failure outline, on a tile that is otherwise ordinary and stays ordinary:
+            // the surface, the glyph, the promoted value and the mark all go on saying what they
+            // said, and the border is the only thing that is new. That is the picture — the tile
+            // beside it in the `On · Climate` cell above should differ from this one by a red line
+            // and by nothing else.
             Row(modifier = Modifier.fillMaxWidth()) {
                 TileCard(
                     anatomy = swatch("группа не читается"),
                     hue = TileHue.Climate,
-                    mood = TileMood.On,
+                    paint = TilePaint(TileMood.On, groupFailing = true),
                     modifier = Modifier.weight(1f),
-                    border = groupFailureBorder("not updating"),
                 )
                 // The row's other two thirds, left empty: the outline is one case and not three,
-                // and a second card here would be a colour pair that does not exist.
+                // and a second card here would be a pair that does not exist.
                 Spacer(modifier = Modifier.weight(2f))
             }
         }
@@ -248,7 +253,7 @@ class PanelScreenshotTest {
         controls = TileControls.None,
         name = name,
         promoted = "22 °C",
-        status = "on · 2 min ago",
+        status = "on · 2 h ago",
         detail = null,
     )
 }

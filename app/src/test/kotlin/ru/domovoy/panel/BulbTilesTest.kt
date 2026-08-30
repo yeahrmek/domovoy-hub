@@ -10,9 +10,16 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import ru.domovoy.core.Reading
 import ru.domovoy.integrations.yandex.YandexClient
+import java.io.IOException
+import java.io.InterruptedIOException
+import java.net.ConnectException
+import java.net.NoRouteToHostException
+import java.net.SocketTimeoutException
+import java.net.UnknownHostException
 import java.time.Instant
 import java.util.concurrent.TimeUnit
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -48,7 +55,38 @@ class BulbTilesTest {
         assertEquals(true, tile.isOn)
         // last_updated 1784883564 read two hours later.
         val now = Instant.ofEpochSecond(1_784_883_564 + 2 * 3600)
-        assertEquals("on · 2 h ago", statusLine(tile, now, error = null))
+        assertEquals("on · 2 h ago", statusLine(tile, now))
+    }
+
+    @Test
+    fun `every failure the panel can have comes out as one of four reasons`() {
+        // The table `docs/design/panel-redesign.md` item 7 asks for. Four words, chosen here and
+        // not by whoever threw: `message ?: className` put Java's own sentence in the middle of a
+        // line whose other half was the panel's, and put it there at whatever length it happened
+        // to be.
+        assertEquals("unreachable", reason(UnknownHostException("openapi.tuyaeu.com")))
+        assertEquals("unreachable", reason(NoRouteToHostException("no route to host")))
+        assertEquals("timed out", reason(SocketTimeoutException("timeout")))
+        // OkHttp's call timeout, which is the one every vendor client in this app sets, arrives as
+        // the parent type rather than as a SocketTimeoutException.
+        assertEquals("timed out", reason(InterruptedIOException("timeout")))
+        assertEquals("refused", reason(ConnectException("Failed to connect to /10.0.0.2:443")))
+        // The fallback, and both kinds of thing that land on it: an I/O failure with no name of its
+        // own, and the panel's own check on a response it did not like.
+        assertEquals("failed", reason(IOException("unexpected end of stream")))
+        assertEquals("failed", reason(IllegalStateException("GET /v1.0/user/info failed: HTTP 403 Forbidden")))
+    }
+
+    @Test
+    fun `the vendor's own words do not reach the wall`() {
+        // The line this whole mapping is named after — it arrived on the tile as
+        // `not updating: Unable to resolve host "openapi.tuyaeu.com"`, wrapped, and made that tile
+        // taller than the one beside it.
+        val fromJava =
+            UnknownHostException("""Unable to resolve host "openapi.tuyaeu.com": No address associated with hostname""")
+
+        assertEquals("unreachable", reason(fromJava))
+        assertFalse(reason(fromJava).contains("openapi"), "the host name belongs in Log, not on the wall")
     }
 
     @Test
@@ -61,7 +99,7 @@ class BulbTilesTest {
 
         val tile = tiles.state.value.tiles.single { it.id == "light-04" }
         assertEquals(Reading.Never, tile.lastUpdated)
-        assertEquals("on · never read", statusLine(tile, Instant.ofEpochSecond(1_786_790_000), error = null))
+        assertEquals("on · never read", statusLine(tile, Instant.ofEpochSecond(1_786_790_000)))
     }
 
     @Test
@@ -80,7 +118,11 @@ class BulbTilesTest {
         val kept = after.tiles.single { it.id == "light-01" }
         assertEquals(before, kept)
         val now = Instant.ofEpochSecond(1_784_883_564 + 2 * 3600)
-        assertTrue(statusLine(kept, now, after.error).startsWith("on · 2 h ago · not updating"))
+        // The reading and its age stay exactly where they were, and the reason the panel stopped
+        // reading is the tile's *second* line — a status line carrying both is a status line no
+        // narrow tile on this wall can hold.
+        assertEquals("on · 2 h ago", statusLine(kept, now))
+        assertEquals("failed", anatomy(kept, now, after.error).detail)
     }
 
     @Test
@@ -105,9 +147,15 @@ class BulbTilesTest {
     }
 
     @Test
-    fun `a panel with no token stored says so instead of standing there empty`() = runTest {
-        // No tile has ever been read, so there is nothing to hang the message on but the group
-        // error — and without it the wall would show a blank panel and no reason for it.
+    fun `a panel with no token stored reports a failed poll instead of standing there empty`() = runTest {
+        // No tile has ever been read, so there is nothing to hang the news on but the group error —
+        // and without it the wall would show a blank panel and no reason for it.
+        //
+        // **It no longer names the token, and that is item 7's price.** The sentence the client
+        // throws — "no Yandex token stored — set yandex.oauth.token in local.properties and
+        // reinstall" — is 76 characters on a 156 dp tile, and the mapping the panel now runs every
+        // throwable through has four words in it and no room for a 77th. It goes to `Log` with the
+        // exception, and docs/yandex.md says so.
         val poll = YandexPoll(client(token = { "" }))
         val tiles = poll.bulbs
 
@@ -115,10 +163,7 @@ class BulbTilesTest {
 
         val state = tiles.state.value
         assertTrue(state.tiles.isEmpty())
-        assertTrue(
-            state.error.orEmpty().contains("token"),
-            "the panel must name the missing token: ${state.error}",
-        )
+        assertEquals("failed", state.error)
     }
 
     @Test
@@ -190,7 +235,9 @@ class BulbTilesTest {
         tiles.toggle("light-01")
 
         assertEquals(before, tiles.state.value.tiles)
-        assertTrue(tiles.state.value.error.orEmpty().contains("404"))
+        // "404 unknown device" is Yandex's answer and it is in Log; what the wall gets is the one
+        // of four words the panel is willing to print at a width it can hold.
+        assertEquals("failed", tiles.state.value.error)
     }
 
     private fun client(

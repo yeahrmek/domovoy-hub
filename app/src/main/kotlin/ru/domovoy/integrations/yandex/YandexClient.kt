@@ -55,9 +55,14 @@ private const val COLOR_SETTING = "devices.capabilities.color_setting"
 val YANDEX_BASE_URL: HttpUrl = "https://api.iot.yandex.net/".toHttpUrl()
 
 /**
- * Said on the tile itself when the store holds no token, so it names both what is wrong and the
- * one way a token gets in today. Sending an empty `Bearer` instead would come back `403` and the
- * panel would blame the OAuth scopes — see docs/yandex.md.
+ * Names both what is wrong and the one way a token gets in today. Sending an empty `Bearer` instead
+ * would come back `403` and the panel would blame the OAuth scopes — see docs/yandex.md.
+ *
+ * **It was said on the tile and is now said in `Log`.** Every throwable that reaches a tile goes
+ * through `reason` first, which has four words in it and none of them is a sentence — see
+ * `docs/ui.md`, "Why a poll failed". Seventy-six characters were never going to fit a 188 dp card
+ * whatever the rule was; where they *do* fit is the 753 dp group failure line at the top of Главная,
+ * and giving them that line is `docs/design/panel-redesign.md` item 8.
  */
 internal const val NO_TOKEN = "no Yandex token stored — set yandex.oauth.token in local.properties and reinstall"
 

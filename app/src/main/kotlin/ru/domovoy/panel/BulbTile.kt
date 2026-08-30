@@ -26,7 +26,7 @@ fun BulbTile(
     TileCard(
         anatomy = anatomy(tile, now, error),
         hue = hue(tile),
-        mood = mood(tile.isOn, error),
+        paint = paint(tile, error),
         modifier = modifier,
         toggle = {
             Switch(checked = tile.isOn == true, onCheckedChange = { onToggle(tile.id) })
@@ -47,7 +47,7 @@ fun BulbTile(
  *
  * **The other option was seven ordinary tiles, and the count is why it was not taken.** The flat has
  * 28 bulbs against 7 of everything else, and one Yandex call feeds all of them — so the moment that
- * call stops landing, [favourites] pulls all 28 onto Главная. At 328 dp each that is seven rows of
+ * call stops landing, [favourites] pulls all 28 onto Главная. At 280 dp each that is seven rows of
  * lamp before the wall says anything about the air conditioner, which is precisely the "fourteen
  * rows of lamps" the group was invented to prevent, four times taller. What the panel refuses to
  * hide behind a tap is a *reading* — see PLAN.md — and no reading is hidden here: how many lamps,
@@ -63,9 +63,10 @@ fun BulbGroupTile(
     now: Instant,
     modifier: Modifier = Modifier,
     /**
-     * The bulb group's error: the one poll behind all of them failed. The tile goes rose and its
-     * status line names the reason — said once for the whole group rather than once per lamp,
-     * because one `/v1.0/user/info` call is behind every one of them.
+     * The bulb group's error: the one poll behind all of them failed. The tile takes the group
+     * outline and its status line names the reason — said once for the whole group rather than once
+     * per lamp, because one `/v1.0/user/info` call is behind every one of them. It is *only* the
+     * group's: a lights group has no failure of its own to fill with.
      */
     error: String? = null,
     /** Whether that poll has stopped landing at all, with or without a call having failed. */
@@ -77,22 +78,28 @@ fun BulbGroupTile(
     TileCard(
         anatomy = anatomy(group, now, error, notUpdating, open),
         hue = hue(group),
-        mood = mood(group, error),
+        paint = paint(group, error),
         modifier = modifier,
         onClick = onOpen,
     )
 }
 
-/** The line under the name: on/off, how old the reading is, and the error if the poll failed. */
+/**
+ * The line under the name: on/off, and how old that reading is once it is worth saying. The reason a
+ * poll failed is the tile's second line now — see [TileAnatomy] — and on a bulb it has to be, since
+ * a bulb is a quarter-width tile and this line has about sixteen characters to spend.
+ *
+ * A lamp switched on twenty days ago still says "20 d ago"; one read this morning says nothing but
+ * "on" — see [ageLine]. A lamp the panel has no value for says "unknown" and no age at all, because
+ * it has no reading for an age to be about: "unknown · never read" was the same fact twice.
+ */
 internal fun statusLine(
     tile: BulbTileState,
     now: Instant,
-    error: String?,
-): String {
-    val power = power(tile.isOn)
-    val age = ageLabel(tile.lastUpdated, now)
-    return if (error == null) "$power · $age" else "$power · $age · not updating: $error"
-}
+): String = listOfNotNull(
+    power(tile.isOn),
+    ageLine(tile.lastUpdated.takeIf { tile.isOn != null }, now),
+).joinToString(" · ")
 
 /**
  * The three words a bulb's state comes in. "unknown" and never "off" for a bulb that reported

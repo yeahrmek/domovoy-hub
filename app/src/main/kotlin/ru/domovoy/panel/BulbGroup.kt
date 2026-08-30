@@ -46,7 +46,7 @@ data class BulbGroup(
  * answering a week ago.
  *
  * **No `now`.** Finding the oldest of a set of readings needs no clock; formatting one does, and
- * that is [ageLabel]'s job at the point of drawing, as on every other tile.
+ * that is [ageLine]'s job at the point of drawing, as on every other tile.
  *
  * A room with no bulbs comes back with nothing in it, which is nothing to draw rather than an empty
  * tile — as does a room whose every bulb broke out.
@@ -57,21 +57,12 @@ fun bulbGroup(bulbs: List<BulbTileState>): BulbGroup {
         lamps = lamps,
         brokenOut = brokenOut,
         on = lamps.count { it.isOn == true },
+        // [oldest] is shared with every other kind of tile now — one age per tile is the rule, and
+        // the group's was only the first of them. `isOn` and `last_updated` are different fields of
+        // one capability, so a Never turns up *inside* the group rather than only outside it: three
+        // of Коридор's four bulbs report a value with a `last_updated` of `0.0`.
         oldest = oldest(lamps.map { it.lastUpdated }),
     )
-}
-
-/**
- * The oldest of a set of readings, with [Reading.Never] older than any instant: a capability that
- * has never reported is the least fresh thing the group can be holding, and 33 of the 116 recorded
- * capabilities are exactly that. `isOn` and `last_updated` are different fields of the same
- * capability, so a `Never` turns up inside the group rather than only outside it — three of
- * Коридор's four bulbs report a value with a `last_updated` of `0.0`.
- */
-private fun oldest(readings: List<Reading>): Reading? = when {
-    readings.isEmpty() -> null
-    readings.any { it == Reading.Never } -> Reading.Never
-    else -> Reading.At(readings.filterIsInstance<Reading.At>().minOf { it.instant })
 }
 
 /**
@@ -85,27 +76,25 @@ private fun oldest(readings: List<Reading>): Reading? = when {
 internal fun lampCount(group: BulbGroup): String = if (group.lamps.size == 1) "1 lamp" else "${group.lamps.size} lamps"
 
 /**
- * The group tile's status line: how many lamps it holds, how many of them are on, and how old the
- * oldest of their readings is.
+ * The group tile's status line: how many of its lamps are on, and how old the oldest of their
+ * readings is.
  *
- * [notUpdating] is the group's own bad news — a failed poll, or a poll that has stopped landing —
- * and the tile says it once for all 28 instead of every tile saying it in turn. It is [notUpdating]
- * the function's answer, asked where the panel knows the interval; [error] only names the reason
- * when there is one to name, since a group can stop being read without any call having failed.
+ * **It no longer opens with the count, and the count is why.** `7 lamps · 5 on · 20 d ago` is 25
+ * characters on a 188 dp tile that holds about sixteen, so it wrapped — and the first seven of them
+ * were the tile's own *name*, printed a slot above it. The count is the name because it does not
+ * change; how many are on is the value, and this line still names the value it is ageing, which is
+ * the rule it shared with the air conditioner all along.
+ *
+ * The group's bad news is not here either. It is the tile's second line now, with every other kind's
+ * — see [TileAnatomy] — and the tile still says it once for all 28 lamps rather than 28 times.
  */
 internal fun bulbGroupLine(
     group: BulbGroup,
     now: Instant,
-    notUpdating: Boolean,
-    error: String?,
-): String {
-    // A group with no lamps has no tile, so the fallback is never printed; Never is the honest
-    // answer for it anyway.
-    val age = ageLabel(group.oldest ?: Reading.Never, now)
-    val line = "${lampCount(group)} · ${group.on} on · $age"
-    return when {
-        !notUpdating -> line
-        error == null -> "$line · not updating"
-        else -> "$line · not updating: $error"
-    }
-}
+): String = listOfNotNull(
+    "${group.on} on",
+    // The one age this tile has always printed, now under the rule every tile follows: a room whose
+    // lamps were all read this morning says nothing about ages, and one lamp that stopped answering
+    // a week ago still makes the whole group say "7 d ago". See [ageLine].
+    ageLine(group.oldest, now),
+).joinToString(" · ")

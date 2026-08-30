@@ -134,7 +134,9 @@ internal object Flat {
                 temperature = null,
                 humidity = null,
                 isOn = null,
-                error = "timeout",
+                // One of the four words `reason` maps a throwable to — the fixtures print what the
+                // wall prints, and the wall has not printed a vendor's own sentence since item 7.
+                error = "timed out",
             ),
         ),
         lastPolledAt = polled(200),

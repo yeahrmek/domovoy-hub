@@ -1,5 +1,6 @@
 package ru.domovoy.panel
 
+import android.util.Log
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -7,7 +8,11 @@ import ru.domovoy.core.Device
 import ru.domovoy.core.DeviceKind
 import ru.domovoy.core.Reading
 import ru.domovoy.integrations.yandex.YandexClient
-import java.time.Duration
+import java.io.InterruptedIOException
+import java.net.ConnectException
+import java.net.NoRouteToHostException
+import java.net.SocketTimeoutException
+import java.net.UnknownHostException
 import java.time.Instant
 
 /** What one bulb tile renders. */
@@ -96,25 +101,55 @@ private fun Device.toTile() = BulbTileState(
     stateChangedAt = onOff?.stateChangedAt ?: Reading.Never,
 )
 
-/** How a failure reads on a tile; shared with the curtain group, which fails the same way. */
-internal fun Throwable.describe(): String = message?.takeIf { it.isNotBlank() } ?: this::class.simpleName.orEmpty()
+/**
+ * The four words the panel is willing to print when something it polls stops answering, and the
+ * whole vocabulary — `docs/design/panel-redesign.md` item 7.
+ *
+ * **It used to be `message ?: className`**, so Java's own sentence went onto the status line in the
+ * middle of a line whose other half was the panel's: `not updating: Unable to resolve host
+ * "openapi.tuyaeu.com"`. Two things were wrong with that and only one of them is about language. The
+ * string is *unbounded* — a tile is 188 or 251 dp wide and holds sixteen to twenty-four characters
+ * of `bodyMedium` — so a vendor's error text decided how tall that tile came out, which is the one
+ * thing the anatomy in `TileCard` exists to stop anything doing.
+ *
+ * **The mapping is by type and not by message**, because a message is the vendor's to change and a
+ * type is not. What the four cover, in the order a wall panel meets them:
+ *
+ * - **unreachable** — the tablet's Wi-Fi is down or DNS is not answering. `AGENTS.md` says to assume
+ *   this happens, and on this flat's own network it is the common one.
+ * - **timed out** — the request went out and nothing came back inside the client's call timeout.
+ *   OkHttp's own call timeout arrives as the *parent* [InterruptedIOException] rather than as a
+ *   [SocketTimeoutException], so both are here; every vendor client in this app sets one.
+ * - **refused** — something answered the connection with "no".
+ * - **failed** — everything else, which is one word for two very different things: an I/O failure
+ *   with no name of its own, and the panel's own `error(…)` checks on a response it did not like
+ *   (`HTTP 403`, a `status` that is not `ok`, a token that is not in the store). _That last one is
+ *   this mapping's price and it is a real one_ — the client's "no Yandex token stored — set
+ *   yandex.oauth.token in local.properties and reinstall" is 76 characters and cannot be on a tile
+ *   whatever the rule is, so it goes to [describe]'s `Log` line and docs/yandex.md says so.
+ *
+ * Pure, and separate from [describe] for exactly that reason: this is the half a table test can ask
+ * a hundred questions of, and `Log` is the half it cannot.
+ */
+internal fun reason(failure: Throwable): String = when (failure) {
+    is UnknownHostException, is NoRouteToHostException -> "unreachable"
+    is SocketTimeoutException, is InterruptedIOException -> "timed out"
+    is ConnectException -> "refused"
+    else -> "failed"
+}
+
+/** Where the exception's own words go, since they no longer go on the wall. */
+private const val LOG_TAG = "DomovoyPanel"
 
 /**
- * How old a reading is, in the words the tile prints. A capability that never reported comes back
- * as "never read" — formatting its `0.0` as a date would show *1 Jan 1970*.
+ * How a failure reads on a tile: one of [reason]'s four words, with everything the exception
+ * actually said written to `Log` on the way past.
+ *
+ * Shared by every group — one Yandex call feeds four of them and Tuya's per-device reads the
+ * fifth — so this is the single edge where a throwable stops being a throwable and becomes a word
+ * the panel owns.
  */
-fun ageLabel(
-    reading: Reading,
-    now: Instant,
-): String = when (reading) {
-    Reading.Never -> "never read"
-    is Reading.At -> {
-        val seconds = Duration.between(reading.instant, now).seconds
-        when {
-            seconds < 60 -> "just now"
-            seconds < 3600 -> "${seconds / 60} min ago"
-            seconds < 86_400 -> "${seconds / 3600} h ago"
-            else -> "${seconds / 86_400} d ago"
-        }
-    }
+internal fun Throwable.describe(): String {
+    Log.w(LOG_TAG, "a vendor call failed", this)
+    return reason(this)
 }
