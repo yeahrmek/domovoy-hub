@@ -31,6 +31,16 @@ fun CurtainTile(
         hue = hue(tile),
         paint = paint(tile, error),
         modifier = modifier,
+        // **The wall's one second control**, and the one tile that has it: the end of travel the
+        // curtain is not already at — see [action]. It is not a new capability, which is why it is
+        // the only one the panel can honestly draw: it sends the same verified `range` action the
+        // slider under it sends, at a value that is always on the grid. Which end, and which number,
+        // are both pure functions; what is here is the callback, and it is the same one the drag
+        // finishes with.
+        onAction = {
+            val target = action(tile)?.let { actionTarget(tile, it) }
+            if (target != null) onSetOpen(tile.id, target)
+        },
         level = {
             val bounds = tile.bounds
             if (bounds != null) {

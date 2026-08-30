@@ -276,6 +276,10 @@ class PanelScreenshotTest {
     private fun swatch(name: String) = TileAnatomy(
         art = R.drawable.ic_bulb,
         controls = TileControls.Toggle,
+        // No button, like every kind but the curtain — see [TileAction]. These cards are a picture
+        // of the four moods against the three hues, and a control only one kind has would be a
+        // thirteenth variable in a grid that is here to hold two.
+        action = null,
         name = name,
         promoted = "22 °C",
         status = "on · 2 h ago",

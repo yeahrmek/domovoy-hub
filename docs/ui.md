@@ -989,6 +989,49 @@ nobody standing at a wall gets a tooltip. The three tiles that have one are the 
 line already prints a number and a unit, which is the hint there is; whether that is enough is a
 thing to watch on the wall rather than to argue about here.
 
+## The button at the top right
+
+The reference app carries one or two small round buttons on every tile and picks them by device
+type — power and a fan mode on an air conditioner, power and a reset on a lamp, power and an
+overflow on a TV. Here power is the switch and is not repeated as a button, so what was missing was
+the *second* action and the fact that it should differ per kind. It is `action` in `TileLayout.kt`,
+beside `controls`, `promoted` and `span`, and it is a pure function of the type and the state.
+
+**One kind has one, and the rest have none.** The curtain gets the end of travel it is not already
+at — Open when it is shut, Close otherwise, including when its position has never been read, which
+is the branch `curtainGlyph` already takes for a null position. It drives to the ends of the range
+*the vendor reported* rather than to 0 and 100, on the same rule `Bounds.snap` exists for.
+
+**Why the others are empty is the whole of the decision, and each one is a refusal made elsewhere in
+this repo already:**
+
+- **The air conditioner's fan mode is an unverified endpoint.** docs/yandex.md still lists "what a
+  `devices.capabilities.mode` action body looks like for this AC, and whether it is accepted" as
+  open. AGENTS.md: say what is unknown rather than write against it.
+- **The recuperators' speeds are unverified in the same way, and Tuya is metered.** A button that
+  reads spends monthly allowance every time somebody walks past and fidgets.
+- **The strip's colour is reported and not controllable**, which the tile already says in words.
+- **The launchers get nothing.** They open somebody else's app; there is no state to act on.
+- **The lock gets nothing, and gets nothing when it exists.** There is no lock tile in `panel/` yet,
+  so this is a rule waiting for a subject rather than a case an assertion can reach; it is written
+  where the overload would go. It reports and does not act — no action, no switch, no slider. See
+  docs/aqara.md.
+
+**Never two, and never on a quarter tile — that is width and not taste.** The target is 64 dp
+(`MIN_TOUCH`; the reference's "a third the width of the art" is a phone's measurement, and the ring
+drawn inside it is 40 dp). A third tile is 219 dp of content: art 48, on mark 28, switch box 64,
+button 64 — 204, with 15 to spare. A quarter tile has 156 and cannot hold the first one; a second
+one fits on nothing.
+
+**It is drawn last on the art line, after the reserved switch box**, so that it lands in the corner.
+Drawn before it, the one tile that has a button — a curtain, which has no switch — came out with the
+button 64 dp in from the edge and an empty square beside it. Outlined and neutral rather than
+filled: the four steps of the ramp are 5 L\* apart in dark and 2 in light, so a filled disc
+disappears on one mood, and a control that is merely available is not news worth spending the
+colour budget on. Its glyph is the state it produces, which is the two shades glyphs the curtain's
+own art is already told apart by; nothing new was drawn. Its `contentDescription` is the one on this
+wall that is not null — every other glyph here sits beside a name that says the same thing.
+
 ## Compose APIs
 
 The Compose BOM is already `2026.08.00`, so Material 3 Expressive is on the classpath and **no new
