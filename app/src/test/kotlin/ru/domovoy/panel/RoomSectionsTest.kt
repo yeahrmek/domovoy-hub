@@ -181,7 +181,7 @@ class RoomSectionsTest {
     }
 
     @Test
-    fun `a launcher tile is grouped by room like any other, and the one with no room is not dropped`() = runTest {
+    fun `a launcher tile is grouped by room like any other`() = runTest {
         server.enqueue(MockResponse(body = fixture()))
         val poll = YandexPoll(client())
         poll.refresh()
@@ -196,16 +196,22 @@ class RoomSectionsTest {
                 launchers = launcherTiles(canOpen = { true }),
             )
 
-        // The intercom is a tile of the коридор, next to that room's own lights — not a row of
-        // shortcuts parked at the top or the bottom of the panel.
+        // Both are tiles of the коридор, next to that room's own lights — not a row of shortcuts
+        // parked at the top or the bottom of the panel. The intercom is answered at the front door
+        // and the vacuum docks by it, so the room the panel hangs in is the room both belong to.
         val hallway = sections.single { it.room == "Коридор" }
-        assertEquals(listOf("com.domonap.app"), hallway.launchers.map { it.packageName })
+        assertEquals(
+            listOf("com.domonap.app", "com.xiaomi.smarthome"),
+            hallway.launchers.map { it.packageName },
+        )
         assertTrue(hallway.bulbs.isNotEmpty(), "the коридор's own tiles are still there")
 
-        // Mi Home names no room, and a tile with no room goes where every unplaced tile goes.
-        val unplaced = sections.last()
-        assertEquals(null, unplaced.room)
-        assertEquals(listOf("com.xiaomi.smarthome"), unplaced.launchers.map { it.packageName })
+        // No launcher goes unplaced any more. The unplaced section is still a rule of this file —
+        // it is what the recuperators land in — and it has its own test above.
+        assertTrue(
+            sections.none { it.room == null },
+            "no launcher is unplaced any more: ${sections.map { it.room }}",
+        )
     }
 
     @Test
@@ -227,8 +233,8 @@ class RoomSectionsTest {
             )
 
         val hallway = sections.single { it.room == "Коридор" }
-        assertEquals(listOf("Домофон"), hallway.launchers.map { it.name })
-        assertEquals(listOf(false), hallway.launchers.map { it.openable })
+        assertEquals(listOf("Домофон", "Пылесос"), hallway.launchers.map { it.name })
+        assertEquals(listOf(false, false), hallway.launchers.map { it.openable })
     }
 
     @Test

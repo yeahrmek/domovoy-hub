@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -41,7 +40,7 @@ import ru.domovoy.panelTypography
  *   it, and the failure mode is a colour retouched in light drifting in dark, which is the half of
  *   the day nobody is looking at.
  * - **The geometry.** Twelve columns against 753 dp, thirds and quarters, one 22 dp corner, one
- *   328 dp tile height across every kind. All of it is in docs/ui.md and in no assertion, and the
+ *   296 dp tile height across every kind. All of it is in docs/ui.md and in no assertion, and the
  *   one thing an image says that no assertion here does is whether the bottom edges of two
  *   different *kinds* of tile actually land on the same line.
  * - **The two group rules that have a shape**: which bulbs stay out of their room's lights group,
@@ -95,11 +94,11 @@ class PanelScreenshotTest {
 
     // **A taller frame than the wall, and only here.** [TileMatrix] is thirteen colour swatches
     // rather than a picture of the panel — the wall's own 1204 dp is what the two Главная captures
-    // are for, and it is load-bearing there. A tile is 280 dp tall now that every kind fills the
+    // are for, and it is load-bearing there. A tile is 296 dp tall now that every kind fills the
     // same five slots and the status slot is capped at two lines, so five rows of them — four moods
-    // and the outlined case — come to 1400 dp, and in a 1204 dp frame the failing row and the
+    // and the outlined case — come to 1480 dp, and in a 1204 dp frame the failing row and the
     // outline simply fell off the bottom and were recorded as nothing at all. The frame stays at
-    // 1700 rather than following the tile down: it was 1656 dp of swatch and is 1400, and a height
+    // 1700 rather than following the tile down: it was 1656 dp of swatch and is 1480, and a height
     // that has to be retuned every time a slot moves is a height that will be wrong once. The width
     // stays 753 — these cards sit three across, which is the wall's own wide column.
     @Test
@@ -140,7 +139,7 @@ class PanelScreenshotTest {
         // fourth — which has never reported — as its own named tile beside it.
         //
         // Three cards at the quarter width they take on the wall, which is what this picture is for:
-        // the group tile has to come out the same 328 dp as the lamp next to it, and the thing that
+        // the group tile has to come out the same 296 dp as the lamp next to it, and the thing that
         // would say otherwise is a picture rather than an assertion. The open and closed states are
         // both here because they differ by one line of text in a slot that is reserved either way —
         // if opening a group ever moved the card's bottom edge, this is where it would show.
@@ -246,19 +245,20 @@ class PanelScreenshotTest {
                             hue = hue,
                             paint = TilePaint(mood, groupFailing = false),
                             modifier = Modifier.weight(1f),
-                            // **The switch is here because it is a mark now.** It takes the family
+                            // **The power button is here because it is a mark now.** It takes the family
                             // accent when the tile is on and neutral grey otherwise, so a row of
                             // three that is one colour in this picture is Material's `primary`
-                            // leaking back in — a lamp with a blue switch on it.
+                            // leaking back in — a lamp with a blue power button on it.
                             //
                             // Checked on the failing row as well as the lit one, and that pair is
-                            // the picture: a device that last reported on keeps its switch thrown,
+                            // the picture: a device that last reported on keeps its power direction,
                             // and it is grey there because nobody can confirm it any more.
                             toggle = {
-                                Switch(
-                                    checked = mood == TileMood.On || mood == TileMood.Failing,
-                                    onCheckedChange = {},
-                                    colors = tileSwitchColors(hue, mood),
+                                TilePowerButton(
+                                    isOn = mood == TileMood.On || mood == TileMood.Failing,
+                                    hue = hue,
+                                    mood = mood,
+                                    onToggle = {},
                                 )
                             },
                         )
@@ -276,13 +276,14 @@ class PanelScreenshotTest {
                     hue = TileHue.Climate,
                     paint = TilePaint(TileMood.On, groupFailing = true),
                     modifier = Modifier.weight(1f),
-                    // The same switch the `On · Climate` cell above has, so that "differs by a red
+                    // The same power button the `On · Climate` cell above has, so that "differs by a red
                     // line and by nothing else" is still what the pair shows.
                     toggle = {
-                        Switch(
-                            checked = true,
-                            onCheckedChange = {},
-                            colors = tileSwitchColors(TileHue.Climate, TileMood.On),
+                        TilePowerButton(
+                            isOn = true,
+                            hue = TileHue.Climate,
+                            mood = TileMood.On,
+                            onToggle = {},
                         )
                     },
                 )
@@ -300,7 +301,7 @@ class PanelScreenshotTest {
      * does not exist.
      */
     private fun swatch(name: String) = TileAnatomy(
-        art = R.drawable.ic_bulb,
+        art = R.drawable.device_art_bulb_on,
         controls = TileControls.Toggle,
         // No button, like every kind but the curtain — see [TileAction]. These cards are a picture
         // of the four moods against the three hues, and a control only one kind has would be a

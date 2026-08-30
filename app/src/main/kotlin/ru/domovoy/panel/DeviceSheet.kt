@@ -19,7 +19,6 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -83,7 +82,7 @@ internal fun DeviceSheet(
     sheet: TileSheet,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
-    /** Flips the device's own on/off. The same call the tile's switch makes; no new poll. */
+    /** Flips the device's own on/off. The same call the tile's power button makes; no new poll. */
     onToggle: () -> Unit = {},
     /** Drives the one range the vendor reported. The same call the tile's slider makes. */
     onSetLevel: (Double) -> Unit = {},
@@ -143,7 +142,7 @@ private fun SheetHeading(
     onDismiss: () -> Unit,
 ) {
     Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        TileGlyph(sheet.art, tint = tileAccent(sheet.hue))
+        TileDeviceArt(sheet.art)
         Spacer(modifier = Modifier.width(SHEET_GAP))
         Column(modifier = Modifier.weight(1f)) {
             sheet.room?.let { room ->
@@ -190,7 +189,7 @@ private fun SheetReadingRow(reading: SheetReading) {
  * [TileSheet.actions] is empty draws no control at all and no empty row where one would have been —
  * which is the door lock's whole answer, and the reason that answer is a set rather than a flag.
  *
- * **The controls carry no words of their own**, which is the tile's rule kept: a tile's switch has
+ * **The controls carry no words of their own**, which is the tile's rule kept: its power button has
  * no label either, and the reading directly above this one names it and says what it is doing. A
  * second "power" here would be the same word twice on a surface whose whole purpose is that each
  * fact is said once, with its age.
@@ -209,13 +208,11 @@ private fun SheetControls(
     Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         if (SheetAction.Power in sheet.actions) {
             Box(modifier = Modifier.touchable(), contentAlignment = Alignment.CenterStart) {
-                Switch(
-                    checked = sheet.isOn == true,
-                    onCheckedChange = { onToggle() },
-                    // The mood and not the checkbox, on the tile's rule: a device whose poll failed
-                    // keeps the switch it last reported and loses the colour, because a coloured
-                    // switch there is the panel asserting a state nobody has confirmed.
-                    colors = tileSwitchColors(sheet.hue, mood(sheet.isOn, sheet.notUpdating)),
+                TilePowerButton(
+                    isOn = sheet.isOn == true,
+                    hue = sheet.hue,
+                    mood = mood(sheet.isOn, sheet.notUpdating),
+                    onToggle = onToggle,
                 )
             }
             Spacer(modifier = Modifier.width(SHEET_GAP))

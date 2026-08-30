@@ -73,14 +73,14 @@ data class RoomSection(
  * nothing in it never appears — the recorded response has seven such rooms, plus a "Гостиная"
  * holding only a vacuum and a tv, neither of which the panel has a tile for.
  *
- * The last section is the one for the tiles in no room, and it is never dropped. Two different
- * things land there, both of them on purpose:
+ * The last section is the one for the tiles in no room, and it is never dropped. What lands there is
+ * what no vendor placed: Tuya names no room for the recuperators (docs/tuya.md), so unless the
+ * flat's own answer reached [TuyaPoll] they arrive with `room = null` — and a device falling off the
+ * wall because no vendor said where it is would be a bug, not a tidy panel.
  *
- * - Tuya names no room for the recuperators (docs/tuya.md), so unless the flat's own answer reached
- *   [TuyaPoll] they arrive with `room = null` — and a device falling off the wall because no vendor
- *   said where it is would be a bug, not a tidy panel.
- * - The vacuum's launcher tile has no room because it *has* no room: see [launcherTiles]. That one
- *   is not a gap waiting to be filled.
+ * **Both launcher tiles are placed and neither lands here** — see [launcherTiles]. The vacuum's did
+ * until its dock was recorded, and that is what the section is for: an unplaced tile is one waiting
+ * for an answer, not one that has been given the answer "nowhere".
  *
  * Every tile group is a parameter here, launchers included and none of them defaulted. A tile group
  * that could be left out by forgetting to pass it is exactly how a section of the wall goes missing

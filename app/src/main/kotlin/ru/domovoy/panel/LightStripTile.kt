@@ -1,6 +1,5 @@
 package ru.domovoy.panel
 
-import androidx.compose.material3.Switch
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -35,8 +34,8 @@ fun LightStripTile(
     // The colour it reports is the second line of the status slot rather than more dots on the
     // first — it carries an age of its own, and all six values in one run is a line nobody reads.
     // Which is [anatomy]'s answer now; see [colorLine].
-    // Worked out once and read twice: the card takes it, and so does the switch, whose colour is
-    // the tile's second on-mark — amber here rather than Material's blue. See [tileSwitchColors].
+    // Worked out once and read twice: the card takes it, and so does the power button, whose colour
+    // is the tile's second on-mark — amber here rather than Material's blue.
     val paint = paint(tile, error)
     TileCard(
         anatomy = anatomy(tile, now, error),
@@ -45,10 +44,11 @@ fun LightStripTile(
         modifier = modifier,
         onClick = onOpen,
         toggle = {
-            Switch(
-                checked = tile.isOn == true,
-                onCheckedChange = { onToggle(tile.id) },
-                colors = tileSwitchColors(hue(tile), paint.mood),
+            TilePowerButton(
+                isOn = tile.isOn == true,
+                hue = hue(tile),
+                mood = paint.mood,
+                onToggle = { onToggle(tile.id) },
             )
         },
         level = {
