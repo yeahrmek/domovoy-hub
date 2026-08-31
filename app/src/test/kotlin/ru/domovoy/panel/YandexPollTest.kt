@@ -96,7 +96,7 @@ class YandexPollTest {
         // Sharing the fetch does not merge the ages: the bulb, the curtain and the ac were read
         // days apart, the strips never at all, and one "last read" for the panel would be a lie
         // about most of them.
-        assertEquals("on · 20 d ago", statusLine(bulbs.tiles.single { it.id == "light-01" }, now))
+        assertEquals("on · 5% · 20 d ago", statusLine(bulbs.tiles.single { it.id == "light-01" }, now))
         assertEquals("0% open · 2 h ago", statusLine(curtains.tiles.single(), now))
         assertEquals("off · 18 °C · 98 d ago", statusLine(acs.tiles.single { it.id == "ac-01" }, now))
         assertEquals("on · 26% · never read", statusLine(strips.tiles.single { it.id == "light-strip-01" }, now))

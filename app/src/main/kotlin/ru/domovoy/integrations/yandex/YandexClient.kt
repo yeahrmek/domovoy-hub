@@ -20,6 +20,7 @@ import ru.domovoy.core.Bounds
 import ru.domovoy.core.ColorSetting
 import ru.domovoy.core.Device
 import ru.domovoy.core.DeviceKind
+import ru.domovoy.core.FloatProperty
 import ru.domovoy.core.Mode
 import ru.domovoy.core.OnOff
 import ru.domovoy.core.Range
@@ -51,6 +52,7 @@ private const val RANGE = "devices.capabilities.range"
 private const val MODE = "devices.capabilities.mode"
 private const val TOGGLE = "devices.capabilities.toggle"
 private const val COLOR_SETTING = "devices.capabilities.color_setting"
+private const val FLOAT_PROPERTY = "devices.properties.float"
 
 val YANDEX_BASE_URL: HttpUrl = "https://api.iot.yandex.net/".toHttpUrl()
 
@@ -131,6 +133,34 @@ class YandexClient(
         instance: String,
         value: Double,
     ): Result<Unit> = action(deviceId, RANGE, ActionStateDto(instance, value.asJson()))
+
+    /** Drives one enumerated capability using a value the device itself advertised. */
+    suspend fun setMode(
+        deviceId: String,
+        instance: String,
+        value: String,
+    ): Result<Unit> = action(deviceId, MODE, ActionStateDto(instance, JsonPrimitive(value)))
+
+    /** Drives one secondary boolean capability such as ionization. */
+    suspend fun setToggle(
+        deviceId: String,
+        instance: String,
+        on: Boolean,
+    ): Result<Unit> = action(deviceId, TOGGLE, ActionStateDto(instance, JsonPrimitive(on)))
+
+    /** Drives RGB or Kelvin color values, both integer-shaped in Yandex's control API. */
+    suspend fun setColor(
+        deviceId: String,
+        instance: String,
+        value: Int,
+    ): Result<Unit> = action(deviceId, COLOR_SETTING, ActionStateDto(instance, JsonPrimitive(value)))
+
+    /** Drives one of the scene ids advertised by the device. */
+    suspend fun setColor(
+        deviceId: String,
+        instance: String,
+        value: String,
+    ): Result<Unit> = action(deviceId, COLOR_SETTING, ActionStateDto(instance, JsonPrimitive(value)))
 
     private suspend fun action(
         deviceId: String,
@@ -214,6 +244,7 @@ private fun DeviceDto.toDevice(
     modes = capabilities.filter { it.type == MODE }.mapNotNull(CapabilityDto::toMode).toMap(),
     toggles = capabilities.filter { it.type == TOGGLE }.mapNotNull(CapabilityDto::toToggle).toMap(),
     color = capabilities.firstOrNull { it.type == COLOR_SETTING }?.toColorSetting(),
+    properties = properties.filter { it.type == FLOAT_PROPERTY }.mapNotNull(PropertyDto::toFloatProperty).toMap(),
 )
 
 // A range with no state at all is kept, not dropped: its bounds are still what the device accepts,
@@ -261,9 +292,22 @@ private fun CapabilityDto.toToggle(): Pair<String, Toggle>? {
 private fun CapabilityDto.toColorSetting(): ColorSetting = ColorSetting(
     instance = state?.instance,
     value = (state?.value as? JsonPrimitive)?.doubleOrNull,
+    temperatureBounds = parameters?.temperatureK?.let { Bounds(it.min, it.max, precision = 1.0) },
+    scenes = parameters?.colorScene?.scenes.orEmpty().map(ColorSceneDto::id),
     lastUpdated = Reading.ofEpochSeconds(lastUpdated),
     stateChangedAt = Reading.ofEpochSeconds(stateChangedAt),
 )
+
+private fun PropertyDto.toFloatProperty(): Pair<String, FloatProperty>? {
+    val instance = parameters?.instance ?: state?.instance ?: return null
+    return instance to
+        FloatProperty(
+            value = (state?.value as? JsonPrimitive)?.doubleOrNull,
+            unit = parameters?.unit?.takeIf { it.isNotBlank() },
+            lastUpdated = Reading.ofEpochSeconds(lastUpdated),
+            stateChangedAt = Reading.ofEpochSeconds(stateChangedAt),
+        )
+}
 
 // Yandex reports a percentage as 70 and a temperature as 24, and every range recorded so far has
 // precision 1 — so sending 70.0 back is a difference from the vendor's own spelling for no gain.

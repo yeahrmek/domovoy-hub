@@ -33,6 +33,8 @@ data class Device(
      * because — unlike a range or a mode — no device in the recorded response has two of them.
      */
     val color: ColorSetting? = null,
+    /** Read-only numeric properties such as the room temperature measured by an air conditioner. */
+    val properties: Map<String, FloatProperty> = emptyMap(),
     /**
      * Whether the vendor says the device is reachable — and null when the vendor does not say at
      * all, which is not the same as "offline".
@@ -112,8 +114,9 @@ data class Toggle(
 )
 
 /**
- * The colour a light reports. Read and shown, never driven: there is no `setColor` on any vendor
- * client, so nothing in the panel can send one of these back. See docs/yandex.md.
+ * The colour a light reports, plus the bounds and scene ids needed to build only controls the
+ * device actually supports. RGB and scenes are driven for the one verified capable bulb; Kelvin
+ * remains read-only until a live device reflects a write. See docs/yandex.md.
  *
  * Carries the same two timestamps as [OnOff] — a colour the panel prints has to be able to say how
  * old it is, like every other value on a tile.
@@ -127,6 +130,18 @@ data class ColorSetting(
     val instance: String?,
     /** Kelvin for `temperature_k`, a packed `0xRRGGBB` for `rgb`; null when unknown, not black. */
     val value: Double?,
+    /** Kelvin bounds when this light supports white-temperature control. */
+    val temperatureBounds: Bounds? = null,
+    /** Scene ids exactly as the device advertised them, in vendor order. */
+    val scenes: List<String> = emptyList(),
+    val lastUpdated: Reading,
+    val stateChangedAt: Reading,
+)
+
+/** A numeric value the vendor reports but does not expose as a writable range. */
+data class FloatProperty(
+    val value: Double?,
+    val unit: String?,
     val lastUpdated: Reading,
     val stateChangedAt: Reading,
 )
