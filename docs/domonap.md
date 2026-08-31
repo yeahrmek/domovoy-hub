@@ -76,13 +76,17 @@ SignalR**. There is also `com.domonap.app.ui.widgets.WidgetProvider`, a Glance A
 `FOREGROUND_SERVICE_PHONE_CALL`, `POST_NOTIFICATIONS`, `WAKE_LOCK`, `RECEIVE_BOOT_COMPLETED`,
 `CAMERA`, `RECORD_AUDIO`, `MODIFY_AUDIO_SETTINGS`, `ACCESS_NOTIFICATION_POLICY`.
 
-**Orientation: the app does not force landscape.** `screenOrientation` occurs **zero times** in the
-whole manifest, and there is no `resizeableActivity`, `minAspectRatio` or `maxAspectRatio` either;
-`IncomingDomofonCallActivity` declares `configChanges` including `orientation`, i.e. it handles
-rotation itself. The panel display is 1600×2560 at density 340 → **smallest width ≈ 753 dp**, and
-`wm get-ignore-orientation-request` reads `false` for display 0. This kills case 2 in the orientation
-section below: if the call screen ever appears landscape, that is the tablet's rotation lock, not
-Domonap.
+**Orientation: the app does not force landscape *in the manifest*.** `screenOrientation` occurs
+**zero times** in the whole manifest, and there is no `resizeableActivity`, `minAspectRatio` or
+`maxAspectRatio` either; `IncomingDomofonCallActivity` declares `configChanges` including
+`orientation`, i.e. it handles rotation itself. The panel display is 1600×2560 at density 340 →
+**smallest width ≈ 753 dp**, and `wm get-ignore-orientation-request` reads `false` for display 0.
+
+The conclusion drawn from that here — "this kills case 2; if the call screen ever appears landscape,
+that is the tablet's rotation lock, not Domonap" — **is wrong, and the capture of 2026-08-31 says
+so.** The manifest facts above all still hold. What they do not cover is `setRequestedOrientation()`,
+which a manifest dump cannot see: Domonap forces landscape **at runtime**. See
+[the app forces landscape at runtime](#recorded-on-the-tablet--the-app-forces-landscape-at-runtime-2026-08-31).
 
 ## Recorded on the tablet — a real incoming call (2026-08-16)
 
@@ -302,6 +306,140 @@ mean the door went unanswered.
 detecting the ring — the very first post is already on `telecom_incoming_channel3` — and that the
 missed-call notification correctly does not trigger it. The ongoing-channel branch stays untested.
 
+## Recorded on the tablet — the app forces landscape at runtime (2026-08-31)
+
+Raised because the panel's owner reported the app opening upright and then flipping to landscape a
+moment later. That "opens portrait, then turns" is the fingerprint of a runtime orientation request,
+not a manifest one, and it is what the tablet shows. Same device, `versionCode=9850` unchanged.
+
+**The live activity asks for landscape.** With the app running, `dumpsys activity activities` on its
+`ActivityRecord`:
+
+```
+* Hist #0: ActivityRecord{… com.domonap.app/com.domonap.authorization.AuthorizationActivity}
+    mOrientation=SCREEN_ORIENTATION_LANDSCAPE
+    configChanges=0x3
+```
+
+**And the manifest still declares none.** Re-dumped the same day from the installed APK:
+`aapt2 dump xmltree base.apk --file AndroidManifest.xml | grep -c screenOrientation` → **0**.
+
+An activity whose `mOrientation` is `SCREEN_ORIENTATION_LANDSCAPE` while the manifest sets no
+`screenOrientation` can only have got there one way: **`setRequestedOrientation()` at runtime.** The
+method name is present in all three dex files (`strings classes*.dex | grep setRequestedOrientation`
+→ 1 hit each). The call site was not decompiled; the `mOrientation` reading is the direct evidence
+and it does not need one.
+
+This adds a **third case** to the diagnosis below, which had only ever listed two — manifest, or
+tablet rotation lock — and had ruled the manifest out on a manifest dump. A manifest dump cannot see
+a runtime call. That is the hole.
+
+Two things drifted on the device at the same time, and only the first is Domonap's doing:
+
+| | recorded design | read 2026-08-31 |
+|---|---|---|
+| `wm get-ignore-orientation-request` | `false` | `false` → **set to `true`** |
+| `accelerometer_rotation` | `0` (docs/ui.md) | **`1` — auto-rotate back on** |
+| `user_rotation` | `0` (portrait) | `0` |
+| `mUserRotationMode` | locked | **`USER_ROTATION_FREE`** |
+
+docs/ui.md predicted exactly this: "a settings reset puts landscape back". Auto-rotate had been
+turned back on at some point between then and now.
+
+**The fix applied: `adb shell wm set-ignore-orientation-request true`.** Accepted on this Samsung
+Android 13 build — `wm get-ignore-orientation-request` reads back `true for displayId=0`. It works at
+the display level, so it overrides a runtime `setRequestedOrientation()` just as it would a manifest
+one; Domonap keeps asking for landscape (`mOrientation` is unchanged) and the display stops
+listening. The app gets letterboxed upright instead.
+
+**On whether it survives a reboot, there is now evidence against the guess below.**
+`/data/system/display_settings.xml` — where WindowManager persists per-display settings — has an
+mtime of the exact minute the command was run, so the setting **is written to disk** rather than held
+in memory. The file is `system:system 0600` and unreadable without root, and no reboot has been done
+since, so this is an inference from the write, not a measured reboot. Worth a real reboot test before
+anyone relies on it.
+
+**Not fixable from our side, and this is the point.** Nothing in the panel can change what another
+app's activity requests. There is no API for it, by design. Every lever is on the device — the `wm`
+flag above, a per-app compat override, or the platform growing up (fixes A–D below). No code in this
+repo changes to fix this, and a build that claimed to would be lying.
+
+### The letterbox bars are large, and on this build they cannot be made smaller
+
+Measured the same day, with the app in front: `mLetterboxInsets=[0,729][0,831]`, app window
+`mBounds=Rect(0, 729 - 1600, 1729)`. So Domonap gets a **1600×1000 px band and 1560 px of bars** —
+**39 % of the glass**, 729 above and 831 below, on a dark `#161c20`.
+
+That is arithmetic, not a misconfiguration. The display is 1600×2560 (ratio 1.6); a landscape window
+that is not allowed to rotate gets the display's ratio inverted, 1600 ÷ 1.6 = **1000**. Any
+landscape-locked app shown upright on this screen lands on exactly those numbers.
+
+Shrinking the bars means letting the app lay out *portrait*, which means defeating its
+`setRequestedOrientation()`. Every mechanism for that was tried on 2026-08-31 and **none exists on
+this build**:
+
+| lever | result |
+|---|---|
+| `am compat enable OVERRIDE_ENABLE_COMPAT_IGNORE_REQUESTED_ORIENTATION` | `Unknown or invalid change` — Android 14+ |
+| `wm set-letterbox-style --aspectRatio …` | `Unknown command` — not in this One UI 5 build |
+| `device_config list window_manager` letterbox keys | none |
+| Samsung `CustomLetterboxConfiguration` | cosmetic only: `CornersRadius=32, BlurRadius=66`, wallpaper hiding — no size control |
+| `OVERRIDE_MIN_ASPECT_RATIO*`, `FORCE_RESIZE_APP` | present, but all constrain a window *further* |
+
+**So on Android 13 the choice is binary:** upright with 61 % of the screen as bars (flag on), or
+filling the screen with the tablet rotated to landscape (flag off). There is no third state on this
+OS, and — see [the tablet cannot be updated](#the-tablet-cannot-be-updated-and-that-closes-fixes-b-and-c) —
+**there is no Samsung update that creates one.**
+
+### The tablet cannot be updated, and that closes fixes B and C
+
+Checked 2026-08-31, because both B and C are written below as "wait for the platform". **For this
+tablet there is nothing to wait for.**
+
+The Galaxy Tab S7 (SM-T875) launched on Android 10 under Samsung's *three* OS-upgrade policy, so its
+last major version is **Android 13 / One UI 5.1.1** — it never got Android 14, and the four-upgrade
+commitment postdates it. The device agrees: `ro.build.version.oneui=50101`, build date 2024-08-02,
+firmware `T875XXS8DXH1`, and a **security patch of 2024-08-01 — two years stale**. Nothing has
+arrived in two years because nothing is coming.
+
+So:
+
+- **Fix B needs Android 14** and Samsung will never ship it here. Closed permanently, not "until the
+  tablet is upgraded".
+- **Fix C** — "a free fix the day the tablet is upgraded" — is **not free and not coming** by the
+  official route, for the same reason.
+
+The only route to either is a **custom ROM**. LineageOS officially supports this exact codename
+(`gts7l`, install instructions gated on the model being exactly SM-T875), currently on **23.2 —
+Android 16**. That is precisely fix C's condition: Android 16 ignores orientation restrictions by
+default on displays with sw ≥ 600 dp, this display is sw 752 dp, and Domonap targets SDK 36. On that
+ROM the bars would go away with no `wm` flag at all.
+
+**It is not recommended, and the reason is specific to this panel, not general caution.**
+`docs/domonap.md` records that Domonap receives pushes over **both FCM and SignalR** — and FCM needs
+Google Play Services, which LineageOS does not ship. A ROM without GApps risks the intercom call
+never arriving, which is the one thing on this panel that must not break. Flashing also wipes the
+tablet (re-installing the panel, re-granting notification access, re-authorising Yandex/Aqara/Tuya,
+signing Domonap back in), trips Knox irreversibly, and puts a door-answering wall panel that reboots
+unattended on weekly community builds.
+
+The honest trade: the ROM fixes the letterbox **and** a two-year-old security patch level, at the
+cost of the call path's only push transport being unverified. Nobody has tested Domonap on
+LineageOS. Do not treat it as a plan until someone has.
+
+**Which activities force landscape:** both that have been seen — `.ui.main.MainActivity` and
+`com.domonap.authorization.AuthorizationActivity`, each `SCREEN_ORIENTATION_LANDSCAPE`. For contrast,
+on the same tablet `ru.domovoy/.MainActivity` and the Samsung launcher are `UNSPECIFIED` and Xiaomi
+is `USER` — **Domonap is the only app here that forces the display around.**
+`IncomingDomofonCallActivity` has still never launched, so whether the *call* screen is letterboxed
+the same way is unmeasured; given the other two, expect it is.
+
+**Noticed while doing this and unrelated to orientation: the app was signed out.** Launching it
+resolved to `com.domonap.authorization.AuthorizationActivity`, not `.ui.main.MainActivity`. Per the
+launcher-tile section above, a signed-out Domonap posts no incoming-call notification and the panel
+cannot tell that apart from an intercom nobody rang — so the call takeover is dead until someone
+signs back in on the tablet.
+
 ## Verified — as facts about the public record, not about the API
 
 **Official developer API: none.** No developer portal, no API docs, no published terms. Domonap
@@ -467,17 +605,24 @@ is real it would force the Domonap app off the tablet.
 
 ## Orientation: the app is landscape, the tablet hangs portrait
 
-### Diagnose before fixing — these are two different problems
+### Diagnose before fixing — these are three different problems
 
 1. **The tablet is rotation-locked to landscape.** Then it is a device setting and nothing to do
    with Domonap.
 2. **The app declares `android:screenOrientation="landscape"`.** Then no amount of rotation-locking
-   helps — the app forces the display around. **Ruled out on 2026-08-15:** the manifest contains no
-   `screenOrientation` anywhere. Only case 1 remains possible.
+   helps — the app forces the display around. **Ruled out, twice:** the manifest contains no
+   `screenOrientation` anywhere, on 2026-08-15 and again on 2026-08-31.
+3. **The app calls `setRequestedOrientation(LANDSCAPE)` at runtime.** Same effect as case 2 and
+   **invisible to a manifest dump** — which is why ruling case 2 out was once mistaken for ruling the
+   app out entirely. **This is the actual cause, confirmed 2026-08-31:** the live `ActivityRecord`
+   reads `mOrientation=SCREEN_ORIENTATION_LANDSCAPE` against a manifest that declares none. See
+   [the app forces landscape at runtime](#recorded-on-the-tablet--the-app-forces-landscape-at-runtime-2026-08-31).
 
-Tell them apart: unlock auto-rotate, hold the tablet portrait, open another app (portrait, fine) and
-then Domonap (still landscape → case 2). Or read the manifest: `adb shell pm path com.domonap.app`,
-pull the APK, and dump `AndroidManifest.xml` with `aapt2`.
+Tell them apart — and note the manifest alone cannot, which is the trap: read the **live** request
+with `adb shell dumpsys activity activities | grep -A1 mOrientation=` while the app is in front, and
+compare it against `aapt2 dump xmltree base.apk --file AndroidManifest.xml | grep screenOrientation`
+on the pulled APK. Manifest silent + `ActivityRecord` landscape ⇒ case 3. The visible tell from the
+wall is timing: case 2 is landscape from the first frame, case 3 opens upright and flips.
 
 ### Fixes, best first
 
@@ -490,12 +635,15 @@ adb shell wm set-ignore-orientation-request true
 (`-d 0` targets the built-in display; `adb shell wm get-ignore-orientation-request` reads it back.)
 The app then gets **letterboxed** — a landscape-shaped window drawn upright inside the portrait
 screen, with bars above and below. Readable while the tablet hangs vertically, which is what we
-want; the app just doesn't fill the glass. Verified from the Android docs that this per-display
-"ignore orientation request" behaviour is what device manufacturers use on large screens; the exact
-`wm` command is from a community adb reference, so confirm it on the actual tablet.
+want; the app just doesn't fill the glass. **Applied and read back on the tablet on 2026-08-31**
+(`true for displayId=0`), so the command is no longer second-hand: it is accepted on this Samsung
+Android 13 build. Being display-level, it beats case 3 as well as case 2 — it does not care whether
+the request came from the manifest or from `setRequestedOrientation()`.
 Caveats: it affects **every** app on that display — harmless here, since our panel is portrait by
-design — and it very likely does **not survive a reboot**, which AGENTS.md says will happen
-unattended. Re-applying it needs adb-over-TCP at boot or a rooted ROM.
+design. On surviving a reboot the earlier guess here was "very likely not"; the 2026-08-31 check
+found `/data/system/display_settings.xml` rewritten at the moment the command ran, so it is
+**persisted to disk** and probably does survive. Nobody has actually rebooted and re-read it —
+do that before relying on it, because AGENTS.md says the tablet reboots unattended.
 
 **B. Per-app compat override.** Android documents exactly two relevant ones:
 
@@ -506,7 +654,20 @@ adb shell am compat enable OVERRIDE_ENABLE_COMPAT_IGNORE_ORIENTATION_REQUEST_WHE
 
 Verified from the Android docs, including that "the commands only temporarily apply or remove the
 override" — so this too resets. Widely reported (not in the docs) to be refused for non-debuggable
-release apps on retail builds. Try it, but expect A to be the one that works.
+release apps on retail builds.
+
+**Tried on the tablet 2026-08-31: it does not exist on this build.**
+
+```
+$ adb shell am compat enable OVERRIDE_ENABLE_COMPAT_IGNORE_REQUESTED_ORIENTATION com.domonap.app
+Unknown or invalid change: 'OVERRIDE_ENABLE_COMPAT_IGNORE_REQUESTED_ORIENTATION'.
+```
+
+Not "refused for a release app" — **absent**. The change landed in Android 14; this tablet is
+Android 13 (`T875XXS8DXH1`, API 33). The full set of orientation/aspect changes `dumpsys
+platform_compat` knows here is `OVERRIDE_MIN_ASPECT_RATIO{,_MEDIUM,_LARGE,_PORTRAIT_ONLY}`,
+`FORCE_RESIZE_APP` and `FORCE_NON_RESIZE_APP` — every one of them *constrains* a window further, so
+none is a way out of a fixed-orientation letterbox. B is unavailable until the tablet is on 14.
 
 **C. Wait for the platform, or check the tablet's own settings.** Verified from the Android docs:
 Android 16 (API 36) already ignores orientation restrictions by default on displays with smallest
@@ -514,8 +675,10 @@ width ≥ 600dp, and Android 17 (API 37) ignores `android:screenOrientation`, `r
 `minAspectRatio`, `maxAspectRatio`, `setRequestedOrientation()` and `getRequestedOrientation()`
 outright on sw > 600dp — but **only for apps targeting that SDK**. Domonap in fact targets SDK 36
 and this display is sw ≈ 753 dp, so both conditions are already met on the *app* side — what is
-missing is the platform: the tablet runs Android 13. This becomes a free fix the day the tablet is
-upgraded, and is not one today. What *is* worth two minutes: many large-screen
+missing is the platform: the tablet runs Android 13. This was written as "a free fix the day the
+tablet is upgraded". **It is not: the tablet cannot be upgraded** — Android 13 is its last Samsung
+version, see [the tablet cannot be updated](#the-tablet-cannot-be-updated-and-that-closes-fixes-b-and-c).
+C is reachable only via a custom ROM, with the FCM caveat recorded there. What *is* worth two minutes: many large-screen
 builds expose a per-app **aspect ratio / full screen** item under Settings → Apps → Domonap. If this
 tablet has it, that is fix A with no adb at all.
 
@@ -523,8 +686,11 @@ tablet has it, that is fix A with no adb at all.
 `settings put system user_rotation 0` (0 = portrait). Second-hand, and useless if the app forces
 landscape.
 
-**Recommendation:** try the per-app aspect-ratio setting first, then A, and accept letterboxed
-landscape for the duration of a call. Rendering the call ourselves would sidestep this entirely,
+**Recommendation:** A, which is applied as of 2026-08-31 and confirmed to take on this tablet.
+Accept letterboxed landscape for the duration of a call. Note D is *not* a substitute now that case
+3 is the known cause — a rotation lock does not stop an app that asks the display to turn — though
+restoring it is still worth doing on its own account, since `accelerometer_rotation` had drifted back
+to `1` against what docs/ui.md specifies. Rendering the call ourselves would sidestep all of this,
 and is rejected above for reasons that have nothing to do with layout.
 
 ## Open questions
@@ -551,7 +717,12 @@ place, same key, both times; that it is the earlier signal, both times; that the
   obvious candidate and the panel cannot see it without becoming an `InCallService`, which is a much
   larger commitment than a notification listener. Worth pricing before another attempt.
 - Does the call screen come up portrait? Still untested — it has never come up. It can be reached by
-  tapping the notification, which would answer both this and the orientation section below.
+  tapping the notification, which would answer this. What *is* now known is that the app forces
+  landscape at runtime and that `wm set-ignore-orientation-request true` is applied on the tablet, so
+  the expectation is a letterboxed upright call screen; nobody has seen one.
+- **Does the `wm` flag survive a reboot?** Inferred yes from `display_settings.xml` being written,
+  never measured. One reboot answers it, and the answer decides whether the orientation fix holds on
+  a tablet that reboots unattended.
 - Does Domonap have any official/partner API? (One email to support.)
 
 ## Sources
