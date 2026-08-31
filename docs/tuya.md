@@ -170,6 +170,10 @@ restored to fully off at the end.
 
 - ~~Does the trial expire outright, or just reset monthly?~~ Both: the quota refreshes monthly, the
   pack expires **2026-09-15**. See the console table above.
+- **How long a recuperator actually takes to report a write.** The panel now waits ~30 s for it, in
+  widening steps, and that number comes from the live checks above using 20-second waits — not from
+  timing a tap on the wall. If a tile routinely takes the full window, the steps are too slow; if it
+  never does, the last one is a call being spent for nothing.
 - **What happens on 2026-09-15, and what "Extend Trial Period" grants.** This is now the question
   that decides whether Tuya is viable past a month. Press it before the expiry, not after.
 - ~~What $0.20/month of basic resources actually buys~~ — ~54,000 calls at the foreign rate,
@@ -407,6 +411,19 @@ lags a tap by minutes and one that does not. See "What the console actually show
   poll cannot each spend a call fetching one.
 - **`MainActivity` polls this every 6 minutes**, on its own timer, separate from Yandex's 15 s. A
   tap re-reads only the device it touched — one call, not another five.
+- **A write is confirmed by re-reading until the device reports it: at once, then after 2 s, 4 s,
+  8 s and 16 s.** The single read straight after the command was a bug on the wall, and this is the
+  entry above meeting "the device is asynchronous" from the live write verification: the command is
+  taken instantly and the shadow follows seconds later, so that read returned the *old* switch and
+  the tile was repainted with it. The fan came on and the panel said "off" for the rest of the
+  6-minute interval — with the speed buttons disabled the whole time, because a speed write while
+  off is ignored and the UI refuses one until power is confirmed. The tile is repainted from each
+  read as it lands, so it flips when the device does. It costs at most 5 calls per tap and normally
+  1; a tap happens a few times a day against a refresh's 5 every 6 minutes.
+- **What it still does not do is paint what it asked for.** An unconfirmed write leaves the tile
+  saying what the device last reported, which is the panel's rule everywhere: the next refresh
+  corrects it, and a tile that showed a state nothing has confirmed would be the one kind of wrong
+  a wall panel cannot recover from.
 - **A single recuperator's read failing is not the group failing.** That tile keeps the values it
   had, says why it is not moving, and the other four update normally; only the inventory call
   failing takes the whole group down. This is where the shape differs from the Yandex tiles, and it
@@ -419,14 +436,13 @@ lags a tap by minutes and one that does not. See "What the console actually show
   back `false` over a perfectly good HTTP 200, so a tile needs an offline state that has nothing to
   do with whether the call worked. Yandex reports no such field and leaves it null.
 
-**The write is implemented and UNVERIFIED.** `RecuperatorTiles.toggle` sends `POST
-/v2.0/cloud/thing/{id}/shadow/properties/issue` with `{"properties":"{\"switch\":true}"}` — the
-body is a JSON object encoded as a string, which is Tuya's own shape. Neither the route nor the
-body has ever been sent to the account: writing turns a real fan on in a real flat, and it would
-also take one of the 10 controllable-device slots for the first time. The tile is repainted from a
-re-read rather than from the command's answer, so a command that silently does nothing shows up as
-a tile that does not change rather than as a tile that lies. **Try it deliberately before trusting
-the switch on the wall.**
+**The write is implemented and verified** — see "Live write verification — 2026-08-30".
+`RecuperatorTiles.toggle` sends `POST /v2.0/cloud/thing/{id}/shadow/properties/issue` with
+`{"properties":"{\"switch\":true}"}` — the body is a JSON object encoded as a string, which is
+Tuya's own shape. The tile is repainted from a re-read rather than from the command's answer, so a
+command that silently does nothing shows up as a tile that does not change rather than as a tile
+that lies. Because the device reports asynchronously, that re-read is repeated over ~30 s until the
+shadow reflects the write; see "What the panel does with this".
 
 ### Errors seen
 

@@ -1,5 +1,6 @@
 package ru.domovoy.panel
 
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -8,6 +9,7 @@ import ru.domovoy.core.KnownRecuperators
 import ru.domovoy.core.Reading
 import ru.domovoy.integrations.tuya.TuyaClient
 import java.time.Instant
+import kotlin.time.Duration.Companion.seconds
 
 /**
  * A fan speed as the recuperator reports it — three separate booleans, `speed_one` / `speed_two` /
@@ -150,7 +152,7 @@ class RecuperatorTiles(
     }
 
     /**
-     * Switches one recuperator, then re-reads that one device.
+     * Switches one recuperator, then re-reads that one device until the shadow says so.
      *
      * The command path is verified, but its answer promises only that the host took the request,
      * so the tile is repainted from the re-read and not from it. A
@@ -160,11 +162,8 @@ class RecuperatorTiles(
     suspend fun toggle(id: String) {
         val tile = mutableState.value.tiles.firstOrNull { it.id == id } ?: return
         val device = known[id] ?: return
-        client
-            .setOn(id, on = tile.isOn != true)
-            .mapCatching { client.read(device).getOrThrow() }
-            .onSuccess { read -> replace(read.toTile(error = null)) }
-            .onFailure { failure -> replace(tile.copy(error = failure.describe())) }
+        val wanted = tile.isOn != true
+        write(tile, device, issue = { client.setOn(id, on = wanted) }, reflected = { it.isOn == wanted })
     }
 
     /**
@@ -181,11 +180,51 @@ class RecuperatorTiles(
             replace(tile.copy(error = IllegalStateException("recuperator must be on").describe()))
             return
         }
-        client
-            .setSpeed(id, speed.code)
-            .mapCatching { client.read(device).getOrThrow() }
-            .onSuccess { read -> replace(read.toTile(error = null)) }
-            .onFailure { failure -> replace(tile.copy(error = failure.describe())) }
+        write(tile, device, issue = { client.setSpeed(id, speed.code) }, reflected = { speed in it.speeds })
+    }
+
+    /**
+     * Sends one command and then reads the device it touched **until that device reports what was
+     * written**, or until [CONFIRM_DELAYS] runs out.
+     *
+     * The single read this used to do was the bug the wall showed: **the recuperator is
+     * asynchronous** — docs/tuya.md, "Live write verification", records that the unit takes a
+     * command and reports it seconds later, which is why the live checks there waited 20 s between
+     * a write and its read. The read fired immediately after the write therefore returns the *old*
+     * shadow, and the tile was repainted with it: the fan audibly came on and the panel said "off"
+     * until the next 6-minute poll, with the speed buttons disabled for that whole time because
+     * [setSpeed] refuses while power is unconfirmed.
+     *
+     * What it does *not* do is paint what it asked for. Every repaint here is a read of the device,
+     * so an unconfirmed write leaves a tile telling the truth — the device has not reported the
+     * change — rather than one showing a state nothing has confirmed. The tile is repainted from
+     * each read as it lands, so it flips the moment the device does rather than at the end of the
+     * window.
+     */
+    private suspend fun write(
+        tile: RecuperatorTileState,
+        device: Device,
+        issue: suspend () -> Result<Unit>,
+        reflected: (RecuperatorTileState) -> Boolean,
+    ) {
+        issue().onFailure { failure ->
+            replace(tile.copy(error = failure.describe()))
+            return
+        }
+        var waits = CONFIRM_DELAYS
+        while (true) {
+            val read =
+                client
+                    .read(device)
+                    .getOrElse { failure ->
+                        replace(tile.copy(error = failure.describe()))
+                        return
+                    }.toTile(error = null)
+            replace(read)
+            if (reflected(read) || waits.isEmpty()) return
+            delay(waits.first())
+            waits = waits.drop(1)
+        }
     }
 
     private fun replace(tile: RecuperatorTileState) {
@@ -195,6 +234,25 @@ class RecuperatorTiles(
             )
     }
 }
+
+/**
+ * **How long the panel waits for a write to turn up in Tuya's shadow**: it reads at once, and then
+ * again after each of these until the device reports what was asked of it.
+ *
+ * The window is ~30 s and is spent only when a device is slow to report. Widening between reads
+ * rather than reading at a fixed cadence, because the allowance is money: a unit that reports
+ * quickly — most of them, most of the time — costs the one re-read a tap has always cost, and only
+ * a slow one runs to the five [CONFIRM_READS] worth. Five calls a handful of times a day is
+ * nothing against a refresh's five every six minutes.
+ *
+ * 30 s is chosen from the vendor evidence rather than measured on this wall: docs/tuya.md's live
+ * write checks used 20-second waits because six-second loops saw commands land out of order. It
+ * has not been timed against a real tap, and docs/tuya.md's open questions say so.
+ */
+private val CONFIRM_DELAYS = listOf(2.seconds, 4.seconds, 8.seconds, 16.seconds)
+
+/** How many reads one write can cost at most, which is what a test counts against the allowance. */
+internal val CONFIRM_READS = CONFIRM_DELAYS.size + 1
 
 /** The vendor's own codes for the two datapoints it only reports, and never accepts. */
 private const val TEMPERATURE = "temper"

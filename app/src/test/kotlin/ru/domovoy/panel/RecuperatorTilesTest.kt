@@ -393,6 +393,66 @@ class RecuperatorTilesTest {
     }
 
     @Test
+    fun `switching on keeps re-reading until the shadow catches up with the device`() = runTest {
+        // The recuperator is asynchronous (docs/tuya.md, "Live write verification"): it takes the
+        // command and reports the new switch seconds later, so the read straight after the write
+        // still says off. Painting that one read and stopping is what left a running unit showing
+        // "off" on the wall until the next 6-minute poll — and with it the speed buttons, which
+        // stay disabled until power is confirmed.
+        enqueueRefresh()
+        server.enqueue(MockResponse(body = issued))
+        server.enqueue(MockResponse(body = fixture("shadow_properties.json")))
+        server.enqueue(MockResponse(body = shadowWith("switch", true)))
+        val poll = TuyaPoll(client())
+
+        poll.refresh()
+        poll.recuperators.toggle("xfj-01")
+
+        val tile = poll.recuperators.state.value.tiles.single { it.id == "xfj-01" }
+        assertEquals(true, tile.isOn)
+        assertNull(tile.error)
+        assertEquals(10, server.requestCount) // 7 for the refresh, the command, and two re-reads
+    }
+
+    @Test
+    fun `a write the device never reflects gives up re-reading rather than spending the allowance`() = runTest {
+        // The other side of the wait: the panel does not read Tuya until it likes the answer. It
+        // stops after a bounded window and shows the shadow it actually read — a tile that still
+        // says off is the truth about what the device has reported, and the next poll will correct
+        // it. Bounded because every one of these reads is a metered call.
+        enqueueRefresh()
+        server.enqueue(MockResponse(body = issued))
+        repeat(CONFIRM_READS + 2) { server.enqueue(MockResponse(body = fixture("shadow_properties.json"))) }
+        val poll = TuyaPoll(client())
+
+        poll.refresh()
+        poll.recuperators.toggle("xfj-01")
+
+        val tile = poll.recuperators.state.value.tiles.single { it.id == "xfj-01" }
+        assertEquals(false, tile.isOn, "the tile says what it read, never what it asked for")
+        assertEquals(8 + CONFIRM_READS, server.requestCount)
+    }
+
+    @Test
+    fun `selecting a speed keeps re-reading until the shadow shows that speed`() = runTest {
+        // Same lag on the speed datapoints, and the same answer: the tile flips when the device
+        // says so, not when the command was accepted.
+        enqueueToken()
+        server.enqueue(MockResponse(body = fixture("devices.json")))
+        repeat(5) { server.enqueue(MockResponse(body = shadowWith("switch", true))) }
+        server.enqueue(MockResponse(body = issued))
+        server.enqueue(MockResponse(body = shadowWith("switch", true)))
+        server.enqueue(MockResponse(body = shadowWith("switch", true, "speed_two", true)))
+        val poll = TuyaPoll(client())
+
+        poll.refresh()
+        poll.recuperators.setSpeed("xfj-01", FanSpeed.Medium)
+
+        assertEquals(listOf(FanSpeed.Medium), poll.recuperators.state.value.tiles.single { it.id == "xfj-01" }.speeds)
+        assertEquals(10, server.requestCount)
+    }
+
+    @Test
     fun `selecting a speed on a powered recuperator issues it and re-reads only that device`() = runTest {
         enqueueToken()
         server.enqueue(MockResponse(body = fixture("devices.json")))
@@ -486,8 +546,8 @@ class RecuperatorTilesTest {
         // The tile is repainted from a fresh read of that one device, and the read answers only
         // datapoints — nothing in it says which room the device is in.
         enqueueRefresh()
-        server.enqueue(MockResponse(body = """{"result":true,"success":true,"t":1,"tid":"test-tid"}"""))
-        server.enqueue(MockResponse(body = fixture("shadow_properties.json")))
+        server.enqueue(MockResponse(body = issued))
+        server.enqueue(MockResponse(body = shadowWith("switch", true)))
         val poll = TuyaPoll(client(), rooms = recuperatorRooms("xfj-01=Спальня"))
 
         poll.refresh()
@@ -566,6 +626,9 @@ class RecuperatorTilesTest {
     }
 
     private fun now(minutes: Long): Instant = lastRead.plusSeconds(minutes * 60)
+
+    /** What the issue route answers: the host took the request, and says nothing about the device. */
+    private val issued = """{"result":true,"success":true,"t":1,"tid":"test-tid"}"""
 
     private fun enqueueToken() = server.enqueue(MockResponse(body = fixture("token.json")))
 

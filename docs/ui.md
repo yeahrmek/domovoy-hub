@@ -398,6 +398,14 @@ the same rule as "Stale", one layer down: the panel may remember what exists, ne
 A remembered tile is still tappable. The command needs an id and the re-read needs the device, and
 both survive the restart; a tile on the wall that swallowed the tap would be worse than no tile.
 
+**A tap on a recuperator does not repaint the tile in one go, because the device does not answer in
+one go.** It takes the command instantly and reports the new state seconds later, so the panel reads
+it again — at once, then after 2 s, 4 s, 8 s and 16 s — and stops as soon as the shadow says what was
+written. Seen on the wall as the bug it fixes: the fan came on, the tile stayed "off" for the rest of
+the 6-minute interval, and the sheet's speed buttons stayed disabled with it, since a speed is only
+offered once power is confirmed. What the tile shows is still only what was read — a write the device
+never reflects leaves it saying "off", and the next poll settles it. See docs/tuya.md.
+
 A tablet with no usable keystore — restored backup, wiped key — remembers nothing and runs anyway.
 
 **Seen on the wall, 2026-08-16.** The six-minute hole was real and reproduced twice: a cold start at
