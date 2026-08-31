@@ -27,6 +27,7 @@ fun AcTile(
     onOpen: (() -> Unit)? = null,
     onToggle: (String) -> Unit = {},
     onSetTemperature: (String, Double) -> Unit = { _, _ -> },
+    onSetMode: (String, String, String) -> Unit = { _, _, _ -> },
 ) {
     // The words, the art and which controls this tile offers, all from one pure function — see
     // [TileAnatomy]. What is left here is the two things a data class cannot hold: the power button and
@@ -37,14 +38,15 @@ fun AcTile(
     val paint = paint(tile, error)
     TileCard(
         anatomy = anatomy(tile, now, error),
-        hue = hue(tile),
         paint = paint,
         modifier = modifier,
         onClick = onOpen,
+        onAction = {
+            nextFanMode(tile)?.let { next -> onSetMode(tile.id, "fan_speed", next) }
+        },
         toggle = {
             TilePowerButton(
                 isOn = tile.isOn == true,
-                hue = hue(tile),
                 mood = paint.mood,
                 onToggle = { onToggle(tile.id) },
             )
@@ -61,7 +63,6 @@ fun AcTile(
                     onValueChange = { dragged = it },
                     valueRange = bounds.min.toFloat()..bounds.max.toFloat(),
                     onValueChangeFinished = { onSetTemperature(tile.id, dragged.toDouble()) },
-                    hue = hue(tile),
                 )
             }
         },

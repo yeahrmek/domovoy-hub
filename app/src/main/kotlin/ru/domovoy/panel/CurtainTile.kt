@@ -30,7 +30,6 @@ fun CurtainTile(
     // rather than labelling a type: the flat's curtain says what it is doing from across the room.
     TileCard(
         anatomy = anatomy(tile, now, error),
-        hue = hue(tile),
         paint = paint(tile, error),
         modifier = modifier,
         onClick = onOpen,
@@ -55,7 +54,6 @@ fun CurtainTile(
                     onValueChange = { dragged = it },
                     valueRange = bounds.min.toFloat()..bounds.max.toFloat(),
                     onValueChangeFinished = { onSetOpen(tile.id, dragged.toDouble()) },
-                    hue = hue(tile),
                 )
             }
         },

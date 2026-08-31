@@ -30,15 +30,16 @@ import ru.domovoy.panelTypography
 /**
  * What the panel actually looks like, recorded as images.
  *
- * Everything else about the mosaic is tested as a pure function — [TileLayoutTest] asks [hue],
- * [mood] and [span] what they answer, and gets an enum back. None of that can see a tile that came
- * out unreadable, a row that wrapped, or a palette that collapsed in one of the two themes. The
- * things this file is here to catch are exactly the ones with no return value to assert on:
+ * Everything else about the mosaic is tested as a pure function — [TileLayoutTest] asks [mood] and
+ * [span] what they answer, and gets an enum back, and [PanelThemeTest] measures the contrast of
+ * every role the wall spends. None of that can see a tile that came out unreadable, a row that
+ * wrapped, or a palette that collapsed in one of the two themes. The things this file is here to
+ * catch are exactly the ones with no return value to assert on:
  *
- * - **The palette.** `PanelTheme.kt` carries a table of CIE ΔE separations between the three tile
- *   families and a plain off tile, in both schemes. Nothing has ever checked that the wall matches
- *   it, and the failure mode is a colour retouched in light drifting in dark, which is the half of
- *   the day nobody is looking at.
+ * - **The palette as it lands on a card.** [PanelThemeTest] checks the numbers; only these images
+ *   show the wall spending them — one accent on two controls, everything else a neutral step, and
+ *   red nowhere but a failure. The failure mode is a colour retouched in light drifting in dark,
+ *   which is the half of the day nobody is looking at.
  * - **The geometry.** Twelve columns against 753 dp, thirds and quarters, one 22 dp corner, one
  *   296 dp tile height across every kind. All of it is in docs/ui.md and in no assertion, and the
  *   one thing an image says that no assertion here does is whether the bottom edges of two
@@ -134,6 +135,36 @@ class PanelScreenshotTest {
     }
 
     @Test
+    fun `the air conditioner capability sheet`() {
+        capture("device-sheet-ac-light", panelLightScheme) { Panel(open = "ac-01") }
+    }
+
+    @Test
+    fun `the curtain capability sheet`() {
+        capture("device-sheet-curtain-light", panelLightScheme) { Panel(open = "curtain-01") }
+    }
+
+    @Test
+    fun `the rgb bulb capability sheet`() {
+        capture("device-sheet-bulb-light", panelLightScheme) { Panel(open = "light-05") }
+    }
+
+    @Test
+    fun `the kelvin bulb capability sheet`() {
+        capture("device-sheet-kelvin-bulb-light", panelLightScheme) { Panel(open = "light-02") }
+    }
+
+    @Test
+    fun `the power-only bulb capability sheet`() {
+        capture("device-sheet-relay-bulb-light", panelLightScheme) { Panel(open = "light-03") }
+    }
+
+    @Test
+    fun `the led strip capability sheet`() {
+        capture("device-sheet-strip-light", panelLightScheme) { Panel(open = "strip-01") }
+    }
+
+    @Test
     fun `the lights group`() {
         // Коридор: three lamps the panel has a value for, standing behind one group tile, and the
         // fourth — which has never reported — as its own named tile beside it.
@@ -223,73 +254,63 @@ class PanelScreenshotTest {
     }
 
     /**
-     * Every way a tile can be painted: the three hues across, the four moods down, plus the outlined
-     * case — which every kind of tile has now rather than only the recuperators. **The four rows are
-     * four steps of one neutral ramp and the columns differ only in their accents**, which is the
-     * whole of what this picture is here to hold: a card that goes back to being filled with its
-     * family's container shows up here as three coloured rows before it shows up anywhere else.
+     * Every way a tile can be painted: the four moods across, plus the outlined case — which every
+     * kind of tile has now rather than only the recuperators.
+     *
+     * **It was a twelve-cell grid, three hues by four moods, and the hues are gone.** The columns
+     * differed only in their accent — blue for the things that move air, amber for the things that
+     * make light — and behind the tablet's blue light filter those two are both a brown. There is
+     * one accent now, so the matrix is one row: **four steps of one neutral ramp, and the only
+     * colour in the picture is the violet on the lit tile's power button and dot, plus the red on
+     * the failing one.** A card that goes back to being filled with a family container, or a second
+     * hue that creeps back in anywhere, shows up here before it shows up anywhere else.
      *
      * [TileCard] directly rather than one real tile of each kind, because the thing being recorded
-     * is the twelve-plus-one pairs and nothing else. A grid of real tiles would take the same
-     * picture with four sliders and eleven status lines in front of it, and would change every time
-     * one of those did.
+     * is the five cards and nothing else. A grid of real tiles would take the same picture with four
+     * sliders and eleven status lines in front of it, and would change every time one of those did.
      */
     @Composable
     private fun TileMatrix() {
         Column(modifier = Modifier.padding(8.dp)) {
-            TileMood.entries.forEach { mood ->
-                Row(modifier = Modifier.fillMaxWidth()) {
-                    TileHue.entries.forEach { hue ->
-                        TileCard(
-                            anatomy = swatch("$hue · $mood"),
-                            hue = hue,
-                            paint = TilePaint(mood, groupFailing = false),
-                            modifier = Modifier.weight(1f),
-                            // **The power button is here because it is a mark now.** It takes the family
-                            // accent when the tile is on and neutral grey otherwise, so a row of
-                            // three that is one colour in this picture is Material's `primary`
-                            // leaking back in — a lamp with a blue power button on it.
-                            //
-                            // Checked on the failing row as well as the lit one, and that pair is
-                            // the picture: a device that last reported on keeps its power direction,
-                            // and it is grey there because nobody can confirm it any more.
-                            toggle = {
-                                TilePowerButton(
-                                    isOn = mood == TileMood.On || mood == TileMood.Failing,
-                                    hue = hue,
-                                    mood = mood,
-                                    onToggle = {},
-                                )
-                            },
-                        )
-                    }
+            Row(modifier = Modifier.fillMaxWidth()) {
+                TileMood.entries.forEach { mood ->
+                    TileCard(
+                        anatomy = swatch("$mood"),
+                        paint = TilePaint(mood, groupFailing = false),
+                        modifier = Modifier.weight(1f),
+                        // **The power button is here because it is a mark now.** It takes the accent
+                        // when the tile is on and neutral grey otherwise, so the whole row being one
+                        // colour in this picture is the accent leaking onto states nobody confirmed.
+                        //
+                        // Checked on the failing cell as well as the lit one, and that pair is the
+                        // picture: a device that last reported on keeps its power direction, and it
+                        // is grey there because nobody can confirm it any more.
+                        toggle = {
+                            TilePowerButton(
+                                isOn = mood == TileMood.On || mood == TileMood.Failing,
+                                mood = mood,
+                                onToggle = {},
+                            )
+                        },
+                    )
                 }
             }
             // The group failure outline, on a tile that is otherwise ordinary and stays ordinary:
-            // the surface, the glyph, the promoted value and the mark all go on saying what they
-            // said, and the border is the only thing that is new. That is the picture — the tile
-            // beside it in the `On · Climate` cell above should differ from this one by a red line
-            // and by nothing else.
+            // the surface, the art, the promoted value and the mark all go on saying what they
+            // said, and the border is the only thing that is new. That is the picture — the `On`
+            // cell in the row above should differ from this one by a red line and by nothing else.
             Row(modifier = Modifier.fillMaxWidth()) {
                 TileCard(
                     anatomy = swatch("группа не читается"),
-                    hue = TileHue.Climate,
                     paint = TilePaint(TileMood.On, groupFailing = true),
                     modifier = Modifier.weight(1f),
-                    // The same power button the `On · Climate` cell above has, so that "differs by a red
-                    // line and by nothing else" is still what the pair shows.
-                    toggle = {
-                        TilePowerButton(
-                            isOn = true,
-                            hue = TileHue.Climate,
-                            mood = TileMood.On,
-                            onToggle = {},
-                        )
-                    },
+                    // The same power button the `On` cell above has, so that "differs by a red line
+                    // and by nothing else" is still what the pair shows.
+                    toggle = { TilePowerButton(isOn = true, mood = TileMood.On, onToggle = {}) },
                 )
-                // The row's other two thirds, left empty: the outline is one case and not three,
+                // The row's other three quarters, left empty: the outline is one case and not four,
                 // and a second card here would be a pair that does not exist.
-                Spacer(modifier = Modifier.weight(2f))
+                Spacer(modifier = Modifier.weight(3f))
             }
         }
     }

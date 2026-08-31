@@ -9,171 +9,196 @@ import androidx.compose.ui.unit.sp
 /**
  * The panel's two colour schemes, written out.
  *
- * `lightColorScheme()` with no arguments is not a palette, it is Material's *baseline* — a violet,
- * and a violet run through the neutral surfaces of an unstyled panel is the grey-mauve the wall
- * this hangs on already is. So the values are here, and this is the one file in the app allowed to
- * hold any: `panel/` is grep-clean of hex literals and stays that way. It is not a wrapper with one
- * caller — it is data, and the alternative is 48 arguments inline in [MainActivity].
+ * `lightColorScheme()` with no arguments is not a palette, it is Material's *baseline*. So the
+ * values are here, and this is the one file in the app allowed to hold any: `panel/` is grep-clean
+ * of hex literals and stays that way. It is not a wrapper with one caller — it is data, and the
+ * alternative is 48 arguments inline in [MainActivity].
  *
- * **Two seeds, and everything else neutral.** A cool blue at Lab hue 272 — the hue of `#2196F3` —
- * for climate, and a warm amber at hue 72 — the hue of `#FFA000` — for light. Every value below is
- * a *tone* off one of four ramps generated from those two: the blue at chroma 46 (primary), the
- * amber at chroma 70 (tertiary), and the blue again at chroma 3 and 9 for the surfaces and the
- * outlines, which is Material's own way of tinting neutrals with the seed rather than leaving them
- * dead grey. Generated rather than picked stop by stop, so light and dark are the same colours at
- * different tones and cannot drift apart when one of them is retouched. The error ramp is
- * Material's, untouched: red is the one thing on this panel that must look like everybody else's.
+ * ## One accent, and everything else neutral
  *
- * **No tile is painted with a family colour any more, and that is the change this file's table used
- * to describe.** Climate took `primaryContainer`, light `tertiaryContainer`, everything else
- * `secondaryContainer`, and anything failing a full `errorContainer` — twelve container roles doing
- * the wall's colouring, which came out as a patchwork of colour blocks with two saturated red
- * rectangles in it. The family moved to the *accents* and the surfaces went neutral: see
- * `tileColors`, `tileAccent` and `surface` in `panel/`. The three container ramps are still what
- * this file generates and are not retuned; what reads them changed.
+ * **It was two seeds and it is one.** A cool blue for climate and a warm amber for light, spent on
+ * the glyph, the promoted value, the on mark and the slider of every tile. Photographed off the
+ * wall, that palette does not survive the tablet it runs on: the Galaxy Tab sits behind Samsung's
+ * blue light filter at level 7 with Extra dim at 25 %, which is a warm film over the whole screen.
+ * It turned the cool-grey surfaces beige, and it turned the amber accent brown — so the wall's two
+ * families came out as *beige and browner beige*, and the one thing on it that must never be
+ * mistaken for anything else, red, was the nearest neighbour of the second family.
  *
- * So the roles that carry the wall now are these, and the numbers worth having are their **contrast
- * on the neutral steps they are written on** rather than ΔE between fields that no longer exist:
+ * So: **neutral surfaces, one violet accent, and red reserved.** Violet is chosen for the filter
+ * rather than in spite of it — a warm film subtracts blue, and what a violet loses is saturation
+ * rather than lightness, so it stays legibly *other* than the greys around it where an amber stops
+ * being other than a brown. The accent is `#7047EB` in light. Nothing else on the wall is coloured.
  *
- * | Role | What wears it | Weakest ratio on any of the four steps |
+ * | Role | What wears it | Weakest ratio on any tile step |
  * | --- | --- | --- |
- * | `primary` | climate's glyph, value, mark and slider | 5.0 light / 7.2 dark |
- * | `tertiary` | light's, the same four | 5.0 / 7.2 |
- * | `secondary` | the neutral family's, the same four | 5.0 / 7.2 |
- * | `onSurface` | every word on every tile | 13.3 / 9.6 |
- * | `error` | the failing chip and the group outline | 5.1 / 7.2, and it carries `onError` at 6.5 / 7.7 |
+ * | `primary` | the accented power button, the slider fill, the on mark | 4.0 light / 4.2 dark |
+ * | `onSurface` | every word on every tile, **the promoted value included** | 11.4 / 8.8 |
+ * | `error` | the offline glyph and the group-failure outline | 4.7 / 7.4, with `onError` at 5.9 / 7.7 |
  *
- * All of them clear 4.5, and the promoted value they are largest on is 44sp type that needs 3.
+ * The accent carries no text after this change — the promoted value went neutral with the rest of
+ * the words — so its bar is 3:1 for a graphical object and not 4.5:1. It clears 3 on all four steps
+ * in both schemes.
  *
- * The neutral family is told apart by **lightness rather than by hue**, and that answer is now the
- * whole panel's rather than one family's compromise. It was deliberate twice over here: the neutral
- * family is defined by being neither of the other two, so a hue of its own would be a third seed the
- * brief did not ask for — and it could not have one anyway, since sRGB holds no more than ~16 chroma
- * of blue at tone 90 and a second blue at the container tone comes out as the first one. What is
- * told apart by lightness now is the *mood*, on the five `surfaceContainer` steps, and `secondary`
- * is what is left of the neutral family — an accent beside the other two rather than a container.
+ * **The dark accent is a lighter tone of the same violet, and that is deliberate.** `#7C4DFF` was
+ * the obvious partner to the light `#7047EB` and it does not work: against the dark card at
+ * `#30333D` it is 2.6:1, under the 3:1 a fill needs, and it is the *blue* channel carrying nearly
+ * all of it — precisely the channel the tablet's filter takes away, so at 19:00 the power button
+ * would fade into the card it sits on. `#B49CFF` is the same hue two tones up: 4.2:1 on the
+ * brightest card step, and high enough in red and green to stay lighter than the card when the
+ * filter drains the blue. `#7C4DFF` is still here, as dark's `primaryContainer`.
  *
- * `secondaryContainer` at tone 75 is what that compromise bought and nothing reads it today. It
- * stays written out for the reason the `fixed` roles below do: an unstyled Material component that
- * reaches for it must not fall through to the baseline violet.
+ * **`secondary` and `tertiary` are neutrals now, and nothing in `panel/` reads either.** They were
+ * the light family and the neutral family; with one accent there is no second or third family for
+ * them to be. They stay written out — as violet-tinted greys rather than as a fourth and fifth hue —
+ * for the reason the `fixed` roles do: an unstyled Material component that reaches for one must not
+ * open a colour the wall never chose.
  *
- * No dynamic colour anywhere. The wallpaper of a kiosk tablet is not a design input, and on a wall
- * showing two rooms' worth of amber and blue, a palette that moves when somebody changes the
- * launcher background is a panel that stops meaning what it meant yesterday.
+ * ## The surfaces
+ *
+ * The five `surfaceContainer` steps are the panel's whole tile ramp — which step a tile sits on is
+ * its *mood*, and `surface` in `panel/TileLayout.kt` is the table. Two of the five values are the
+ * ones this change is specified in: **`#E5E7EC` is the resting card in light and `#30333D` is the
+ * resting card in dark**, on `#F5F6F8` and `#191B23` backgrounds. The steps around them are the
+ * same colours a little further along: more present for a lit device, less for one nobody has read.
+ * `surfaceContainerLowest` sits **a hair off the background on the cards' side**, so a tile with no
+ * reading at all all but dissolves into the wall.
+ *
+ * _That rule is the reverse of the one this file carried until the palette went neutral, and the
+ * tablet is what reversed it._ `Lowest` used to sit *past* the background — white on a near-white
+ * wall — on the argument that an unread tile should read as a hole rather than as a card. That works
+ * only while the cards are barely off the background, which they were: 4 L\* in the old light
+ * scheme. The cards are 5 L\* off it on the *other* side now, so "past the background" put the two
+ * tiles the panel knows least about — Домофон and Пылесос, permanently `Unknown` because nothing
+ * polls a launcher — at the largest separation on the wall. On the glass they were the loudest cards
+ * on Главная. A step meaning "asserting least" has to be the step nearest the background, whichever
+ * side the cards are on.
+ *
+ * The error ramp is Material's, untouched: red is the one thing on this panel that must look like
+ * everybody else's, and after this change it is also the only saturated thing on the wall that is
+ * not the accent.
+ *
+ * No dynamic colour anywhere. The wallpaper of a kiosk tablet is not a design input, and a palette
+ * that moves when somebody changes the launcher background is a panel that stops meaning what it
+ * meant yesterday.
  */
 internal val panelLightScheme = lightColorScheme(
-    primary = Color(0xFF0561A2),
+    primary = Color(0xFF7047EB),
     onPrimary = Color(0xFFFFFFFF),
-    primaryContainer = Color(0xFFD4E3FF),
-    onPrimaryContainer = Color(0xFF001D36),
-    inversePrimary = Color(0xFFA5C8FF),
-    secondary = Color(0xFF575F6D),
+    primaryContainer = Color(0xFFE6DEFF),
+    onPrimaryContainer = Color(0xFF20005E),
+    inversePrimary = Color(0xFFB49CFF),
+    secondary = Color(0xFF5C5A6B),
     onSecondary = Color(0xFFFFFFFF),
-    secondaryContainer = Color(0xFFB1B9C9),
-    onSecondaryContainer = Color(0xFF141C27),
-    tertiary = Color(0xFF865301),
+    secondaryContainer = Color(0xFFE3E0F0),
+    onSecondaryContainer = Color(0xFF191826),
+    tertiary = Color(0xFF4C4A5A),
     onTertiary = Color(0xFFFFFFFF),
-    tertiaryContainer = Color(0xFFFFDDBA),
-    onTertiaryContainer = Color(0xFF281800),
-    background = Color(0xFFF7F9FF),
-    onBackground = Color(0xFF1A1C1F),
-    surface = Color(0xFFF7F9FF),
-    onSurface = Color(0xFF1A1C1F),
-    surfaceVariant = Color(0xFFDAE3F3),
-    onSurfaceVariant = Color(0xFF3F4754),
-    surfaceTint = Color(0xFF0561A2),
-    inverseSurface = Color(0xFF2E3035),
-    inverseOnSurface = Color(0xFFEEF1F6),
+    tertiaryContainer = Color(0xFFDEDCEC),
+    onTertiaryContainer = Color(0xFF171626),
+    background = Color(0xFFF5F6F8),
+    onBackground = Color(0xFF202228),
+    surface = Color(0xFFF5F6F8),
+    onSurface = Color(0xFF202228),
+    surfaceVariant = Color(0xFFE2E1EC),
+    onSurfaceVariant = Color(0xFF47464F),
+    surfaceTint = Color(0xFF7047EB),
+    inverseSurface = Color(0xFF303138),
+    inverseOnSurface = Color(0xFFF1F1F6),
     error = Color(0xFFB3261E),
     onError = Color(0xFFFFFFFF),
     errorContainer = Color(0xFFF9DEDC),
     onErrorContainer = Color(0xFF410E0B),
-    outline = Color(0xFF6F7786),
-    outlineVariant = Color(0xFFBEC7D7),
+    outline = Color(0xFF78767F),
+    outlineVariant = Color(0xFFC9C7D2),
     scrim = Color(0xFF000000),
-    surfaceBright = Color(0xFFF7F9FF),
-    surfaceDim = Color(0xFFD7DADF),
-    surfaceContainer = Color(0xFFEBEEF3),
-    surfaceContainerHigh = Color(0xFFE5E8EE),
-    surfaceContainerHighest = Color(0xFFE0E3E8),
-    surfaceContainerLow = Color(0xFFF1F4F9),
-    surfaceContainerLowest = Color(0xFFFFFFFF),
-    primaryFixed = Color(0xFFD4E3FF),
-    primaryFixedDim = Color(0xFFA5C8FF),
-    onPrimaryFixed = Color(0xFF001D36),
-    onPrimaryFixedVariant = Color(0xFF03497C),
-    secondaryFixed = Color(0xFFDAE3F3),
-    secondaryFixedDim = Color(0xFFBEC7D7),
-    onSecondaryFixed = Color(0xFF141C27),
-    onSecondaryFixedVariant = Color(0xFF3F4754),
-    tertiaryFixed = Color(0xFFFFDDBA),
-    tertiaryFixedDim = Color(0xFFFFB863),
-    onTertiaryFixed = Color(0xFF281800),
-    onTertiaryFixedVariant = Color(0xFF663E00),
+    surfaceBright = Color(0xFFF5F6F8),
+    surfaceDim = Color(0xFFD6D8DE),
+    // The tile ramp. `surfaceContainer` is the resting card this change is specified in; the two
+    // above it are a failing tile and a lit one, and `Lowest` is the step nearest the background —
+    // see [surface].
+    surfaceContainer = Color(0xFFE5E7EC),
+    surfaceContainerHigh = Color(0xFFDFE1E7),
+    surfaceContainerHighest = Color(0xFFD8DAE2),
+    surfaceContainerLow = Color(0xFFECEDF2),
+    surfaceContainerLowest = Color(0xFFF2F3F7),
+    primaryFixed = Color(0xFFE6DEFF),
+    primaryFixedDim = Color(0xFFB49CFF),
+    onPrimaryFixed = Color(0xFF20005E),
+    onPrimaryFixedVariant = Color(0xFF5730C7),
+    secondaryFixed = Color(0xFFE3E0F0),
+    secondaryFixedDim = Color(0xFFC7C4D6),
+    onSecondaryFixed = Color(0xFF191826),
+    onSecondaryFixedVariant = Color(0xFF454355),
+    tertiaryFixed = Color(0xFFDEDCEC),
+    tertiaryFixedDim = Color(0xFFC3C0D2),
+    onTertiaryFixed = Color(0xFF171626),
+    onTertiaryFixedVariant = Color(0xFF424050),
 )
 
 /**
- * The same two seeds at the tones dark asks for: the accents come up from tone 40 to 80 and their
- * containers down from 90 to 30, so a climate tile is a deep blue with a pale blue on it instead of
- * the reverse. The surfaces are the same near-neutral blue ramp at tones 4 to 24.
+ * The same accent at the tone dark asks for and the same neutral ramp inverted: the cards come up
+ * from `#30333D` as a lit tile asserts more, and the background sits below all of them.
  *
  * Not dead code, and that was checked before it was written: the tablet's dark theme is on a real
  * schedule, 19:00–07:00, so the wall is on this scheme for half of every day and nobody is looking
- * at it when it switches. The separations it has to hold are in the table on [panelLightScheme] —
- * dark is the wider of the two columns, which is the opposite of the way a palette usually fails.
+ * at it when it switches. It is also the half of the day the blue light filter matters most in,
+ * which is why `primary` here is a lighter tone than light's rather than a darker one — the
+ * argument is on [panelLightScheme].
  */
 internal val panelDarkScheme = darkColorScheme(
-    primary = Color(0xFFA5C8FF),
-    onPrimary = Color(0xFF003258),
-    primaryContainer = Color(0xFF03497C),
-    onPrimaryContainer = Color(0xFFD4E3FF),
-    inversePrimary = Color(0xFF0561A2),
-    secondary = Color(0xFFBEC7D7),
-    onSecondary = Color(0xFF29313D),
-    secondaryContainer = Color(0xFF3F4754),
-    onSecondaryContainer = Color(0xFFDAE3F3),
-    tertiary = Color(0xFFFFB863),
-    onTertiary = Color(0xFF462A01),
-    tertiaryContainer = Color(0xFF663E00),
-    onTertiaryContainer = Color(0xFFFFDDBA),
-    background = Color(0xFF111318),
-    onBackground = Color(0xFFE0E3E8),
-    surface = Color(0xFF111318),
-    onSurface = Color(0xFFE0E3E8),
-    surfaceVariant = Color(0xFF3F4754),
-    onSurfaceVariant = Color(0xFFBEC7D7),
-    surfaceTint = Color(0xFFA5C8FF),
-    inverseSurface = Color(0xFFE0E3E8),
-    inverseOnSurface = Color(0xFF2E3035),
+    primary = Color(0xFFB49CFF),
+    onPrimary = Color(0xFF2E0A7A),
+    // `#7C4DFF`, the violet this change was specified with. It is too dark to be dark's `primary` —
+    // 2.6:1 on the card it would sit on — and it is exactly right as the fill under a white glyph.
+    primaryContainer = Color(0xFF7C4DFF),
+    onPrimaryContainer = Color(0xFFFFFFFF),
+    inversePrimary = Color(0xFF7047EB),
+    secondary = Color(0xFFC7C4D6),
+    onSecondary = Color(0xFF2E2C3B),
+    secondaryContainer = Color(0xFF454355),
+    onSecondaryContainer = Color(0xFFE3E0F0),
+    tertiary = Color(0xFFC3C0D2),
+    onTertiary = Color(0xFF2B2A38),
+    tertiaryContainer = Color(0xFF424050),
+    onTertiaryContainer = Color(0xFFDEDCEC),
+    background = Color(0xFF191B23),
+    onBackground = Color(0xFFF3F4F7),
+    surface = Color(0xFF191B23),
+    onSurface = Color(0xFFF3F4F7),
+    surfaceVariant = Color(0xFF45464F),
+    onSurfaceVariant = Color(0xFFC7C5D0),
+    surfaceTint = Color(0xFFB49CFF),
+    inverseSurface = Color(0xFFF3F4F7),
+    inverseOnSurface = Color(0xFF303138),
     error = Color(0xFFF2B8B5),
     onError = Color(0xFF601410),
     errorContainer = Color(0xFF8C1D18),
     onErrorContainer = Color(0xFFF9DEDC),
-    outline = Color(0xFF8991A0),
-    outlineVariant = Color(0xFF3F4754),
+    outline = Color(0xFF918F9A),
+    outlineVariant = Color(0xFF45464F),
     scrim = Color(0xFF000000),
-    surfaceBright = Color(0xFF37393E),
-    surfaceDim = Color(0xFF111318),
-    surfaceContainer = Color(0xFF1E2024),
-    surfaceContainerHigh = Color(0xFF282A2E),
-    surfaceContainerHighest = Color(0xFF333539),
-    surfaceContainerLow = Color(0xFF1A1C1F),
-    surfaceContainerLowest = Color(0xFF0B0E13),
+    surfaceBright = Color(0xFF3D404A),
+    surfaceDim = Color(0xFF191B23),
+    surfaceContainer = Color(0xFF30333D),
+    surfaceContainerHigh = Color(0xFF383B46),
+    surfaceContainerHighest = Color(0xFF41444F),
+    surfaceContainerLow = Color(0xFF272A33),
+    surfaceContainerLowest = Color(0xFF1F2129),
     // The fixed roles are the same values in both schemes — that is what "fixed" means. Nothing in
     // the panel reads them today; they are here so that a component that does cannot fall back to
-    // the baseline violet through the one door left open.
-    primaryFixed = Color(0xFFD4E3FF),
-    primaryFixedDim = Color(0xFFA5C8FF),
-    onPrimaryFixed = Color(0xFF001D36),
-    onPrimaryFixedVariant = Color(0xFF03497C),
-    secondaryFixed = Color(0xFFDAE3F3),
-    secondaryFixedDim = Color(0xFFBEC7D7),
-    onSecondaryFixed = Color(0xFF141C27),
-    onSecondaryFixedVariant = Color(0xFF3F4754),
-    tertiaryFixed = Color(0xFFFFDDBA),
-    tertiaryFixedDim = Color(0xFFFFB863),
-    onTertiaryFixed = Color(0xFF281800),
-    onTertiaryFixedVariant = Color(0xFF663E00),
+    // the baseline through the one door left open.
+    primaryFixed = Color(0xFFE6DEFF),
+    primaryFixedDim = Color(0xFFB49CFF),
+    onPrimaryFixed = Color(0xFF20005E),
+    onPrimaryFixedVariant = Color(0xFF5730C7),
+    secondaryFixed = Color(0xFFE3E0F0),
+    secondaryFixedDim = Color(0xFFC7C4D6),
+    onSecondaryFixed = Color(0xFF191826),
+    onSecondaryFixedVariant = Color(0xFF454355),
+    tertiaryFixed = Color(0xFFDEDCEC),
+    tertiaryFixedDim = Color(0xFFC3C0D2),
+    onTertiaryFixed = Color(0xFF171626),
+    onTertiaryFixedVariant = Color(0xFF424050),
 )
 
 /**

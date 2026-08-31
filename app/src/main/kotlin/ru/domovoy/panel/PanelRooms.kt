@@ -110,11 +110,17 @@ fun PanelRooms(
     openSheet: MutableState<String?> = remember { mutableStateOf(null) },
     onToggleAc: (String) -> Unit = {},
     onSetTemperature: (String, Double) -> Unit = { _, _ -> },
+    onSetAcMode: (String, String, String) -> Unit = { _, _, _ -> },
+    onSetAcToggle: (String, String, Boolean) -> Unit = { _, _, _ -> },
     onSetOpen: (String, Double) -> Unit = { _, _ -> },
     onToggleStrip: (String) -> Unit = {},
     onSetBrightness: (String, Double) -> Unit = { _, _ -> },
     onToggleRecuperator: (String) -> Unit = {},
+    onSetRecuperatorSpeed: (String, FanSpeed) -> Unit = { _, _ -> },
     onToggleBulb: (String) -> Unit = {},
+    onSetBulbBrightness: (String, Double) -> Unit = { _, _ -> },
+    onSetBulbScene: (String, String) -> Unit = { _, _ -> },
+    onSetBulbRgb: (String, Int) -> Unit = { _, _ -> },
     onOpenApp: (String) -> Unit = {},
 ) {
     val sections =
@@ -224,6 +230,7 @@ fun PanelRooms(
                         onOpen = { openSheet.value = tile.id },
                         onToggle = onToggleAc,
                         onSetTemperature = onSetTemperature,
+                        onSetMode = onSetAcMode,
                     )
                 }
                 items(section.curtains, key = { "$room/curtain:${it.id}" }, span = { GridItemSpan(WIDE_SPAN) }) { tile ->
@@ -259,11 +266,12 @@ fun PanelRooms(
                         groupError = recuperators.error,
                         onOpen = { openSheet.value = tile.id },
                         onToggle = onToggleRecuperator,
+                        onSetSpeed = onSetRecuperatorSpeed,
                     )
                 }
-                // The lights group. The bulbs the panel has a value for are the many and are on/off
-                // only, so they are one tile saying how many there are and how many are lit rather
-                // than 28 cards — see docs/ui.md, "The lights group". The few it has no value for
+                // The lights group. The bulbs the panel has a value for are the many, so they are
+                // one tile saying how many there are and how many are lit rather than 28 cards —
+                // see docs/ui.md, "The lights group". The few it has no power value for
                 // come first, as named quarter-width tiles: those are the ones worth reading. Asked
                 // once per section, so that a room's group tile and the tiles it did not take come
                 // from one answer.
@@ -275,6 +283,7 @@ fun PanelRooms(
                         error = bulbs.error,
                         onOpen = { openSheet.value = tile.id },
                         onToggle = onToggleBulb,
+                        onSetBrightness = onSetBulbBrightness,
                     )
                 }
                 // A room whose bulbs all broke out has no group tile, and neither has a room with no
@@ -313,6 +322,7 @@ fun PanelRooms(
                                 error = bulbs.error,
                                 onOpen = { openSheet.value = tile.id },
                                 onToggle = onToggleBulb,
+                                onSetBrightness = onSetBulbBrightness,
                             )
                         }
                     }
@@ -339,11 +349,17 @@ fun PanelRooms(
             now = now,
             onToggleAc = onToggleAc,
             onSetTemperature = onSetTemperature,
+            onSetAcMode = onSetAcMode,
+            onSetAcToggle = onSetAcToggle,
             onSetOpen = onSetOpen,
             onToggleStrip = onToggleStrip,
             onSetBrightness = onSetBrightness,
             onToggleRecuperator = onToggleRecuperator,
+            onSetRecuperatorSpeed = onSetRecuperatorSpeed,
             onToggleBulb = onToggleBulb,
+            onSetBulbBrightness = onSetBulbBrightness,
+            onSetBulbScene = onSetBulbScene,
+            onSetBulbRgb = onSetBulbRgb,
         )
     }
 }
@@ -374,11 +390,17 @@ private fun OpenSheet(
     now: Instant,
     onToggleAc: (String) -> Unit,
     onSetTemperature: (String, Double) -> Unit,
+    onSetAcMode: (String, String, String) -> Unit,
+    onSetAcToggle: (String, String, Boolean) -> Unit,
     onSetOpen: (String, Double) -> Unit,
     onToggleStrip: (String) -> Unit,
     onSetBrightness: (String, Double) -> Unit,
     onToggleRecuperator: (String) -> Unit,
+    onSetRecuperatorSpeed: (String, FanSpeed) -> Unit,
     onToggleBulb: (String) -> Unit,
+    onSetBulbBrightness: (String, Double) -> Unit,
+    onSetBulbScene: (String, String) -> Unit,
+    onSetBulbRgb: (String, Int) -> Unit,
 ) {
     val id = openSheet.value ?: return
     val dismiss = { openSheet.value = null }
@@ -394,6 +416,8 @@ private fun OpenSheet(
                 onDismiss = dismiss,
                 onToggle = { onToggleAc(id) },
                 onSetLevel = { celsius -> onSetTemperature(id, celsius) },
+                onSetMode = { instance, value -> onSetAcMode(id, instance, value) },
+                onSetToggle = { instance, on -> onSetAcToggle(id, instance, on) },
             )
         curtain != null ->
             DeviceSheet(
@@ -413,12 +437,16 @@ private fun OpenSheet(
                 sheet = sheet(recuperator, now, recuperators.error),
                 onDismiss = dismiss,
                 onToggle = { onToggleRecuperator(id) },
+                onSetSpeed = { speed -> onSetRecuperatorSpeed(id, speed) },
             )
         bulb != null ->
             DeviceSheet(
                 sheet = sheet(bulb, now, bulbs.error),
                 onDismiss = dismiss,
                 onToggle = { onToggleBulb(id) },
+                onSetLevel = { percent -> onSetBulbBrightness(id, percent) },
+                onSetScene = { scene -> onSetBulbScene(id, scene) },
+                onSetRgb = { rgb -> onSetBulbRgb(id, rgb) },
             )
     }
 }
