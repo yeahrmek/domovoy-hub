@@ -18,6 +18,14 @@ third-party skill — `on_off`, `mode` and `range` capabilities, no Mi credentia
 `yandex.md`, "Coverage, measured"). That reopened the question this file answers, because it meant
 a vacuum tile could be built today with no Xiaomi integration at all.
 
+**Exactly what that skill publishes has since been counted**, in `yandex.md` under "What every type
+of device can be driven with": the flat's deerma vacuum is `on_off/on`, `toggle/pause`,
+`mode/cleanup_mode` (`dry_cleaning` / `wet_cleaning` / `mixed_cleaning`) and a `float/battery_level`
+— four things, one of them read-only. The humidifiers are `on_off/on` plus `mode/fan_speed`, with
+humidity and temperature readable. Note also that the *other* household's roborock publishes
+`mode/work_speed` instead of `cleanup_mode`: even the mode is per device, not per vacuum. That is
+the list the decision below is measured against, and counting it did not change the decision.
+
 **Decision, 2026-08-15: the panel keeps using Mi Home for the vacuum.** What Yandex exposes is what
 the skill chose to publish — on/off and a mode list — while Mi Home shows battery, cleaning status,
 consumables and the map. For a device whose useful state is mostly *not* a switch, the vendor's own

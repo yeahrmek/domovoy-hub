@@ -4,9 +4,10 @@
 setpoint change live — so a slow poll is honest here rather than a compromise, which is what makes
 the metered allowance below survivable.
 
-Read from the public docs on 2026-08-15. **First real calls made the same day** — the account is
-linked and answering; see "Recorded responses". Everything below marked _verified against the
-account_ came from `scripts/tuya-probe.sh`, not from a doc page.
+Read from the public docs on 2026-08-15. **First real reads made the same day; first reversible
+writes made 2026-08-30** — the account is linked and answering; see "Recorded responses" and
+"Live write verification". Everything below marked _verified against the account_ came from a
+real call, not from a doc page.
 
 "Smart Life" is one of Tuya's white-label apps. The API we would use is the Tuya Cloud API; the
 user's devices reach it by linking their Smart Life account to our cloud project.
@@ -144,6 +145,27 @@ Enabled per project under the Message Service tab; test and production subscript
 Very alive; the largest of the five by device count, docs are extensive and versioned, SDKs in five
 languages. The friction is commercial, not technical: quotas, editions and renewals.
 
+## Live write verification — 2026-08-30
+
+The thing-model route used by the panel was exercised against one online recuperator with a
+redaction-safe temporary script. Every change was followed by a shadow read, and the unit was
+restored to fully off at the end.
+
+- **Power is verified.** Issuing `{"switch": true}` turned the shadow on; issuing
+  `{"switch": false}` restored it and cleared all speed/mode booleans.
+- **Medium speed is verified, but only after power.** With the unit on, issuing
+  `{"speed_two": true}` changed the mutually exclusive speed state from `speed_three` to
+  `speed_two`; the other two became false.
+- **A speed write while off is ignored.** `{"speed_two": true}` returned success but the shadow
+  remained fully off. The UI therefore disables speed buttons until a re-read confirms `switch`.
+- **The device is asynchronous.** Six-second restore loops could observe an earlier queued command
+  after a later restore. Controlled checks used 20-second waits and explicit final reads. The app
+  never updates a tile from the command response; it reads the one touched device again.
+- **Power-on defaults are not stable enough to hardcode.** Separate runs came up as low/inflow and
+  high/auto. The panel shows the shadow it read rather than inventing a default.
+- Sleep, humidity presets, and airflow modes were not exercised as independent controls. They stay
+  visible as readings when present, but are not writable from the panel.
+
 ## Open questions before writing code
 
 - ~~Does the trial expire outright, or just reset monthly?~~ Both: the quota refreshes monthly, the
@@ -153,19 +175,14 @@ languages. The friction is commercial, not technical: quotas, editions and renew
 - ~~What $0.20/month of basic resources actually buys~~ — ~54,000 calls at the foreign rate,
   ~80,600 at the domestic one. **Which of the two applies to a Central Europe project** is the
   remaining unknown, and it is a 1.5× swing on the poll interval.
-- **Controllable Device Pool reads 0 / 10 against a Device Pool of 20 / 50.** So a device presumably
-  takes a controllable slot the first time it is commanded, and the panel's 5 recuperators would
-  leave 5. Whether a slot is ever released, and what the eleventh device does when commanded, is
-  unknown — nothing has been commanded yet.
-- **How to write a custom datapoint.** `POST /v1.0/devices/{id}/commands` is the standard-set path,
-  and the standard set for this product is just `switch` — so fan speed almost certainly needs the
-  thing-model write, `POST /v2.0/cloud/thing/{id}/shadow/properties/issue`. Still unverified, and
-  now *written against*: the panel's on/off switch sends exactly that, and nothing has confirmed it
-  works. Writing turns a real fan on in a real flat, so it needs a deliberate test, not a probe.
-  Fan speed is read-only on the tile until the on/off write is proven.
-- **Whether the three speed booleans are mutually exclusive.** Nothing has been written, so nothing
-  has forced the question. The tile prints every speed reported as on rather than picking one, so
-  two at once would show up as `low + high` instead of being quietly halved.
+- **How the Controllable Device Pool changes after a command.** It read 0 / 10 before the live
+  write. Whether a slot is released and what the eleventh device does remain unknown.
+- ~~How to write power and speed datapoints.~~ The thing-model issue route is verified for `switch`
+  and `speed_two`; see "Live write verification". Sleep, humidity presets, and airflow modes remain
+  deliberately unverified.
+- ~~Whether the three speed booleans are mutually exclusive.~~ On the tested unit, selecting medium
+  while high was active set medium true and high/low false. The parser still preserves every true
+  value rather than assuming the device can never misreport.
 - **Nothing in the API confirms `temper` is °C and `huimi` is %RH** — `typeSpec.unit` is `""` for
   both, and the app is the only check. That is now on the wall, so it is worth a second look:
   compare the tile against a thermometer in the same room, or against the app on a cold day when
@@ -345,9 +362,9 @@ temperature, humidity, three fan speeds and three modes for a device the API cal
   The two together are what the number on the wall rests on.
 - Each property is `{code, custom_name, dp_id, type, value, time}`, and `type` is `bool` or `value`
   — which is what says how to read `value`, since the shadow carries no schema.
-- **Speeds and modes are three separate booleans each, not an enum.** Whether the device enforces
-  mutual exclusion, or whether two speeds can be true at once, is unverified — nothing has been
-  written yet.
+- **Speeds and modes are three separate booleans each, not an enum.** A live speed write on one
+  online unit behaved mutually exclusively: selecting medium cleared low and high. The parser still
+  preserves every true flag so an inconsistent shadow remains visible rather than being hidden.
 - dp 110 does not exist; the numbering has a hole.
 - `shadow/properties` carries a per-datapoint `time`, so staleness can be shown per reading rather
   than per tile. It is **milliseconds** — read as seconds it puts the switch 54,000 years out — and
