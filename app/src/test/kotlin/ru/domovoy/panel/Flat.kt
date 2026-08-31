@@ -92,6 +92,11 @@ internal object Flat {
                 bounds = OPEN,
                 lastUpdated = ago(600),
                 stateChangedAt = ago(600),
+                // The flat's curtain has taken no open/close command — the state its `on_off` was in
+                // for the whole recorded history, and the one in which the percentage is the
+                // position the tile shows.
+                openClose = null,
+                openCloseLastUpdated = Reading.Never,
             ),
         ),
         lastPolledAt = polled(12),

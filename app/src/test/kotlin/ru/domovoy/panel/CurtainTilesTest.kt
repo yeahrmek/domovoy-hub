@@ -4,6 +4,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -89,6 +90,91 @@ class CurtainTilesTest {
         // but there is no position it is the age *of* — "unknown · 2 h ago" claimed to have read
         // something two hours ago, which is exactly what this test refuses one line up.
         assertEquals("unknown", statusLine(tile, Instant.ofEpochSecond(lastRead + 2 * 3600)))
+    }
+
+    @Test
+    fun `a position the vendor has not confirmed for hours is no longer stated as the current one`() = runTest {
+        // 2026-08-31, on the wall: the tile said "0% open" at display size while the curtain stood
+        // open. Nothing was wrong with the read — Yandex itself answered `open: 0`, `last_updated`
+        // thirteen hours earlier, which is the moment the panel last drove the curtain. This device
+        // reports no position back at all — not even for a move a Yandex station made on Yandex's
+        // own hub — so what the panel holds is a memory of its own last write. See docs/yandex.md.
+        server.enqueue(MockResponse(body = fixture()))
+        val poll = YandexPoll(client())
+        val curtains = poll.curtains
+
+        poll.refresh()
+
+        val tile = curtains.state.value.tiles.single()
+        val now = Instant.ofEpochSecond(lastRead + 13 * 3600)
+        // The number survives, in small type, with the age that is the whole point of it...
+        assertEquals("0% open · 13 h ago", statusLine(tile, now))
+        // ...and the wall stops saying it at four metres, in either of the two ways it could.
+        assertNull(anatomy(tile, now, error = null).promoted)
+        assertEquals(TileMood.Unknown, paint(tile, now, null).mood)
+        // A curtain the panel cannot vouch for is not a curtain it will offer to open as though it
+        // were certainly shut — the same answer an unread position gets.
+        assertEquals(TileAction.Close, action(tile, now))
+    }
+
+    @Test
+    fun `a curtain opened by voice reads as fully open at the next poll, not an hour later`() = runTest {
+        // 2026-08-31, watched live: "Алиса, открой шторы" opened the curtain fully and left
+        // `range/open` untouched at its old value — a percentage nothing had commanded since the
+        // evening before. What the command did write was `on_off`: `true`, stamped as it happened.
+        // Neither capability on this device is a sensor, so the panel takes the newer of the two,
+        // and an open is the top of the range the curtain itself reported. See docs/yandex.md.
+        server.enqueue(MockResponse(body = fixtureWithCurtainOpenedByVoice()))
+        val poll = YandexPoll(client())
+        val curtains = poll.curtains
+
+        poll.refresh()
+
+        val tile = curtains.state.value.tiles.single()
+        val now = Instant.ofEpochSecond(lastRead + 300)
+        // The percentage the vendor still holds is the stale one, and the tile does not print it.
+        assertEquals(0.0, tile.openPercent)
+        assertEquals("100% open", statusLine(tile, now))
+        assertEquals("100% open", anatomy(tile, now, error = null).promoted)
+        assertEquals(TileMood.On, paint(tile, now, null).mood)
+        assertEquals(TileAction.Close, action(tile, now))
+    }
+
+    @Test
+    fun `a curtain closed by voice reads as shut, from the on_off the command left behind`() = runTest {
+        // The other half, and the one that catches a wrong position rather than a stale one: the
+        // recorded percentage is 0 here, so this asserts the *source* rather than the number — the
+        // on/off is newer, and it says closed.
+        server.enqueue(MockResponse(body = fixtureWithCurtainClosedByVoice()))
+        val poll = YandexPoll(client())
+        val curtains = poll.curtains
+
+        poll.refresh()
+
+        val tile = curtains.state.value.tiles.single()
+        val now = Instant.ofEpochSecond(lastRead + 300)
+        assertEquals("0% open", statusLine(tile, now))
+        assertEquals(TileMood.Off, paint(tile, now, null).mood)
+        assertEquals(TileAction.Open, action(tile, now))
+    }
+
+    @Test
+    fun `a position read within the hour is still the panel's answer, zero included`() = runTest {
+        // The other half of the rule, and the reason it is an age and not a blanket refusal: 0% is
+        // a real position — the curtains are shut — and a reading Yandex confirmed minutes ago is
+        // exactly what the wall exists to show.
+        server.enqueue(MockResponse(body = fixture()))
+        val poll = YandexPoll(client())
+        val curtains = poll.curtains
+
+        poll.refresh()
+
+        val tile = curtains.state.value.tiles.single()
+        val now = Instant.ofEpochSecond(lastRead + 120)
+        assertEquals("0% open", statusLine(tile, now))
+        assertEquals("0% open", anatomy(tile, now, error = null).promoted)
+        assertEquals(TileMood.Off, paint(tile, now, null).mood)
+        assertEquals(TileAction.Open, action(tile, now))
     }
 
     @Test
@@ -236,11 +322,42 @@ class CurtainTilesTest {
     }.use { it.readBytes().decodeToString() }
 
     /**
+     * The recorded body with the curtain's `on_off` stamped two minutes *after* its position and
+     * carrying `true` — the shape a spoken "открой шторы" leaves behind, watched live on 2026-08-31
+     * and recorded in docs/yandex.md, `state_changed_at` included because the value changed.
+     */
+    private fun fixtureWithCurtainOpenedByVoice(): String = curtainOnOff(on = true)
+
+    /**
+     * The same for "закрой шторы", where the value was already `false`: the command moved the
+     * capability's clock and left `state_changed_at` at `0.0`, which is the pair of timestamps
+     * Yandex uses for a value written without changing.
+     */
+    private fun fixtureWithCurtainClosedByVoice(): String = curtainOnOff(on = false)
+
+    private fun curtainOnOff(on: Boolean): String = curtainCapability("devices.capabilities.on_off") { capability ->
+        JsonObject(
+            capability +
+                ("last_updated" to JsonPrimitive(lastRead + 120)) +
+                ("state_changed_at" to JsonPrimitive(if (on) lastRead + 120 else 0)) +
+                ("state" to JsonObject(mapOf("instance" to JsonPrimitive("on"), "value" to JsonPrimitive(on)))),
+        )
+    }
+
+    /**
      * The recorded body with the curtain's `range` state dropped. The shape is not invented: the
      * same response carries `"state": null` on the TV's `channel` range — a capability that is
      * simply out of the panel's scope, so the curtain is where it can be asserted.
      */
-    private fun fixtureWithoutCurtainPosition(): String {
+    private fun fixtureWithoutCurtainPosition(): String = curtainCapability("devices.capabilities.range") { capability ->
+        JsonObject(capability - "state")
+    }
+
+    /** The recorded body with one of `curtain-01`'s capabilities rewritten, and nothing else moved. */
+    private fun curtainCapability(
+        type: String,
+        rewrite: (JsonObject) -> JsonObject,
+    ): String {
         val root = Json.parseToJsonElement(fixture()).jsonObject
         val devices =
             root["devices"]!!.jsonArray.map { device ->
@@ -249,10 +366,10 @@ class CurtainTilesTest {
                 } else {
                     val capabilities =
                         device.jsonObject["capabilities"]!!.jsonArray.map { capability ->
-                            if (capability.jsonObject["type"]?.jsonPrimitive?.content != "devices.capabilities.range") {
+                            if (capability.jsonObject["type"]?.jsonPrimitive?.content != type) {
                                 capability
                             } else {
-                                JsonObject(capability.jsonObject - "state")
+                                rewrite(capability.jsonObject)
                             }
                         }
                     JsonObject(device.jsonObject + ("capabilities" to JsonArray(capabilities)))

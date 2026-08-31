@@ -305,7 +305,7 @@ class TileLayoutTest {
         assertEquals(TilePaint(TileMood.On, groupFailing = true), paint(strip(isOn = true), "HTTP 500"))
         assertEquals(
             TilePaint(TileMood.On, groupFailing = true),
-            paint(curtain(openPercent = 40.0), "HTTP 500"),
+            paint(curtain(openPercent = 40.0), now, "HTTP 500"),
         )
         assertEquals(
             TilePaint(TileMood.On, groupFailing = true),
@@ -341,10 +341,21 @@ class TileLayoutTest {
         // The curtain has no switch to read a mood off, so its position is the mood — the same
         // three answers its status line gives, in the same order. It used to be worked out inside
         // the composable, where no test could reach it.
-        assertEquals(TileMood.On, paint(curtain(openPercent = 40.0), null).mood)
-        assertEquals(TileMood.Off, paint(curtain(openPercent = 0.0), null).mood)
-        assertEquals(TileMood.Unknown, paint(curtain(openPercent = null), null).mood)
-        assertEquals(TileMood.On, paint(curtain(openPercent = 40.0), "HTTP 500").mood)
+        assertEquals(TileMood.On, paint(curtain(openPercent = 40.0), now, null).mood)
+        assertEquals(TileMood.Off, paint(curtain(openPercent = 0.0), now, null).mood)
+        assertEquals(TileMood.Unknown, paint(curtain(openPercent = null), now, null).mood)
+        assertEquals(TileMood.On, paint(curtain(openPercent = 40.0), now, "HTTP 500").mood)
+    }
+
+    @Test
+    fun `a curtain whose position has aged out reads as unknown, not as the position it had`() {
+        // The flat's curtain reports no position back to Yandex at all — not even for a move a
+        // station made on Yandex's own hub — so an old reading is a memory and not a state. Painting
+        // it Off is the wall saying "shut" about a curtain standing open. See docs/yandex.md.
+        val aged = curtain(openPercent = 0.0).copy(lastUpdated = hoursAgo(13))
+
+        assertEquals(TileMood.Unknown, paint(aged, now, null).mood)
+        assertEquals(TileMood.Unknown, paint(curtain(openPercent = 40.0).copy(lastUpdated = hoursAgo(13)), now, null).mood)
     }
 
     // --- What one tile promotes ------------------------------------------------------------
@@ -383,6 +394,140 @@ class TileLayoutTest {
     @Test
     fun `a curtain with no position promotes nothing`() {
         assertNull(promoted(curtain(openPercent = null)))
+    }
+
+    @Test
+    fun `a curtain promotes a position only while the vendor still vouches for it`() {
+        // The number is the same either way; what changes is whether the wall is willing to say it
+        // at four metres. Yandex last heard from this curtain thirteen hours ago and nothing since,
+        // whoever moved it and however — so the tile has a last known position and not a current
+        // one, and the promoted slot is where that difference has to show.
+        assertEquals("0% open", anatomy(curtain(openPercent = 0.0), now, error = null).promoted)
+        assertNull(anatomy(curtain(openPercent = 0.0).copy(lastUpdated = hoursAgo(13)), now, error = null).promoted)
+    }
+
+    @Test
+    fun `the freshest of the two commands is the position, and an open or close is an end of travel`() {
+        // Neither capability on this curtain is a sensor: `range/open` is the last percentage
+        // something commanded and `on_off` is the last open or close, and the device reports no
+        // position of its own at all. So the panel takes whichever was written last — watched across
+        // three spoken commands on 2026-08-31, see docs/yandex.md.
+        val closed = curtain(openPercent = 50.0).copy(
+            lastUpdated = minutesAgo(6),
+            openClose = false,
+            openCloseLastUpdated = minutesAgo(2),
+        )
+        val opened = closed.copy(openClose = true)
+
+        assertEquals("0% open", anatomy(closed, now, error = null).promoted)
+        assertEquals(TileMood.Off, paint(closed, now, null).mood)
+        assertEquals(TileAction.Open, action(closed, now))
+
+        assertEquals("100% open", anatomy(opened, now, error = null).promoted)
+        assertEquals(TileMood.On, paint(opened, now, null).mood)
+        assertEquals(TileAction.Close, action(opened, now))
+    }
+
+    @Test
+    fun `an open or close is read against the bounds the vendor reported, not against 0 and 100`() {
+        // The same refusal [actionTarget] makes in the same place: "fully open" is a number this
+        // device named, and a panel that assumed 100 would be inventing a position on any curtain
+        // whose range starts or ends somewhere else.
+        val narrow = Bounds(min = 10.0, max = 90.0, precision = 1.0)
+        val tile = curtain(openPercent = 50.0, bounds = narrow).copy(
+            lastUpdated = minutesAgo(6),
+            openClose = true,
+            openCloseLastUpdated = minutesAgo(2),
+        )
+
+        assertEquals("90% open", anatomy(tile, now, error = null).promoted)
+    }
+
+    @Test
+    fun `an open or close the panel cannot place leaves no position at all`() {
+        // With no bounds there is no end of travel to read the on/off as — the same state in which
+        // the tile is offered no slider and no button. What it must not do is fall back to the
+        // percentage: that reading has just been overtaken, which is the whole point.
+        val tile = curtain(openPercent = 50.0, bounds = null).copy(
+            lastUpdated = minutesAgo(6),
+            openClose = true,
+            openCloseLastUpdated = minutesAgo(2),
+        )
+
+        assertNull(anatomy(tile, now, error = null).promoted)
+        assertEquals("unknown", statusLine(tile, now))
+        assertEquals(TileMood.Unknown, paint(tile, now, null).mood)
+    }
+
+    @Test
+    fun `the slider starts from the position the card is printing, not the one it overtook`() {
+        // Caught in a photograph of the wall: "100% open" over a slider filled to half, because the
+        // handle started from the percentage the spoken command had overtaken. One tile cannot
+        // answer "how far open is it" twice, least of all with the wrong one drawn 251 dp wide.
+        val spoken = curtain(openPercent = 50.0).copy(
+            lastUpdated = minutesAgo(6),
+            openClose = true,
+            openCloseLastUpdated = minutesAgo(2),
+        )
+
+        assertEquals(100f, sliderStart(spoken, BOUNDS.min))
+        // And a curtain with no position at all starts at the one value certainly on the grid.
+        assertEquals(0f, sliderStart(curtain(openPercent = null), BOUNDS.min))
+    }
+
+    @Test
+    fun `an open or close older than the position leaves that position alone`() {
+        // The other order, which is every ordinary poll: the panel drove the curtain by percent and
+        // nothing has touched it since. A curtain that lost its position to any on/off it had ever
+        // received would never show one at all.
+        val driven = curtain(openPercent = 50.0).copy(
+            lastUpdated = minutesAgo(2),
+            openClose = false,
+            openCloseLastUpdated = minutesAgo(6),
+        )
+
+        assertEquals("50% open", anatomy(driven, now, error = null).promoted)
+        assertEquals(TileMood.On, paint(driven, now, null).mood)
+        assertEquals("50% open", statusLine(driven, now))
+    }
+
+    @Test
+    fun `a position taken from an open or close ages by that command's own clock`() {
+        // The age printed is the age of the reading the position came from, whichever capability
+        // that was — otherwise a curtain opened by voice a minute ago would print the age of the
+        // percentage it overtook, which is a timestamp about a value nobody is looking at.
+        val spoken = curtain(openPercent = 50.0).copy(
+            lastUpdated = hoursAgo(13),
+            openClose = true,
+            openCloseLastUpdated = minutesAgo(2),
+        )
+
+        assertEquals("100% open", statusLine(spoken, now))
+        assertEquals("100% open", anatomy(spoken, now, error = null).promoted)
+    }
+
+    @Test
+    fun `an open or close ages out exactly as a position does`() {
+        // The hour rule is about the reading behind the number, not about which capability it came
+        // from: a spoken "открой шторы" is as good a source as a percentage and goes stale as fast.
+        val old = curtain(openPercent = 50.0).copy(
+            lastUpdated = hoursAgo(20),
+            openClose = true,
+            openCloseLastUpdated = hoursAgo(13),
+        )
+
+        assertNull(anatomy(old, now, error = null).promoted)
+        assertEquals(TileMood.Unknown, paint(old, now, null).mood)
+        assertEquals("100% open · 13 h ago", statusLine(old, now))
+    }
+
+    @Test
+    fun `a curtain whose position has aged out still says it, in small type, with its age`() {
+        // Nothing is thrown away: demoting the value is not deleting it, and the status line is
+        // where a value that has to carry a caveat belongs — it is already carrying the age.
+        val aged = curtain(openPercent = 0.0).copy(lastUpdated = hoursAgo(13))
+
+        assertEquals("0% open · 13 h ago", statusLine(aged, now))
     }
 
     @Test
@@ -672,7 +817,7 @@ class TileLayoutTest {
         assertNull(action(launcher(openable = false)))
         // The one kind that has a button: the curtain, whose ends of travel are the same verified
         // `range` action its slider already sends.
-        assertEquals(TileAction.Close, action(curtain(openPercent = 40.0)))
+        assertEquals(TileAction.Close, action(curtain(openPercent = 40.0), now))
     }
 
     @Test
@@ -702,21 +847,24 @@ class TileLayoutTest {
     fun `a curtain offers the end of travel it is not already at`() {
         // A button whose press changes nothing is a dead tap, which is the thing the launcher tile
         // exists not to be. A shut curtain can only be opened; anything else can be shut.
-        assertEquals(TileAction.Open, action(curtain(openPercent = 0.0)))
-        assertEquals(TileAction.Close, action(curtain(openPercent = 1.0)))
-        assertEquals(TileAction.Close, action(curtain(openPercent = 40.0)))
-        assertEquals(TileAction.Close, action(curtain(openPercent = 100.0)))
+        assertEquals(TileAction.Open, action(curtain(openPercent = 0.0), now))
+        assertEquals(TileAction.Close, action(curtain(openPercent = 1.0), now))
+        assertEquals(TileAction.Close, action(curtain(openPercent = 40.0), now))
+        assertEquals(TileAction.Close, action(curtain(openPercent = 100.0), now))
         // Unknown still offers the useful one-tap default. It is an action and not a claim —
         // nothing the tile prints says the curtain is open.
-        assertEquals(TileAction.Close, action(curtain(openPercent = null)))
+        assertEquals(TileAction.Close, action(curtain(openPercent = null), now))
+        // And a position that has aged out is unknown for this too: a curtain reading 0% from
+        // thirteen hours ago must not be offered Open as though it were certainly shut.
+        assertEquals(TileAction.Close, action(curtain(openPercent = 0.0).copy(lastUpdated = hoursAgo(13)), now))
     }
 
     @Test
     fun `a curtain whose vendor never sent bounds gets no button`() {
         // The same refusal the slider makes, in the same place: with no reported range there is no
         // "fully open" to drive to, and a button that picks one is the panel inventing a position.
-        assertNull(action(curtain(openPercent = 40.0, bounds = null)))
-        assertNull(action(curtain(openPercent = 0.0, bounds = null)))
+        assertNull(action(curtain(openPercent = 40.0, bounds = null), now))
+        assertNull(action(curtain(openPercent = 0.0, bounds = null), now))
     }
 
     @Test
@@ -774,7 +922,7 @@ class TileLayoutTest {
         assertEquals(art(ac), anatomy(ac, now, error = null).art)
         assertEquals(action(ac), anatomy(ac, now, error = null).action)
         val curtain = curtain(openPercent = 40.0)
-        assertEquals(action(curtain), anatomy(curtain, now, error = null).action)
+        assertEquals(action(curtain, now), anatomy(curtain, now, error = null).action)
         val recuperator = recuperator(temperature = 29.3, humidity = 32.2)
         assertEquals(climateLine(recuperator), anatomy(recuperator, now, groupError = null).detail)
         val launcher = launcher(openable = false)
@@ -964,7 +1112,17 @@ class TileLayoutTest {
         bounds = bounds,
         lastUpdated = Reading.At(now),
         stateChangedAt = Reading.At(now),
+        // The flat's curtain had taken no open/close at all until one was spoken at it — see
+        // docs/yandex.md — so `Never` is the state most of these tiles are actually in.
+        openClose = null,
+        openCloseLastUpdated = Reading.Never,
     )
+
+    /** A reading taken [hours] before [now] — old enough that the tile prints its age. */
+    private fun hoursAgo(hours: Long) = Reading.At(now.minusSeconds(hours * 3600))
+
+    /** A reading taken [minutes] before [now] — fresh enough that the tile says nothing about it. */
+    private fun minutesAgo(minutes: Long) = Reading.At(now.minusSeconds(minutes * 60))
 
     private fun launcher(openable: Boolean) = LauncherTileState(
         packageName = "com.example.intercom",

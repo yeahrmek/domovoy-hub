@@ -30,7 +30,7 @@ fun CurtainTile(
     // rather than labelling a type: the flat's curtain says what it is doing from across the room.
     TileCard(
         anatomy = anatomy(tile, now, error),
-        paint = paint(tile, error),
+        paint = paint(tile, now, error),
         modifier = modifier,
         onClick = onOpen,
         // **The wall's one second control**, and the one tile that has it: the end of travel the
@@ -40,7 +40,7 @@ fun CurtainTile(
         // are both pure functions; what is here is the callback, and it is the same one the drag
         // finishes with.
         onAction = {
-            val target = action(tile)?.let { actionTarget(tile, it) }
+            val target = action(tile, now)?.let { actionTarget(tile, it) }
             if (target != null) onSetOpen(tile.id, target)
         },
         level = {
@@ -60,26 +60,43 @@ fun CurtainTile(
     )
 }
 
-// A curtain that has never reported has no position to start the handle from; the bottom of its
-// range is the one value that is certainly on the grid, and the line above says "unknown" anyway.
-private fun sliderStart(
+/**
+ * **Where the handle sits before a finger touches it: the position the card is printing.**
+ *
+ * [position] and not `openPercent`, which is the bug a photograph of the wall caught: after a spoken
+ * "открой шторы" the card said `100% open` over a slider filled to half, because the handle was still
+ * starting from the percentage that command overtook. Two answers to "how far open is it" on one
+ * tile, and the wrong one was the one drawn 251 dp wide.
+ *
+ * A curtain the panel cannot place has no position to start from; the bottom of its range is the one
+ * value certainly on the grid, and the line above says "unknown" anyway.
+ */
+internal fun sliderStart(
     tile: CurtainTileState,
     min: Double,
-): Float = (tile.openPercent ?: min).toFloat()
+): Float = (position(tile)?.percent ?: min).toFloat()
 
 /**
  * The line under the name: how far open, and how old that reading is once it is old enough to be
  * worth saying. The reason a poll failed is the tile's second line now — see [TileAnatomy].
  *
- * A fresh curtain says only "40% open" now — see [ageLine]. And a curtain that reported no position
- * says only "unknown": the age went with the value, because a timestamp on a reading that does not
- * exist ages nothing.
+ * A fresh curtain says only "40% open" now — see [ageLine]. And a curtain that has taken no command
+ * the panel can place says only "unknown": the age went with the value, because a timestamp on a
+ * reading that does not exist ages nothing.
+ *
+ * **The age is the age of the reading the number came from**, which on this device is whichever of
+ * the two commands was written last — see [position]. A curtain opened by voice a minute ago prints
+ * no age at all while the percentage it overtook is a day old, and that is the point: the day-old
+ * number is not the one on the card.
  */
 internal fun statusLine(
     tile: CurtainTileState,
     now: Instant,
-): String = listOfNotNull(
-    // The same string the tile promotes, plus the word for a curtain that has never reported.
-    promoted(tile) ?: "unknown",
-    ageLine(tile.lastUpdated.takeIf { tile.openPercent != null }, now),
-).joinToString(" · ")
+): String {
+    val position = position(tile)
+    return listOfNotNull(
+        // The same string the tile promotes, plus the word for a curtain that has never reported.
+        promoted(tile) ?: "unknown",
+        ageLine(position?.reading, now),
+    ).joinToString(" · ")
+}
