@@ -128,7 +128,7 @@ then brought it to 296.
 
 **An empty slot is empty, not absent.** A launcher has no power button, no slider and no value and
 reserves all three anyway. That is what buys bottom edges that line up across kinds, and it is the
-whole cost of it too: a bulb tile carries a 64 dp band where a slider would go.
+whole cost of it too: a relay bulb carries the 64 dp band where a dimmable bulb uses its slider.
 
 **The status slot is a ceiling; every other slot is a floor.** That is the reverse of what this
 doc said until "nothing on the wall wraps", and the argument it reverses — that a vendor error long
@@ -183,11 +183,13 @@ Sizes to hold to, since this is read and touched at arm's length from a wall:
 
 ### The lights group
 
-28 bulbs against 7 of everything else — they are the many, they are on/off only, and a card each is
-what makes the panel a mile of scrolling. So a room's bulbs render as **one group tile in the
+28 bulbs against 7 of everything else — they are the many, some are relays and others have
+brightness/colour capabilities, and a card each is what makes the panel a mile of scrolling. So a
+room's bulbs render as **one group tile in the
 mosaic**: `7 lamps` as its name, how many of them are lit as its promoted value, and one line
 carrying both counts again with the oldest of their readings. Tapping it opens the lamps under it as
-ordinary named tiles, each with its own age and its own switch; tapping it again puts them away.
+ordinary named tiles, each with its own age, power button, and brightness slider when advertised;
+tapping it again puts them away.
 
 **This was a wrapping row of 72 dp discs, and the row is gone.** Seven identical amber circles,
 unlabelled, under one shared line — the most saturated thing on the wall and the biggest touch
@@ -517,9 +519,11 @@ This is a pure function of the room sections. It gets a test.
 - **The panel has its own palette, and `lightColorScheme()` on its own is not it.** Called with no
   arguments those builders return Material's *baseline*, which is a violet — and a violet run through
   the neutral surfaces of an unstyled panel is the grey-mauve wall this brief did not ask for. The
-  schemes are written out with explicit values. Seeds: a **cool blue** for climate and a **warm
-  amber** for light, tonal palettes generated from those two rather than picked stop by stop, so
-  light and dark stay related to each other. Everything else in the scheme is Material's neutral.
+  schemes are written out with explicit values. **Neutral surfaces and one violet accent**:
+  `#F5F6F8` background, `#E5E7EC` cards, `#202228` text and `#7047EB` accent in light; `#191B23`,
+  `#30333D`, `#F3F4F7` and a lighter tone of the same violet in dark. It was two seeds — a cool blue
+  for climate and a warm amber for light — until a photograph of the tablet ended them; see "One
+  accent, and the amber that was a brown". Material's error ramp is kept as it is.
 - `MainActivity` picks between the two by `isSystemInDarkTheme()`. No dynamic colour: the wallpaper
   of a kiosk tablet is not a design input, and on a wall that shows two rooms' worth of amber and
   blue, a palette that changes when somebody changes the launcher background is a panel that stops
@@ -532,12 +536,13 @@ This is a pure function of the room sections. It gets a test.
   conditioner, a dark amber strip, and two full saturated red rectangles among twelve — against a
   reference that paints every tile the same neutral dark grey and spends its whole colour budget on
   three small marks.
-  - **Domain picks the accent**, through one table, `tileAccent`: climate `primary`, light
-    `tertiary`, everything else `secondary`. Four things wear it — the round power button, promoted
-    value, on mark, and slider fill. Three families and no more; a fourth hue on a wall read
-    from four metres is decoration rather than information. The accent and not the container,
-    because all four are drawn *on* a neutral surface and have to show against it: worst ratio 5.0
-    in light and 7.2 in dark, on 44sp type that needs 3.
+  - **One accent, on the three things a finger uses or looks for**, through `tileAccent`, which
+    takes no argument any more: the round power button when the tile is on, the slider fill, and the
+    20 dp lit dot. `primary` and not a container, because all three are drawn *on* a neutral surface
+    and have to show against it — worst ratio 4.0 in light and 4.2 in dark, and the bar is the 3:1 a
+    graphical object needs because the accent carries no text now. **The promoted value went
+    neutral** with the rest of the words: it is `onSurface`, at 11.4:1 and 8.8:1 on the worst step.
+    What kind of device a tile is, is said by the photograph of the hardware on it.
   - **State picks the step of the neutral ramp** the card sits on, through `surface`: `On`
     `surfaceContainerHighest`, `Failing` `High`, `Off` `surfaceContainer`, `Unknown` `Lowest`. One
     content colour, `onSurface`, on all four — they are all neutral surfaces now.
@@ -547,8 +552,8 @@ This is a pure function of the room sections. It gets a test.
 
     | State | Marks |
     | --- | --- |
-    | on | a 20 dp dot in the family accent, over the top-right of the art |
-    | on | the round power button in the family accent — neutral grey in every other mood |
+    | on | a 20 dp dot in the accent, over the top-right of the art |
+    | on | the round power button in the accent — neutral grey in every other mood |
     | on | the bulb and LED-strip art itself lights up |
     | this device's own poll failed | a 28 dp struck-through wifi glyph in `error`, over the top-right of the unchanged art |
     | off, or never read | nothing at all |
@@ -564,9 +569,10 @@ This is a pure function of the room sections. It gets a test.
 
     **The wifi glyph is a tile's own failure only.** Keyed on the group's it would draw on 34 of the
     35 tiles at once, which is the wall going red — the thing the outline exists to avoid.
-- `hue(...)` is the domain half and lives in `TileLayout.kt` beside `mood`, `surface`, `marks`,
-  `paint` and `span` — a pure function per tile type, out where a test reaches it. The composable
-  maps them to roles and does no thinking of its own.
+- `hue(...)` **is gone**, and with it `TileHue` and `TileSheet.hue`. It was a pure function per tile
+  type answering `Climate`, `Light` or `Neutral`; with one accent it answered the same thing three
+  ways. `mood`, `surface`, `marks`, `paint` and `span` are still in `TileLayout.kt` and still where a
+  test reaches them; the composable maps them to roles and does no thinking of its own.
 - **No hex literals in the panel package.** A hardcoded colour is a tile that is unreadable in one of
   the two themes, and the theme that breaks is the one nobody is looking at when they check. The
   schemes are the one place values are written, and they are in the theme, not in `panel/`. Done in
@@ -575,10 +581,16 @@ This is a pure function of the room sections. It gets a test.
   `surfaceContainer` until the surfaces went neutral, because there was said to be no second neutral
   to give them; there were five all along — `surfaceContainerLowest`, `Low`, `High`, `Highest` and
   the base — and the reason to spend them arrived when the ramp stopped being one family's
-  compromise and became the whole panel's mood axis. `Unknown` takes `Lowest`, which is the least
-  emphatic container in both schemes, so a device the panel has never read sits 2 L\* past the wall's
-  own background and reads as a hole rather than as a card. The words still say it too, where they
-  always did.
+  compromise and became the whole panel's mood axis. `Unknown` takes `Lowest`.
+  - **What `Lowest` means changed on the glass, and that is the one thing the tablet sent back.** It
+    used to sit 2 L\* *past* the wall's own background, so an unread tile read as a hole rather than
+    as a card. That holds only while the cards are barely off the background, which they were at 4
+    L\*. Under the neutral palette they are 5 L\* off it on the *other* side, and "past the
+    background" became the largest separation on the wall: on Главная, Домофон and Пылесос — which
+    are `Unknown` for ever, because nothing polls a launcher — came out as two white cards among
+    grey ones, the loudest thing on a panel that knows nothing about either of them. `Lowest` is now
+    the step *nearest* the background, on the cards' side, and `PanelThemeTest` asserts that rather
+    than the old rule. The words still say it too, where they always did.
 - **`Failing` no longer fills the card**, which reverses commit 2's reversal and keeps what each of
   them was right about. Both halves are kept here because the reversal is the decision rather than
   the drift.
@@ -631,6 +643,56 @@ tone-90 version of the same thing. Every on-colour is ≥ 7:1 on its container i
   filter and not the palette. Judge colour with it in mind, or turn it off first — which is harder
   than it sounds, and is now measured: see "The filter cannot be turned off the way this doc said"
   below.
+
+### One accent, and the amber that was a brown
+
+**A photograph of the tablet ended the two-seed palette.** The wall runs behind Samsung's blue light
+filter at level 7 with Extra dim at 25 %, and that is a warm film over everything on the glass. The
+"Theme" bullets above and the two measured sections below had already recorded that the filter erodes
+a hue against a neutral; what the photograph showed is that it does something worse to two hues
+against each other.
+
+| What was designed | What is on the wall |
+| --- | --- |
+| `#F7F9FF` cool-grey surfaces | beige |
+| `#0561A2` climate accent | a muted blue-grey |
+| `#865301` light accent | brown |
+| `#B3261E` error | brown-red |
+
+So the wall's two families came out as beige and browner beige, and the one colour on this panel
+whose meaning cannot be recovered from anywhere else on the card — red, the offline mark and the
+group outline — was the nearest neighbour of the second family. Two states a metre apart, said in
+two colours nobody could tell apart. The amber and the red are 29° apart in hue; the violet that
+replaces them is 108°, and `PanelThemeTest` asserts the separation rather than describing it.
+
+**What replaced it.**
+
+- **Neutral surfaces, one violet, red reserved.** Violet is chosen *for* the filter and not in spite
+  of it: a warm film subtracts blue, and what a violet loses is saturation rather than lightness, so
+  it stays legibly other than the greys around it where an amber stops being other than a brown.
+- **The accent is on the two controls and the one dot, and nothing else.** The promoted value — the
+  44sp number this panel exists to show from four metres — was the largest thing wearing a family
+  colour, which made it the largest thing going brown. It is `onSurface` now, like every other word
+  on the card.
+- **The families are not replaced, they are dropped.** The device art is the answer to "what kind of
+  thing is this", it is a photograph of the actual hardware, and it was already there — a bulb looks
+  like a bulb and lights up when it is lit. That is the warm light on this wall, and it is in the
+  raster where the filter cannot make it mean something else.
+- **Dark's accent is a lighter tone than light's**, which is the one departure from the brief as it
+  was specified. `#7C4DFF` against the dark card at `#30333D` is 2.6:1, under the 3:1 a fill needs,
+  and nearly all of that ratio is carried by the blue channel the filter takes away — so the power
+  button would fade into its card at exactly 19:00. `#B49CFF` is the same hue two tones up at 4.2:1,
+  and high enough in red and green to stay lighter than the card once the blue is drained. `#7C4DFF`
+  is kept as dark's `primaryContainer`.
+
+**The numbers are computed and not typed.** `PanelThemeTest` measures WCAG contrast for every role
+the wall spends, on every step of the tile ramp, in both schemes, and checks that the ramp is
+monotonic and that its bottom step sits past the background. Three times the contrast table in
+`PanelTheme.kt` was retuned and retyped by hand; it is now a claim a test can fail.
+
+**What is still unmeasured.** All of it is sRGB arithmetic on the JVM. Nothing here models what the
+filter actually does — it rotates hue as well as draining it — and the hue separation above is a
+proxy for the thing that matters. The wall is the measurement. See "Watch on the wall".
 
 ### The roles, measured on the glass
 
@@ -1259,16 +1321,30 @@ out wrong. None of them can be settled from a screenshot.
 
 - **Does anyone work out that the sliders are draggable?** They have no handle. If not, the answer is
   a handle, not a thicker track.
+- **Does the violet survive the filter, and is one accent enough?** This is the bet the whole
+  palette rests on and it was placed from a photograph of the *old* one — nobody has seen the new
+  accent on the glass. Two ways it can be wrong. If the violet itself goes muddy behind the filter,
+  the answer is a lighter tone of it in *both* schemes, not a second hue: the filter is why there is
+  one. If instead the wall reads as undifferentiated — every tile the same card, nothing saying
+  which of the 35 is an air conditioner — the answer is the device art, which is already the thing
+  carrying that, made larger; it is not the families coming back.
+- **Is the lit dot still doing anything?** It is the accent in a third place on a tile that already
+  has an accented power button and, on lamps, art that lights up. The redundancy is deliberate — see
+  the marks table — but it was sized against three family colours, and with one accent a wall of lit
+  tiles is a wall of identical violet dots. If it reads as noise, it is the mark to drop: it is the
+  only one of the three that says nothing the other two do not.
 - ~~**Does Главная read as alarm at boot?**~~ **Gone with the filled `errorContainer`.** Nothing is
   rose at boot any more: an unread tile is the quietest step of the neutral ramp, which is what
   "nothing has been read yet" looks like.
-- **Does an `Unknown` tile read as a hole or as a missing tile?** It is `surfaceContainerLowest`,
-  which is 2 L\* past the wall's own background in both schemes, so its card all but disappears and
-  only its words are left. That is the intended answer to "the panel has read nothing here" — but
-  **the launcher tiles are `Unknown` permanently**, nothing polls them, so Домофон is the quietest
-  card on the wall for ever. If that is wrong on the glass, the answer is not a lighter step for
-  everything: it is that a launcher's "no state to read" is a different thing from a device's
-  "never reported", and `mood` has no value for it today.
+- ~~**Does an `Unknown` tile read as a hole or as a missing tile?**~~ **Half-answered on the
+  glass, and it came back the other way round.** Under the neutral palette `Lowest` was still "past
+  the background", and on the wall that made Домофон and Пылесос the *loudest* cards on Главная
+  rather than the quietest — see "Theme". `Lowest` is the step nearest the background now. What is
+  still open is the part the old note got right: **the launcher tiles are `Unknown` permanently**,
+  so whichever way that step reads, it reads that way for ever on the two tiles nothing polls. If
+  the quietest card on the wall turns out to be the wrong home for them, the answer is not a
+  different step for everything — it is that a launcher's "no state to read" is a different thing
+  from a device's "never reported", and `mood` has no value for it today.
 - **Is a truncated package name useful or just untidy?** `com.example.vac…` is the wall's one
   ellipsis, on the tile of an app that is not installed. It is read at 30 cm by whoever is about to
   go and install it, so it may be that a cut package is no use at all and the honest answer is the

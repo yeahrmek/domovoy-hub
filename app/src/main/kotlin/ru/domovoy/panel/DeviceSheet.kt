@@ -8,16 +8,21 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedIconButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -27,7 +32,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
+import ru.domovoy.R
 
 /**
  * How dark the wall goes behind an open sheet. Enough that the sheet is unmistakably in front and
@@ -64,9 +71,8 @@ private val LABEL_WIDTH = 220.dp
  *   it are 81 days apart, and which of them the tile is under-claiming for is a fact the panel holds
  *   and had nowhere to say. See [SheetReading].
  * - **The actions that did not fit.** One 64 dp button is all a third-width tile has room for
- *   ([TileAction]); the sheet is 753 dp wide and can carry the whole verified set — and only the
- *   verified set, which is why there is no `Color` section, no `Modes` and no `reset` on it. See
- *   [SheetAction].
+ *   ([TileAction]); the sheet is 753 dp wide and carries the verified, device-advertised modes,
+ *   toggles, RGB scenes and fan speeds. There is still no generic reset or guessed capability.
  *
  * **It draws what [sheet] answered and decides nothing**, on [TileCard]'s rule: which readings, which
  * actions and whether there is a level at all are pure functions a test can reach, and this lays them
@@ -86,6 +92,11 @@ internal fun DeviceSheet(
     onToggle: () -> Unit = {},
     /** Drives the one range the vendor reported. The same call the tile's slider makes. */
     onSetLevel: (Double) -> Unit = {},
+    onSetMode: (String, String) -> Unit = { _, _ -> },
+    onSetToggle: (String, Boolean) -> Unit = { _, _ -> },
+    onSetScene: (String) -> Unit = {},
+    onSetRgb: (Int) -> Unit = {},
+    onSetSpeed: (FanSpeed) -> Unit = {},
 ) {
     Box(modifier = modifier.fillMaxSize()) {
         // The wall behind, dimmed and still readable, and tapping it puts the sheet away. No
@@ -101,7 +112,7 @@ internal fun DeviceSheet(
                 ),
         )
         Surface(
-            modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth(),
+            modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().fillMaxHeight(0.94f),
             shape = RoundedCornerShape(topStart = SHEET_CORNER, topEnd = SHEET_CORNER),
             // A step of the same neutral ramp every tile sits on — the surfaces stopped carrying hue
             // and this one never started. The family is in the accents: the art, and whatever the
@@ -110,7 +121,8 @@ internal fun DeviceSheet(
             contentColor = MaterialTheme.colorScheme.onSurface,
         ) {
             Column(
-                modifier = Modifier.fillMaxWidth().padding(SHEET_PADDING),
+                modifier =
+                Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(SHEET_PADDING),
                 verticalArrangement = Arrangement.spacedBy(SHEET_GAP),
             ) {
                 SheetHeading(sheet, onDismiss)
@@ -125,7 +137,16 @@ internal fun DeviceSheet(
                     )
                 }
                 sheet.readings.forEach { reading -> SheetReadingRow(reading) }
-                SheetControls(sheet, onToggle, onSetLevel)
+                SheetControls(
+                    sheet = sheet,
+                    onToggle = onToggle,
+                    onSetLevel = onSetLevel,
+                    onSetMode = onSetMode,
+                    onSetToggle = onSetToggle,
+                    onSetScene = onSetScene,
+                    onSetRgb = onSetRgb,
+                    onSetSpeed = onSetSpeed,
+                )
             }
         }
     }
@@ -199,6 +220,11 @@ private fun SheetControls(
     sheet: TileSheet,
     onToggle: () -> Unit,
     onSetLevel: (Double) -> Unit,
+    onSetMode: (String, String) -> Unit,
+    onSetToggle: (String, Boolean) -> Unit,
+    onSetScene: (String) -> Unit,
+    onSetRgb: (Int) -> Unit,
+    onSetSpeed: (FanSpeed) -> Unit,
 ) {
     if (sheet.actions.isEmpty()) return
     // The line between what this device says and what can be done to it. On the lock there is
@@ -210,7 +236,6 @@ private fun SheetControls(
             Box(modifier = Modifier.touchable(), contentAlignment = Alignment.CenterStart) {
                 TilePowerButton(
                     isOn = sheet.isOn == true,
-                    hue = sheet.hue,
                     mood = mood(sheet.isOn, sheet.notUpdating),
                     onToggle = onToggle,
                 )
@@ -223,13 +248,28 @@ private fun SheetControls(
             // under the finger.
             var dragged by
                 remember(sheet.name, level.bounds) { mutableFloatStateOf(level.value.toFloat()) }
+            StepButton(
+                glyph = R.drawable.ic_remove,
+                label = "decrease",
+                onClick = {
+                    dragged = level.bounds.snap(dragged - level.bounds.precision).toFloat()
+                    onSetLevel(dragged.toDouble())
+                },
+            )
             SlimSlider(
                 value = dragged,
                 onValueChange = { dragged = it },
                 valueRange = level.bounds.min.toFloat()..level.bounds.max.toFloat(),
                 onValueChangeFinished = { onSetLevel(dragged.toDouble()) },
-                hue = sheet.hue,
                 modifier = Modifier.weight(1f),
+            )
+            StepButton(
+                glyph = R.drawable.ic_add,
+                label = "increase",
+                onClick = {
+                    dragged = level.bounds.snap(dragged + level.bounds.precision).toFloat()
+                    onSetLevel(dragged.toDouble())
+                },
             )
         }
     }
@@ -254,5 +294,29 @@ private fun SheetControls(
                 }
             }
         }
+    }
+    if (SheetAction.Mode in sheet.actions) ModeControls(sheet.modes, onSetMode)
+    if (SheetAction.Toggle in sheet.actions) ToggleControls(sheet.toggles, onSetToggle)
+    if (SheetAction.Color in sheet.actions) {
+        ColorControls(sheet.color?.scenes.orEmpty(), onSetRgb = onSetRgb, onSetScene = onSetScene)
+    }
+    if (SheetAction.Speed in sheet.actions) {
+        FanSpeedControls(
+            speeds = sheet.fanSpeeds,
+            selected = sheet.selectedFanSpeeds,
+            enabled = sheet.isOn == true,
+            onSetSpeed = onSetSpeed,
+        )
+    }
+}
+
+@Composable
+private fun StepButton(
+    @androidx.annotation.DrawableRes glyph: Int,
+    label: String,
+    onClick: () -> Unit,
+) {
+    OutlinedIconButton(onClick = onClick, modifier = Modifier.touchable()) {
+        Icon(painter = painterResource(glyph), contentDescription = label)
     }
 }

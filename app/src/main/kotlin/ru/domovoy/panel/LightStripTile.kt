@@ -39,14 +39,12 @@ fun LightStripTile(
     val paint = paint(tile, error)
     TileCard(
         anatomy = anatomy(tile, now, error),
-        hue = hue(tile),
         paint = paint,
         modifier = modifier,
         onClick = onOpen,
         toggle = {
             TilePowerButton(
                 isOn = tile.isOn == true,
-                hue = hue(tile),
                 mood = paint.mood,
                 onToggle = { onToggle(tile.id) },
             )
@@ -63,7 +61,6 @@ fun LightStripTile(
                     onValueChange = { dragged = it },
                     valueRange = bounds.min.toFloat()..bounds.max.toFloat(),
                     onValueChangeFinished = { onSetBrightness(tile.id, dragged.toDouble()) },
-                    hue = hue(tile),
                 )
             }
         },

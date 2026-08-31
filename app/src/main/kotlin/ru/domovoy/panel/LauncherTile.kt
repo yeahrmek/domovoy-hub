@@ -31,7 +31,6 @@ fun LauncherTile(
     // as the air conditioner's. See [TileCard].
     TileCard(
         anatomy = anatomy(tile),
-        hue = hue(tile),
         paint = paint(tile),
         modifier = modifier,
         onClick = if (tile.openable) ({ onOpen(tile.packageName) }) else null,

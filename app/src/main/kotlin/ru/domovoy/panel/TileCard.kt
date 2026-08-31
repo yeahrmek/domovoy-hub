@@ -146,7 +146,7 @@ private val TILE_HEIGHT =
  * **Every tile on the wall, drawn: one card, one anatomy, five slots, one height.**
  *
  * It decides nothing. What goes in the slots is [TileAnatomy]'s answer, which step of the neutral
- * ramp the card sits on is [surface]'s, what its accents and its marks are is [hue]'s and [mark]'s,
+ * ramp the card sits on is [surface]'s, which marks it wears is [marks]'s,
  * whether it is outlined is [paint]'s, and how wide it is is [span]'s — all of them pure functions a
  * test can reach. This lays them out and does so identically for all six tile types, which is the
  * thing that was missing: there was a rule for how two air conditioners agreed with each other and
@@ -160,18 +160,14 @@ private val TILE_HEIGHT =
  *
  * **An empty slot is empty, not absent.** A launcher has no power button, no slider and no value, and it
  * reserves all three anyway. That is what buys bottom edges that line up across kinds, and it is
- * the cost of it too: a bulb tile carries a 64 dp band where a slider would go. The alternative —
- * each kind collapsing what it does not have — is the four ragged heights this replaces.
+ * the cost of it too: a relay bulb carries a 64 dp band where a dimmable bulb uses its slider. The
+ * alternative — each kind collapsing what it does not have — is the four ragged heights this
+ * replaces.
  */
 @Composable
 internal fun TileCard(
     /** What this tile puts in each of the five slots. */
     anatomy: TileAnatomy,
-    /**
-     * What kind of device this is, which is what the promoted value, on mark and slider fill are
-     * coloured with. **Not the device image or the card** — see [tileColors].
-     */
-    hue: TileHue,
     /**
      * This tile's state and both kinds of bad news it can have. One answer rather than a mood and a
      * border passed separately, so a caller cannot outline a tile whose mood disagrees — see
@@ -205,13 +201,13 @@ internal fun TileCard(
     val border = groupFailureBorder(paint)
     if (onClick == null) {
         Card(modifier = outer, shape = shape, colors = colors, border = border) {
-            TileBody(anatomy, hue, paint.mood, toggle, level, onAction)
+            TileBody(anatomy, paint.mood, toggle, level, onAction)
         }
     } else {
         // The clickable Card rather than a `Modifier.clickable` outside it, so the ripple is
         // clipped to the corner it is drawn on and the tap lands on the tile and not on the gutter.
         Card(onClick = onClick, modifier = outer, shape = shape, colors = colors, border = border) {
-            TileBody(anatomy, hue, paint.mood, toggle, level, onAction)
+            TileBody(anatomy, paint.mood, toggle, level, onAction)
         }
     }
 }
@@ -220,7 +216,6 @@ internal fun TileCard(
 @Composable
 private fun TileBody(
     anatomy: TileAnatomy,
-    hue: TileHue,
     mood: TileMood,
     toggle: @Composable () -> Unit,
     level: @Composable () -> Unit,
@@ -231,7 +226,7 @@ private fun TileBody(
             modifier = Modifier.fillMaxWidth().height(ART_ROW),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            TileArt(anatomy.art, hue, mood)
+            TileArt(anatomy.art, mood)
             Spacer(modifier = Modifier.weight(1f))
             // **What the tile's state says, then what a finger can do about it**, and that split is
             // the order of this line rather than an accident of when each was written: the art and
@@ -249,7 +244,7 @@ private fun TileBody(
             TileActionButton(anatomy.action, onAction)
         }
         Slot(LEVEL_ROW) { level() }
-        Slot(PROMOTED_ROW) { PromotedValue(anatomy.promoted, tileAccent(hue)) }
+        Slot(PROMOTED_ROW) { PromotedValue(anatomy.promoted) }
         Slot(NAME_ROW) {
             // Never truncated. A wall read from four metres cannot spend its one legible label on
             // "Свет в гарде…", which is the reference app's answer and the one PLAN.md refuses.
@@ -339,27 +334,27 @@ internal fun TileDeviceArt(
 /**
  * **The art slot: the real hardware with its small state mark at the top-right.**
  *
- * Device identity and state live in the untinted raster. Family colour still belongs to controls,
- * promoted values, and state marks; tinting the photo would erase the distinction between an
- * unlit and a glowing lamp.
+ * Device identity and state live in the untinted raster, and after the palette went to one accent
+ * this is where "what kind of thing is this" is said in full: a bulb looks like a bulb and lights up
+ * when it is lit. Tinting the photo would erase exactly that — the distinction between an unlit and
+ * a glowing lamp is in the image, and it is the warm one on this wall.
  *
- * On gets the reference's small family-coloured dot. Failure gets only the struck-through red wifi
- * glyph: the device itself never turns red and never moves when connectivity changes.
+ * On gets the small accented dot. Failure gets only the struck-through red wifi glyph: the device
+ * itself never turns red and never moves when connectivity changes.
  */
 @Composable
 private fun TileArt(
     @DrawableRes art: Int,
-    hue: TileHue,
     mood: TileMood,
 ) {
     Box(modifier = Modifier.size(DEVICE_ART_SIZE)) {
         TileDeviceArt(art)
         when {
-            TileMark.Family in marks(mood) ->
+            TileMark.Lit in marks(mood) ->
                 Box(
                     modifier =
                     Modifier.align(Alignment.TopEnd).size(MARK_SIZE).clip(CircleShape)
-                        .background(tileAccent(hue)),
+                        .background(tileAccent()),
                 )
 
             TileMark.Offline in marks(mood) ->
@@ -418,15 +413,14 @@ private val POWER_GLYPH_SIZE = 28.dp
 @Composable
 internal fun TilePowerButton(
     isOn: Boolean,
-    hue: TileHue,
     mood: TileMood,
     onToggle: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val accented = TileMark.Power in marks(mood)
     val container =
-        if (accented) tileAccent(hue) else MaterialTheme.colorScheme.surfaceContainerHighest
-    val icon = if (accented) tileOnAccent(hue) else MaterialTheme.colorScheme.outline
+        if (accented) tileAccent() else MaterialTheme.colorScheme.surfaceContainerHighest
+    val icon = if (accented) tileOnAccent() else MaterialTheme.colorScheme.outline
     Box(
         modifier = modifier
             .size(MIN_TOUCH)
@@ -500,11 +494,16 @@ private fun TileActionButton(
  * whole type scale exists for: the 22 °C and the 33.5 % that CLAUDE.md says is the point of hanging
  * a panel on a wall. Everything else on the tile is read standing at it.
  *
- * **In the tile's family accent**, which is the other half of what replaced the coloured card: the
- * biggest thing on a tile is also the second-biggest carrier of what kind of thing that tile is. It
- * is the accent and not the container — `primary` rather than `primaryContainer` — because it is
- * written on a neutral surface now and has to show against it; every one of the three is at least
- * 5:1 there in both schemes, on 44sp type that needs 3.
+ * **In `onSurface`, like every other word on the card**, and it took the tile's family accent
+ * until now. Colouring the biggest thing on a tile was how the wall said what kind of thing that
+ * tile was, and the wall has stopped saying it that way: two of the three accents were a blue and
+ * an amber that the tablet's blue light filter turns into two browns, and a 44sp number is a large
+ * enough area of the wrong colour to drag the whole card with it. What kind of device this is, is
+ * said by the photograph of the hardware above it. What the *number* has to be is legible, and
+ * `onSurface` is 11.4:1 on the worst step in light and 8.8:1 in dark against the accent's 4.0.
+ *
+ * The colour is still a parameter, defaulting to the inherited content colour, because the sheet
+ * draws this too and a caller that needs a different one should not have to fight the default.
  *
  * **Null draws nothing**, and that is [promoted]'s decision arriving intact. A tile with no value
  * has an empty slot rather than the word "unknown" set at 44sp; the status line under it still says
@@ -555,10 +554,12 @@ private fun groupFailureBorder(paint: TilePaint): BorderStroke? = if (paint.grou
  * red rectangles among twelve. The thing being aimed at spends its whole colour budget on three
  * small marks and paints every tile the same neutral dark grey.
  *
- * So the family moved to the accents — the glyph, the promoted value, the on mark, the slider fill,
- * all of them [tileAccent] — and the surface carries [surface], which is the mood. **One content
- * colour for all four steps**, because all four are neutral surfaces: `onSurface` is the pair for
- * every one of them and there is no longer a mood in which the text has to change with the card.
+ * So the family moved to the accents and the surface was left carrying [surface], which is the
+ * mood — and then the families went too. What wears [tileAccent] today is the accented power
+ * button, the slider fill and the on dot, and nothing else: three small things a finger uses or
+ * looks for, in one violet. **One content colour for all four steps**, because all four are neutral
+ * surfaces: `onSurface` is the pair for every one of them and there is no longer a mood in which
+ * the text has to change with the card.
  *
  * **[TileMood.Failing] no longer fills the card or the device art.** [TileArt] adds the one red
  * struck-through wifi mark from the reference while leaving the hardware image intact.
@@ -583,33 +584,37 @@ internal fun tileColors(mood: TileMood): CardColors = CardDefaults.cardColors(
 )
 
 /**
- * **The colour a tile's family survives as**, now that no tile is painted with one: the accent of
- * each family rather than its container, because everything wearing it — the glyph, the promoted
- * value, the on mark, the slider fill — is drawn *on* a neutral surface and has to show against it.
+ * **The one colour on the wall that is not a grey or the red.** The violet in `PanelTheme.kt`, and
+ * everything wearing it is drawn *on* a neutral surface and has to show against it.
  *
- * One table, read by [TileCard] and by [SlimSlider]. It was two until now, and the two agreed; the
- * last time this file had a second copy of a colour rule in it the copy had already drifted.
+ * **It took an argument and now takes none, and that is the change.** It was three accents keyed on
+ * a tile's family — blue for the things that move air, amber for the things that make light, grey
+ * for the rest — spent on four things each: the glyph, the promoted value, the on mark and the
+ * slider fill. A photograph of the tablet ended it. The wall runs behind Samsung's blue light
+ * filter, which is a warm film over the whole screen: the blue came out beige, the amber came out
+ * brown, and brown is the wrong neighbour for the one colour on this panel that has to be
+ * unmistakable. Two families that are two beiges are not two families.
+ *
+ * So: **one accent, and only on what a finger uses** — the accented power button and the slider
+ * fill, plus the small dot that says a device is lit. The promoted value and every other word on
+ * the card are `onSurface` now; what kind of thing a tile is, is said by the photograph of the
+ * hardware on it, which is a better answer than a hue was and was already there. A bulb looks like
+ * a bulb, and it lights up when it is on — see [TileArt].
+ *
+ * Kept as a function rather than inlined at its three call sites: it is `MaterialTheme`-dependent,
+ * so it has to be `@Composable` anyway, and the last time this file had a second copy of a colour
+ * rule in it the copy had already drifted.
  */
 @Composable
-internal fun tileAccent(hue: TileHue): Color = when (hue) {
-    TileHue.Climate -> MaterialTheme.colorScheme.primary
-    TileHue.Light -> MaterialTheme.colorScheme.tertiary
-    TileHue.Neutral -> MaterialTheme.colorScheme.secondary
-}
+internal fun tileAccent(): Color = MaterialTheme.colorScheme.primary
 
 /**
- * **The colour the accents are written on.** The round power button is filled with [tileAccent], so
- * its symbol uses the `on` role of the same family.
- *
- * The pairs Material generates and this panel writes out — see `PanelTheme.kt`, where every one of
- * them is a tone off the same two seeds as the accent it belongs to.
+ * **The colour written on the accent.** The round power button is filled with [tileAccent], so its
+ * symbol takes the `on` role of it — white in light, a deep violet in dark, both written out in
+ * `PanelTheme.kt`.
  */
 @Composable
-private fun tileOnAccent(hue: TileHue): Color = when (hue) {
-    TileHue.Climate -> MaterialTheme.colorScheme.onPrimary
-    TileHue.Light -> MaterialTheme.colorScheme.onTertiary
-    TileHue.Neutral -> MaterialTheme.colorScheme.onSecondary
-}
+private fun tileOnAccent(): Color = MaterialTheme.colorScheme.onPrimary
 
 /**
  * The 64 dp floor for controls inside a tile. The visible control can be smaller, while the finger

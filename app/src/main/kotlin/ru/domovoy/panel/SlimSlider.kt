@@ -76,11 +76,9 @@ internal fun SlimSlider(
     onValueChange: (Float) -> Unit,
     onValueChangeFinished: () -> Unit,
     valueRange: ClosedFloatingPointRange<Float>,
-    /** Which colour the filled portion takes, so a climate slider and a light one do not match. */
-    hue: TileHue,
     modifier: Modifier = Modifier,
 ) {
-    val filled = tileAccent(hue)
+    val filled = tileAccent()
     val rest = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = REST_OF_TRACK_ALPHA)
     Slider(
         value = value,
@@ -111,8 +109,7 @@ internal fun SlimSlider(
     )
 }
 
-// The filled portion's colour is [tileAccent] — the same table the glyph, the promoted value and
-// the on mark read, in `TileCard.kt`. It was a private copy of that `when` here, written when the
-// card behind this was painted with the family's *container* and the slider needed the accent to
-// show against it. The card is neutral now and every one of the four wants the same answer, so
-// there is one table again rather than two that happen to agree.
+// The filled portion's colour is [tileAccent], in `TileCard.kt` — the panel's one accent, which
+// this shares with the accented power button and the on dot. It took a `TileHue` until the families
+// went; a slider that was blue on an air conditioner and amber on a lamp was two thirds of the
+// wall's colour budget spent saying something the photograph of the hardware beside it already said.

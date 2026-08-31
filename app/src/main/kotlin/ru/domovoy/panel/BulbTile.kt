@@ -1,18 +1,23 @@
 package ru.domovoy.panel
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import ru.domovoy.core.Reading
 import java.time.Instant
 
 /**
- * One bulb: its name, whether it is on, and how old that reading is. When [error] is set the poll
- * behind these values failed — the tile keeps showing the last value it had, and says so, rather
- * than blanking out or spinning.
+ * One bulb: its name, whether it is on, optional brightness, and how old those readings are. When
+ * [error] is set the poll behind these values failed — the tile keeps showing the last value it had,
+ * and says so, rather than blanking out or spinning.
  *
  * Two kinds of bulb reach this composable, and they are the same tile: the one the panel has no
  * state for, which never joins its room's group, and the ones from inside a group that has been
- * opened. Both are a lamp with a name, a power button and an age, which is what a bulb is when there is
- * room to say so.
+ * opened. Relay-backed lights remain power-only; a bulb that advertised brightness uses the same
+ * slider band as the strips and promotes its percentage.
  */
 @Composable
 fun BulbTile(
@@ -23,23 +28,37 @@ fun BulbTile(
     /** What a tap on the card does: open this device's sheet. Null when there is none — see [AcTile]. */
     onOpen: (() -> Unit)? = null,
     onToggle: (String) -> Unit = {},
+    onSetBrightness: (String, Double) -> Unit = { _, _ -> },
 ) {
     // The paint is worked out once and read twice: the card takes it, and so does the power button,
     // whose colour is the tile's second on-mark.
     val paint = paint(tile, error)
     TileCard(
         anatomy = anatomy(tile, now, error),
-        hue = hue(tile),
         paint = paint,
         modifier = modifier,
         onClick = onOpen,
         toggle = {
             TilePowerButton(
                 isOn = tile.isOn == true,
-                hue = hue(tile),
                 mood = paint.mood,
                 onToggle = { onToggle(tile.id) },
             )
+        },
+        level = {
+            val bounds = tile.brightnessBounds
+            if (bounds != null) {
+                var dragged by
+                    remember(tile.id) {
+                        mutableFloatStateOf((tile.brightnessPercent ?: bounds.min).toFloat())
+                    }
+                SlimSlider(
+                    value = dragged,
+                    onValueChange = { dragged = it },
+                    valueRange = bounds.min.toFloat()..bounds.max.toFloat(),
+                    onValueChangeFinished = { onSetBrightness(tile.id, dragged.toDouble()) },
+                )
+            }
         },
     )
 }
@@ -87,7 +106,6 @@ fun BulbGroupTile(
 ) {
     TileCard(
         anatomy = anatomy(group, now, error, notUpdating, open),
-        hue = hue(group),
         paint = paint(group, error),
         modifier = modifier,
         onClick = onOpen,
@@ -95,9 +113,9 @@ fun BulbGroupTile(
 }
 
 /**
- * The line under the name: on/off, and how old that reading is once it is worth saying. The reason a
- * poll failed is the tile's second line now — see [TileAnatomy] — and on a bulb it has to be, since
- * a bulb is a quarter-width tile and this line has about sixteen characters to spend.
+ * The line under the name: on/off, optional brightness, and one age for everything the tile shows.
+ * The reason a poll failed is the tile's second line — see [TileAnatomy] — and on a bulb it has to
+ * be, since a bulb is a quarter-width tile and this line has about sixteen characters to spend.
  *
  * A lamp switched on twenty days ago still says "20 d ago"; one read this morning says nothing but
  * "on" — see [ageLine]. A lamp the panel has no value for says "unknown" and no age at all, because
@@ -108,8 +126,15 @@ internal fun statusLine(
     now: Instant,
 ): String = listOfNotNull(
     power(tile.isOn),
-    ageLine(tile.lastUpdated.takeIf { tile.isOn != null }, now),
+    promoted(tile),
+    ageLine(oldest(tile.readings()), now),
 ).joinToString(" · ")
+
+private fun BulbTileState.readings(): List<Reading> = listOfNotNull(
+    lastUpdated.takeIf { isOn != null },
+    brightnessLastUpdated.takeIf { brightnessPercent != null },
+    color?.takeIf { it.value != null }?.lastUpdated,
+)
 
 /**
  * The three words a bulb's state comes in. "unknown" and never "off" for a bulb that reported

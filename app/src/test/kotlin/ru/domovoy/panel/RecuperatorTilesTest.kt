@@ -393,6 +393,39 @@ class RecuperatorTilesTest {
     }
 
     @Test
+    fun `selecting a speed on a powered recuperator issues it and re-reads only that device`() = runTest {
+        enqueueToken()
+        server.enqueue(MockResponse(body = fixture("devices.json")))
+        repeat(5) { server.enqueue(MockResponse(body = shadowWith("switch", true))) }
+        server.enqueue(MockResponse(body = """{"result":true,"success":true,"t":1,"tid":"test-tid"}"""))
+        server.enqueue(MockResponse(body = shadowWith("speed_two", true)))
+        val poll = TuyaPoll(client())
+
+        poll.refresh()
+        poll.recuperators.setSpeed("xfj-01", FanSpeed.Medium)
+
+        repeat(7) { server.takeRequest() }
+        val issue = server.takeRequest()
+        val properties = Json.parseToJsonElement(requireNotNull(issue.body).utf8()).jsonObject["properties"]!!
+            .jsonPrimitive.content
+        assertEquals("true", Json.parseToJsonElement(properties).jsonObject["speed_two"]!!.jsonPrimitive.content)
+        assertEquals("/v2.0/cloud/thing/xfj-01/shadow/properties", server.takeRequest().target)
+        assertEquals(listOf(FanSpeed.Medium), poll.recuperators.state.value.tiles.single { it.id == "xfj-01" }.speeds)
+    }
+
+    @Test
+    fun `speed selection is refused while the recuperator is off because the device ignores it`() = runTest {
+        enqueueRefresh()
+        val poll = TuyaPoll(client())
+
+        poll.refresh()
+        poll.recuperators.setSpeed("xfj-01", FanSpeed.Medium)
+
+        assertEquals(7, server.requestCount)
+        assertEquals("failed", poll.recuperators.state.value.tiles.single { it.id == "xfj-01" }.error)
+    }
+
+    @Test
     fun `a recuperator whose switch never reported is turned on by the first tap, not off`() = runTest {
         enqueueToken()
         server.enqueue(MockResponse(body = fixture("devices.json")))

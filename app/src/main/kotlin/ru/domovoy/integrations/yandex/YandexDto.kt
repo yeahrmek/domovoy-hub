@@ -34,6 +34,7 @@ internal data class DeviceDto(
     /** Room *id*, resolved against `rooms` by the client. */
     val room: String? = null,
     val capabilities: List<CapabilityDto> = emptyList(),
+    val properties: List<PropertyDto> = emptyList(),
 )
 
 @Serializable
@@ -59,6 +60,24 @@ internal data class CapabilityParametersDto(
     val range: RangeParametersDto? = null,
     /** What a `mode` capability accepts. Empty on every other capability type. */
     val modes: List<ModeParameterDto> = emptyList(),
+    @SerialName("temperature_k") val temperatureK: TemperatureParametersDto? = null,
+    @SerialName("color_scene") val colorScene: ColorSceneParametersDto? = null,
+)
+
+@Serializable
+internal data class TemperatureParametersDto(
+    val min: Double,
+    val max: Double,
+)
+
+@Serializable
+internal data class ColorSceneParametersDto(
+    val scenes: List<ColorSceneDto> = emptyList(),
+)
+
+@Serializable
+internal data class ColorSceneDto(
+    val id: String,
 )
 
 /**
@@ -83,6 +102,21 @@ internal data class CapabilityStateDto(
     val instance: String? = null,
     /** Boolean for `on_off`, a number for `range`, an object for `zigbee_node` — so it stays untyped. */
     val value: JsonElement? = null,
+)
+
+@Serializable
+internal data class PropertyDto(
+    val type: String,
+    @SerialName("last_updated") val lastUpdated: Double = 0.0,
+    @SerialName("state_changed_at") val stateChangedAt: Double = 0.0,
+    val parameters: PropertyParametersDto? = null,
+    val state: CapabilityStateDto? = null,
+)
+
+@Serializable
+internal data class PropertyParametersDto(
+    val instance: String? = null,
+    val unit: String? = null,
 )
 
 @Serializable

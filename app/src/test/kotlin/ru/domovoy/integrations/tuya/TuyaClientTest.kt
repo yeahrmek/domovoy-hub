@@ -392,6 +392,33 @@ class TuyaClientTest {
     }
 
     @Test
+    fun `selecting a recuperator speed issues only that verified speed property`() = runTest {
+        enqueueToken()
+        server.enqueue(MockResponse(body = """{"result":true,"success":true,"t":1,"tid":"test-tid"}"""))
+
+        client().setSpeed("xfj-01", code = "speed_two").getOrThrow()
+
+        server.takeRequest()
+        val issue = server.takeRequest()
+        assertEquals("POST", issue.method)
+        val body = requireNotNull(issue.body).utf8()
+        val properties =
+            Json.parseToJsonElement(
+                Json.parseToJsonElement(body).jsonObject["properties"]!!.jsonPrimitive.content,
+            ).jsonObject
+        assertEquals(setOf("speed_two"), properties.keys)
+        assertEquals(true, properties.getValue("speed_two").jsonPrimitive.boolean)
+    }
+
+    @Test
+    fun `a recuperator speed outside the three verified datapoints is refused before a request`() = runTest {
+        val result = client().setSpeed("xfj-01", code = "sleep_mode")
+
+        assertTrue(result.isFailure)
+        assertEquals(0, server.requestCount)
+    }
+
+    @Test
     fun `a command is signed over its body, not over an empty one`() = runTest {
         enqueueToken()
         server.enqueue(MockResponse(body = """{"result":true,"success":true,"t":1,"tid":"test-tid"}"""))

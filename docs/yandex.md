@@ -2,7 +2,8 @@
 
 **Scope:** air conditioner, curtains, bulbs — full integration, and the reference one for the rest
 of the panel. The smart speaker is not a tile: it appears in the API, but the IoT API cannot make
-it speak or play.
+it speak or play. (It can, it turns out, set the light ring — see "What every type of device can be
+driven with", which counts what each of the thirteen types in this account actually exposes.)
 
 Read from the public docs on 2026-08-15, and **`/v1.0/user/info` called for real on 2026-08-15**
 from a laptop on the flat's Wi-Fi — 41 devices came back. What that call actually returned is under
@@ -29,6 +30,7 @@ the response *means* are still open.
 | `GET`  | `/v1.0/devices/{device_id}` | state of one device |
 | `POST` | `/v1.0/devices/actions` | send actions to one or more devices |
 | `POST` | `/v1.0/groups/{group_id}/actions` | send actions to a group |
+| `POST` | `/v1.0/scenarios/{scenario_id}/actions` | run a scenario — no request body |
 
 There is **no** `/v1.0/user/devices`. The device list only comes out of `/v1.0/user/info`.
 
@@ -198,6 +200,232 @@ Alive and first-party. Docs are current, in Russian, versioned under `yandex.ru/
 the same platform Alice itself runs on, so it is not a side project that can quietly rot. Russian
 availability is not a question the way it is for Aqara/Tuya regions.
 
+## What every type of device can be driven with
+
+The panel drives four device types and five capability types. The account holds **thirteen device
+types and six capability types**. This section is the gap between those numbers: what each type in
+this account actually exposes, and what an action for it would have to look like.
+
+**Two footings, deliberately not mixed.** What each device *carries* comes from the recorded
+`GET /v1.0/user/info` of 2026-08-15 — a real call against this account, fixture at
+`app/src/test/resources/yandex/user_info.json` — so it is fact about these devices, not about the
+type in general. What an action for a capability *looks like* comes from Yandex's capability pages.
+`on_off`, `range`, AC `mode`/`toggle`, and RGB/scene `color_setting` have now been sent to this
+flat and read back (see "Live capability verification"). Nothing here is a guessed endpoint.
+
+### Every type in the account
+
+`flat` is the household the panel hangs in; everything outside it is filtered out in `YandexClient`
+and can never reach a tile. It is listed anyway, because a type with more capabilities elsewhere in
+the account is the best evidence of what that type looks like when fully equipped.
+
+| Type | acct | flat | capabilities — `type/instance` | properties | tile today |
+| --- | --- | --- | --- | --- | --- |
+| `light` | 21 | 18 | `on_off/on`, `range/brightness`, `color_setting/temperature_k`\|`rgb` | `float/signal_level` | Bulb — on/off; brightness; RGB/scenes when advertised; Kelvin shown |
+| `light.strip` | 2 | 2 | `on_off/on`, `range/brightness`, `color_setting/temperature_k` | `float/signal_level` | Strip — on/off + brightness, colour shown |
+| `openable.curtain` | 1 | 1 | `on_off/on`, `range/open` | `event/button`, `float/signal_level` | Curtain — position |
+| `thermostat.ac` | 3 | 3 | `on_off/on`, `range/temperature`, `mode/thermostat`, `mode/fan_speed`, `mode/swing`, `toggle/ionization`, `toggle/keep_warm`, `toggle/backlight` | `float/temperature` | AC — on/off, setpoint, modes and toggles |
+| `vacuum_cleaner` | 2 | 1 | `on_off/on`, `toggle/pause`, `mode/cleanup_mode` | `float/battery_level` | none — Mi Home widget |
+| `switch` | 3 | 2 | in the flat: **none** | `event/button`, `float/battery_level`, `float/signal_level` | none |
+| `media_device.tv.yandex.magritte` | 1 | 1 | `on_off/on` | `event/voice_activity` | none |
+| `smart_speaker.yandex.station.cucumber` | 2 | 1 | `color_setting` — scenes only | `event/motion`, `event/noise`, `event/voice_activity` | none |
+| `humidifier` | 2 | 0 | `on_off/on`, `mode/fan_speed` | `float/humidity`, `float/temperature` | none |
+| `ventilation.fan` | 1 | 0 | `on_off/on`, `mode/fan_speed`, `toggle/oscillation` | — | none |
+| `socket` | 1 | 0 | `on_off/on` | `float/voltage`, `float/power`, `float/amperage` | none |
+| `media_device.tv` | 1 | 0 | `on_off/on`, `range/volume`, `range/channel`, `toggle/mute` | — | none |
+| `smart_speaker.yandex.station` | 1 | 0 | **none at all** | `event/voice_activity` | none |
+
+A seventh capability type, `zigbee_node`, sits on 10 devices. It is not drivable and not a function:
+its `state.value` is an object (`signal_quality`, `channel`, `is_active`), it is `retrievable: false`,
+and it describes the mesh, not the device.
+
+### The flat, type by type
+
+**`devices.types.light` — one type, four different devices.** The 18 flat bulbs do not have one
+surface, and the bulb tile's on/off is the *whole* of it for only some of them:
+
+| Model (skill) | n | `on_off` | `range/brightness` | `color_setting` |
+| --- | --- | --- | --- | --- |
+| `_TZ3000_g92baclx/TS0001` (`skill-04`, Zigbee relay) | 5 | yes | **absent** | **absent** |
+| `SMART LIFE/T-01` (`skill-02`) | 11 | yes | `0..100`, precision 1, `unit.percent` | `temperature_k`, `2700..6500` |
+| `GLEDOPTO/GL-C-009P` — Трек в коридоре (`skill-04`) | 1 | yes | `1..100` | `temperature_k` bounds `1996..6369`, **`state: null`** |
+| `Aqara/HM1S-G02` — Акара в коридоре (`skill-06`) | 1 | yes | `0..100` | `rgb`, `color_model: rgb`, 4 `color_scene`s |
+
+- **Five of the eighteen are on/off relays and nothing else.** For those the tile is already complete;
+  no slider is being withheld, there is nothing to slide.
+- **Thirteen carry brightness and a colour.** Their sheets expose brightness, show Kelvin as a
+  reading, and offer RGB swatches/scenes only when the device advertises them. That is the same trio
+  the strips carry — the type string is the only thing separating a bulb from a strip in this
+  response, which is the open question at the bottom of this file.
+- **The brightness floor is not the same across them**: `0` on the T-01s and on the Aqara, `1` on the
+  GLEDOPTO. `Bounds.snap` already reads it from the device, which is why this costs nothing; a
+  constant `0..100` would have sent the GLEDOPTO a value it never offered.
+- **The Aqara's `color_setting` has no `temperature_k` bounds at all** — `color_model: rgb` plus a
+  `color_scene` list (`candle`, `rest`, `movie`, `sunrise`). So "a bulb's colour" is not one control:
+  a Kelvin slider fits 12 of the 13 and is meaningless on this one.
+- Two relays report `on_off` as `false`, not null — so "off" here is a reading, not a gap.
+  `light-11`'s `zigbee_node` says `bad` (`lqi: 6`, `rssi: -97`) and `light-10`'s says `ok`; with no
+  `state` field on this call, that mesh quality is the closest thing to a reachability signal the
+  response has, and nothing reads it.
+
+**`devices.types.light.strip`** — as recorded in "The light strips, as recorded" above. The colour
+bounds are `1996..6369` on both, and on `light-strip-02` the `color_setting` has no state, hence no
+instance either.
+
+**`devices.types.openable.curtain`** — `on_off/on` and `range/open` (`0..100`, `unit.percent`,
+`random_access: true`), both drivable and the position already driven by the tile. It also carries an
+`event/button` property with `click` / `double_click` / `long_press` and a `float/signal_level`,
+neither with any state and neither read by the panel.
+
+**`devices.types.thermostat.ac`** — the widest surface in the flat: eight capabilities. Beyond the
+`on_off` and `range/temperature` the tile drives, each unit lists, *from the device itself*:
+
+| Capability | Values the device listed |
+| --- | --- |
+| `mode/thermostat` | `fan_only`, `heat`, `cool`, `dry`, `auto` |
+| `mode/fan_speed` | `turbo`, `high`, `medium`, `low`, `quiet`, `auto` |
+| `mode/swing` | `stationary`, `vertical`, `horizontal`, `auto` |
+| `toggle/ionization`, `toggle/keep_warm`, `toggle/backlight` | boolean; `backlight` is absent on `ac-03` |
+
+All six are parsed into `Device.modes` / `Device.toggles` and are presented in the AC's sheet;
+`setMode` and `setToggle` send only values this particular device advertised. Note `quiet` in
+`fan_speed`: Yandex's own documented list for
+that instance is `auto, high, low, medium, turbo`, so **the device advertises a value the platform's
+reference list does not contain**. Reading `parameters.modes` off the device rather than off a table
+is not defensive style here, it is the only thing that would have worked.
+
+**`devices.types.vacuum_cleaner`** — the flat's deerma: `on_off/on`, `toggle/pause`,
+`mode/cleanup_mode` (`dry_cleaning`, `wet_cleaning`, `mixed_cleaning`, currently `mixed_cleaning`),
+and `float/battery_level` at 100. **The mode instance is per device, not per type**: the roborock in
+another household has `mode/work_speed` (`quiet`, `normal`, `fast`, `turbo`) and no `cleanup_mode` at
+all. Anything keyed off "the vacuum's mode" would be right for one of the two. This is the device
+`xiaomi.md` gives a Mi Home widget instead of a tile, and this list is the comparison that decision
+rests on: start/stop, pause, one mode — against battery, consumables, cleaning status and the map.
+
+**`devices.types.switch` — in this flat it is an input, not an output.** Both flat switches are
+Yandex buttons (`YNDX-00534`): `switch-01` carries a `zigbee_node`, `float/battery_level` (100),
+`event/button` (`click`) and a stateless `float/signal_level`; `switch-03` carries one `event/button`
+and an **empty `capabilities` array** — the only device in the response with one. **On neither is
+there anything to control.** The one `switch` in the account that behaves like a relay (`WS-EUK01`,
+"Люстра") is in another household. So the type string does not tell you whether a `switch` can be
+switched; only the capability list does.
+
+**`devices.types.media_device.tv.yandex.magritte`** — the ТВ Станция exposes `on_off/on` and nothing
+else: no volume, no channel, no input source, no mute. The ordinary TV in another household (Samsung
+`QE55Q70RAUXRU`, through a different skill) carries `range/volume` (`0..100`), `range/channel` (no
+bounds, `unit: ""`) and `toggle/mute` — so the missing controls are Yandex's own hardware being
+thinner over this API than a third-party TV, not a limit of the type.
+
+**`devices.types.smart_speaker.yandex.station.cucumber` — the one genuine surprise.** The Станция
+Миди has no `on_off`, no volume and no playback, exactly as `vendor-comparison.md` says. What it does
+have is a **`color_setting` carrying a `color_scene` list — `lava_lamp`, `inactive`, `night`,
+`candle`** — i.e. the light ring is addressable through this API. It is `retrievable: false` **and**
+`reportable: false`, which is a combination nothing else in this response has: a control that can be
+written and never read back. A tile for it could not show state, only send. It also carries three
+event properties — `motion` (`detected`), `noise` (twelve values including `break_glass`, `dog_bark`,
+`child_cry`, `alarm`) and `voice_activity` — all stateless in the list call, so they are usable only
+inside Yandex's own scenarios, not by a panel that polls.
+
+### The types outside the flat, for the record
+
+`humidifier` (`on_off` + `mode/fan_speed`, and `float/humidity` + `float/temperature` that both do
+report), `ventilation.fan` (`on_off` + `mode/fan_speed` + `toggle/oscillation`), `socket` (`on_off`,
+plus live `voltage` / `power` / `amperage`) and the plain `station` speaker (**no capabilities at
+all**, one event property). None can reach the panel; the humidifier is the second device
+`xiaomi.md` covers with a widget, and its Yandex surface is on/off plus four fan speeds.
+
+### The action body, per capability
+
+Every action goes to the one endpoint, `POST /v1.0/devices/actions`, with the body already in
+"Verified in the docs". Only the `state` object differs:
+
+| Capability | `instance` | `value` | Footing |
+| --- | --- | --- | --- |
+| `on_off` | `on` | boolean | **Verified on the tablet** — a bulb and `ac-03`, 2026-08-15 |
+| `range` | `brightness`, `open`, `temperature`, `volume`, `channel` | number | **Verified** for AC `temperature` and curtain `open`; brightness accepted but the tested offline lights did not reflect it |
+| `mode` | `thermostat`, `fan_speed`, `swing`, `cleanup_mode`, `work_speed` | string, one of `parameters.modes` | **Verified** for the AC's `thermostat`, `fan_speed`, and `swing`, 2026-08-30 |
+| `toggle` | `ionization`, `keep_warm`, `backlight`, `pause`, `mute`, `oscillation`, `controls_locked` | boolean | **Verified** for AC `ionization`, 2026-08-30 |
+| `color_setting` | `temperature_k` | integer Kelvin | Accepted, but the tested offline lights did not reflect it; not exposed as a writable control |
+| `color_setting` | `rgb` | integer, `0..16777215` packed `0xRRGGBB` | **Verified** on `light-21`, 2026-08-30 |
+| `color_setting` | `hsv` | object `{h: 0..360, s: 0..100, v: 0..100}` | Docs only — **never sent**; no device here reports it |
+| `color_setting` | `scene` | string, one of `parameters.color_scene.scenes[].id` | **Verified** on `light-21` with `candle`, 2026-08-30 |
+
+### Live capability verification — 2026-08-30
+
+All tests below were reversible: the original value was read first, one change was sent, the house
+was re-read, and the original value was restored and confirmed. Device ids and credentials stayed
+in temporary files and are not reproduced here.
+
+- **AC fan mode:** `auto → low → auto`, reflected on re-read.
+- **AC thermostat mode:** `cool → dry → cool`, reflected on re-read while the unit was off.
+- **AC swing:** `horizontal → vertical` was accepted; the re-read reported `auto`, and restoring
+  `horizontal` reflected. The panel therefore never paints the requested value optimistically.
+- **AC ionization:** `false → true → false`, reflected on re-read.
+- **RGB bulb:** packed RGB `16777200 → 16711680 → 16777200`, reflected and restored.
+- **RGB scene:** `candle` reflected; restoring the original RGB value reflected.
+- **Curtain:** `open: 0 → 20 → 0`, reflected and restored. For this device, zero is closed and a
+  larger value is more open.
+- **Brightness and Kelvin:** the action endpoint answered `ok`, but Lamp 8 remained at brightness
+  `83` and `2700 K`; the strip behaved the same way. `GET /v1.0/devices/{id}` reported these lights
+  offline. This confirms the payload was accepted, not that the physical capability changed, so
+  Kelvin remains read-only and every range write is repainted only from a fresh poll.
+
+Two things the docs add that nothing in the panel uses yet:
+
+- **`"relative": true` next to `value` on a `range` action** makes the value a delta rather than a
+  position. That is what a `random_access: false` range accepts *instead of* an absolute value — a TV
+  volume behind an IR blaster is the docs' own example. Every range in this account is
+  `random_access: true`, so the panel has never needed it.
+- **The documented instance lists are wider than this account uses.** `mode` documents twelve
+  instances (`cleanup_mode`, `coffee_mode`, `dishwashing`, `fan_speed`, `heat`, `input_source`,
+  `program`, `swing`, `tea_mode`, `thermostat`, `ventilation_mode`, `work_speed`) and `range` six
+  (`brightness`, `channel`, `humidity`, `open`, `temperature`, `volume`). They are worth knowing and
+  worth **not** hardcoding: the AC's `quiet` fan speed above is already outside the documented set.
+
+### Two control surfaces the panel does not touch at all
+
+- **Groups.** `POST /v1.0/groups/{group_id}/actions`, already in the endpoint table. The flat has two
+  light groups — `group-01` "Трек в спальне" over 7 bulbs and `group-03` "Трек в зале" over 4 — so
+  "all the track lights to 40%" is one call rather than seven. **A group is shaped like a device**:
+  it carries `household_id` (so the panel's filter works on it unchanged) and its own `capabilities`
+  array, `on_off/on` + `range/brightness` + `color_setting/temperature_k` on `group-01`, complete
+  with `parameters`, bounds and a `state` value. What it does **not** carry is `last_updated` or
+  `state_changed_at` on any of them — no group capability in this response has a timestamp of any
+  kind. So a tile driven off a group could show a value and could not say how old it is, which is
+  the one thing AGENTS.md says a tile must always be able to do. Reading state per device and
+  *writing* per group is the shape that keeps both.
+- **Scenarios.** `POST /v1.0/scenarios/{scenario_id}/actions`, **with no body at all** — the token
+  header is the whole request, and the response is `{request_id, status}`; an unknown id gives `404`
+  with `"status": "error"`. This is the cheapest write in the whole API and the panel ignores it.
+  **The catch is that a scenario has no `household_id`.** Of the three in the account, two act on
+  `light-10` in the flat and `Счастливый фермер` acts on `light-14` and `socket-01`, neither of which
+  is the panel's household — so the filter that keeps the dacha off the wall has nothing to filter
+  on. What a scenario *does* carry is `steps[].parameters.items[]` naming the devices it touches, so
+  a scenario's household can be worked out from its steps. Anything that puts a scenario button on
+  the wall has to do that first. (`is_active` is also per scenario — `Счастливый фермер` is `false` —
+  and it carries `triggers`, e.g. a `scenario.trigger.timetable` with a solar condition.)
+
+### What is read-only whatever we do
+
+`properties[]` is a second array beside `capabilities[]`, and **no action type exists for a
+property** — there is no way to write one. Two shapes, both present here:
+
+- `devices.properties.float`: `signal_level`, `battery_level`, `temperature`, `humidity`, `voltage`,
+  `power`, `amperage`.
+- `devices.properties.event`: `button` (`click`/`double_click`/`long_press`), `motion` (`detected`),
+  `noise` (twelve values), `voice_activity` (`speech_finished`).
+
+**The panel now parses the `float` ones** into `Device.properties`, which is how the AC's measured
+room temperature reaches the detail sheet — `room 28.0 °C`, seen on the tablet on 2026-08-31. It is
+the first property on the wall, and it sits next to the setpoint, which is the thing a thermostat
+tile most obviously wants. Still unread: `battery_level`, which reports 100 on the vacuum and on
+`switch-01` — `switch-03` has none, so a battery line has to cope with a button that never mentions
+one. The event properties are a
+different matter: they are `reportable` and stateless, so a poll can only ever catch the value that
+happens to be sitting there — `switch-01`'s `button` says `click` with a `last_updated` and
+`switch-03`'s says `click` with `0.0`. Without push, a button press is not something this panel can
+see. That is the same wall `vendor-comparison.md` records for every vendor.
+
 ## What the bulb tile actually does with this
 
 Built against the fixture; first run against the live API on the tablet on 2026-08-15, see
@@ -342,10 +570,10 @@ reason `null` had to be modelled rather than defaulted:
 - **`°C` is printed only when the device named the unit.** All three do; a range that names none
   gets the bare number, which is the shape the TV's volume range already has in this same response.
 
-**Left out on purpose:** the modes and toggles are parsed and modelled but are neither shown on the
-tile nor drivable — there is no `setMode`/`setToggle` on the client. Adding them means answering
-what a `mode` action body looks like for this device and what the tile should show for a mode that
-has never reported.
+The tile keeps only the most useful secondary shortcut — fan speed — while the sheet shows every
+advertised mode and toggle. Live checks confirmed thermostat, fan speed, swing and ionization action
+bodies; a mode that has never reported remains visibly unselected rather than defaulting to the
+first advertised value.
 
 ### Run on the tablet, 2026-08-15 19:55–19:58 — the AC tile
 
@@ -415,9 +643,9 @@ Each carries four capabilities: `on_off`, `range/brightness` (`1..100`, precisio
 - **The range is `1..100`, not `0..100`.** The bottom of a strip's brightness is dim, not off, so a
   slider dragged to the bottom hands over a `0` the device never offered. Snapping turns that into
   `1` before it is sent, exactly as the AC's `40` becomes `32`.
-- **`color_setting` is parsed and modelled, and deliberately not controllable.** The tile prints it
-  — `2700 K · not controllable`, its age folded into the one the status line prints — and there is
-  no `setColor` on the client. The
+- **`color_setting` is parsed and modelled.** A Kelvin strip still prints
+  `2700 K · not controllable`, its age folded into the one the status line prints; the client can
+  send colour actions, but the sheet exposes them only for a bulb that advertises RGB/scenes. The
   capability differs from `range`/`mode`/`toggle` in one way that mattered: it names its instance
   only inside `state`, never in `parameters`. `light-strip-02`'s `state` is `null`, so it has
   neither instance nor value, and dropping such a capability would tell the tile the strip has no
@@ -425,11 +653,13 @@ Each carries four capabilities: `on_off`, `range/brightness` (`1..100`, precisio
 - **Two colour shapes are in the recorded response**, both handled: `temperature_k` (a Kelvin
   number, on the strips and most bulbs) and `rgb` (a packed `0xRRGGBB`, on `light-21` — `16777200`,
   printed `#FFFFF0`). The `parameters` also carry `temperature_k: {min, max}` (`1996..6369` on the
-  strips) and, on `light-21`, a `color_scene` list of four scenes; **the panel reads neither**,
-  because nothing drives colour and bounds for a control that does not exist would be dead weight.
+  strips) and, on `light-21`, a `color_scene` list of four scenes. The panel preserves both:
+  temperature bounds explain the read-only Kelvin surface, while the RGB bulb's sheet presents the
+  four advertised scenes.
 
-**Left out on purpose:** driving the colour. That means answering what a `color_setting` action
-body looks like for this device — an open question below, and no endpoint is guessed here.
+**Left out on purpose:** Kelvin control for the bulbs and strips that the per-device endpoint
+reported offline during the live check. RGB and scene control are enabled only on the capable bulb
+whose writes reflected in the next read.
 
 ## Run on the tablet
 
@@ -455,6 +685,60 @@ whether staleness/"never read" rendered correctly, what happens on a failed poll
 three households were correctly filtered out, and how the panel behaves over hours rather than one
 tap.
 
+### Run on the tablet, 2026-08-31 08:27–08:30 — the capability controls, rendered
+
+`installDebug` onto the wall tablet (SM-T875) with the capability-control work in the tree, on the
+flat's Wi-Fi. **This was a rendering check only: not one action was sent.** The writes themselves
+were verified the day before against live devices — see "Live capability verification — 2026-08-30".
+Every value below is a live poll, not the fixture.
+
+**The AC's detail sheet, `Кондиционер в зале`:**
+
+| Row | Value | Age |
+| --- | --- | --- |
+| power | `off` | 1 h ago |
+| target | `26 °C` | 1 h ago |
+| room | **`28.0 °C`** | 1 h ago |
+
+- **`room` is a `devices.properties.float` on the wall for the first time.** Nothing read a property
+  before this build.
+- **`Quiet` is on the Fan row** — `Turbo / High / Medium / Low / Quiet / Auto`, with `Auto`
+  selected. This is the value Yandex's own documented `fan_speed` list does not contain, rendered
+  from `parameters.modes`. Had the list been hardcoded from the docs, this chip would not exist.
+- **There is no `Backlight` chip**, because `ac-03` has no `backlight` capability — while `ac-01`
+  has one that has never reported. The "absent capability versus capability that reported nothing"
+  distinction survives all the way to the screen.
+- Thermostat showed `Cool`, Swing showed `Auto`. All three ages equal, consistent with the
+  2026-08-15 finding that a write to any capability refreshes `last_updated` on all of them.
+
+**The bulbs, and the point that they are not one device.** With the `7 lamps` group expanded, the
+four shapes in the table above are visibly four different tiles:
+
+| Tile | Rendered |
+| --- | --- |
+| `Споты в коридоре` (TS0001 relay) | `on · never read` — **no slider at all** |
+| `Трек в коридоре` (GLEDOPTO) | `on · 100% · never read` + `unknown` colour |
+| `Акара в коридоре` (Aqara, `rgb`) | `off · 1% · 16 h ago` + **`#FFFFF0`** |
+| `Лампа 4` (T-01) | `on · 5% · 4500 K`; Лампы 1–3 at `2700 K` |
+
+`#FFFFF0` is `16777200` — the packed value in the recorded response, printed as a hex colour. The
+Aqara's sheet carries four RGB swatches and the four scene buttons `Candle / Rest / Movie /
+Sunrise`, which are its `color_scene` ids and nothing else's, and **three separate ages** — power
+13 h, brightness 16 h, colour 13 h. One age per tile would have had to lie about two of them.
+
+**Also seen, live:** `Residential air conditioner` at `off · 18 °C · 115 d ago` — the stale-reading
+case, now 115 days rather than the fixture's 81. `Подсветка в детской` at `on · 100% · never read`
+with colour `unknown · not controllable`, which is `light-strip-02`'s permanently-null
+`color_setting` on the wall, showing "unknown" rather than inventing a Kelvin. The five Tuya
+recuperators rendered with their own per-device ages (1 h, 12 h, 18 d, 23 h) alongside temperature
+and humidity.
+
+**Not observed, and therefore not claimed.** No action of any kind was sent during this run, so
+nothing here adds to or subtracts from the footings in "The action body, per capability". Nothing
+was measured — not repaint latency, not 429 behaviour, not hours of running. `logcat` carried no
+exception from `ru.domovoy` across install, launch, three sheets and a poll cycle, which is the
+whole of what the log is being claimed for.
+
 ## Open questions before writing code
 
 - ~~What does `/v1.0/user/info` actually return for this account?~~ Answered: see "Coverage,
@@ -473,28 +757,37 @@ tap.
 - Why every `mode` and `toggle` on `ac-01` reports `null` while `ac-03` reports all of them. Is it
   the unit, the skill, or a state Yandex simply loses? The panel shows unknown either way, but the
   answer decides whether a mode is ever worth putting on the tile.
-- What a `devices.capabilities.mode` action body looks like for this AC, and whether it is accepted
-  while the unit is off. Nothing in the panel sends one — no endpoint is guessed here.
-- What a `devices.capabilities.color_setting` action body looks like, and whether `temperature_k`
-  and `rgb` are set the same way. The strips' colour is read and shown but not driveable for
-  exactly this reason. Related and also open: whether a colour write is accepted while the strip is
-  off, and whether `light-strip-02`'s permanently `null` colour state is the device, the skill or
-  the same thing that leaves every `mode` on `ac-01` null.
+- ~~What a `devices.capabilities.mode` / `toggle` / `color_setting` action body looks like, and
+  whether this flat accepts it~~ — answered for AC modes, ionization, RGB, and scenes in "Live
+  capability verification". Kelvin and brightness reached the endpoint while the tested lights
+  were offline but did not reflect, so their physical behavior remains unconfirmed.
+- Whether `light-strip-02`'s permanently `null` colour state is the device, the skill, or the same
+  thing that leaves every `mode` on `ac-01` null.
+- **Can the Станция Миди's light ring actually be set?** Its `color_setting` is `retrievable: false`
+  *and* `reportable: false` — write-only, unique in this response. Sending one `scene` settles both
+  whether it works and what a tile for a control that can never be read back would even show.
+- **Is `devices.types.switch` worth a tile at all here?** Both of the flat's are buttons, one with an
+  empty `capabilities` array, and their `button` event is stateless — so a poll cannot see a press.
+  If the answer is "battery only", it belongs on some other tile rather than one of its own.
+- Whether the group and scenario endpoints work for this account — neither has been called. "All
+  track lights off" is one group call against seven device calls, and a scenario is a bodyless POST.
+  Both come with a question attached: a group capability carries no timestamp at all, and a scenario
+  carries no `household_id`, so neither can be put on the wall the way a device tile is.
 - Whether `devices.types.light.strip` and `devices.types.light` should stay two tile types at all.
   In this response they are one shape: 13 of the 18 flat bulbs carry the same `on_off` +
   `range/brightness` + `color_setting` trio as the strips, and `light-21` even carries the `rgb`
-  colour. Nothing separates them but the type string. The bulb tile shows on/off only, so the
-  difference on the wall today is a brightness slider the bulbs do not have and could.
-- Does `open` on the curtain mean percent *open* or percent *closed*, and does 0 mean shut? The
-  panel assumes open, from the instance name alone. One tap on the real curtain settles it.
-- Does `/v1.0/devices/{id}` really carry `state` (`online`/`offline`) when the list call does not?
-  If it does, an unreachable device costs one extra call per tile to detect.
+  colour. Nothing separates them but the type string; their different art and quick actions are a
+  panel design decision rather than a capability-model limitation.
+- ~~Does `open` on the curtain mean percent *open* or percent *closed*, and does 0 mean shut?~~
+  Answered on the real curtain: 0 is closed and 20 is partly open.
+- ~~Does `/v1.0/devices/{id}` carry `state` (`online`/`offline`) when the list call does not?~~ Yes;
+  it reported every tested Kelvin bulb and strip offline. The panel does not spend an extra call per
+  tile during polling, so this remains diagnostic information rather than a tile field.
 - What is `state_changed_at` when `last_updated` is `0.0`, and which of the two should a tile show?
   Partly narrowed by the AC run: a write to *any* capability appears to refresh `last_updated` on
   all of that device's capabilities, so the two diverge only while a device is left alone.
 
-The curtain question and the `/v1.0/devices/{id}` one are exactly as open as they were — neither
-the bulb tap nor the AC run touched them.
+The curtain direction and per-device online-state questions were closed by the 2026-08-30 run.
 
 ## Sources
 
@@ -502,7 +795,22 @@ the bulb tap nor the AC run touched them.
 - [Получение полной информации об умном доме](https://yandex.ru/dev/dialogs/smart-home/doc/ru/concepts/platform-user-info)
 - [Получение информации о состоянии устройства](https://yandex.ru/dev/dialogs/smart-home/doc/concepts/platform-device-info.html)
 - [Управление умениями устройств](https://yandex.ru/dev/dialogs/smart-home/doc/ru/concepts/platform-capabilities)
+- [Управление запуском сценария](https://yandex.ru/dev/dialogs/smart-home/doc/ru/concepts/platform-scenario)
 - [Регистрация приложения — OAuth для Яндекс ID](https://yandex.ru/dev/id/doc/ru/register-client)
+
+Read for "What every type of device can be driven with", 2026-08-30 — the per-capability pages and,
+where one exists, its list of instances. These pages are written from the *provider* side, so their
+own examples wrap the state in a `payload`/`capabilities` envelope the control API does not use; what
+carries over is the `state` object, which is identical in both directions.
+
+- [`on_off`](https://yandex.ru/dev/dialogs/smart-home/doc/ru/concepts/on_off) ·
+  [`range`](https://yandex.ru/dev/dialogs/smart-home/doc/ru/concepts/range) ·
+  [instances](https://yandex.ru/dev/dialogs/smart-home/doc/ru/concepts/range-instance)
+- [`mode`](https://yandex.ru/dev/dialogs/smart-home/doc/ru/concepts/mode) ·
+  [instances and their values](https://yandex.ru/dev/dialogs/smart-home/doc/ru/concepts/mode-instance)
+- [`toggle`](https://yandex.ru/dev/dialogs/smart-home/doc/ru/concepts/toggle) ·
+  [instances](https://yandex.ru/dev/dialogs/smart-home/doc/ru/concepts/toggle-instance)
+- [`color_setting`](https://yandex.ru/dev/dialogs/smart-home/doc/ru/concepts/color_setting)
 
 ## Recorded responses
 

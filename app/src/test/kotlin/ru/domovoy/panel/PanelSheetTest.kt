@@ -57,8 +57,22 @@ class PanelSheetTest {
 
         compose.onNodeWithText("power").assertIsDisplayed()
         compose.onNodeWithText("target").assertIsDisplayed()
-        compose.onNodeWithText("1 min ago").assertIsDisplayed()
+        compose.onAllNodesWithText("1 min ago").assertCountEquals(2)
         compose.onNodeWithText("3 d ago").assertIsDisplayed()
+    }
+
+    @Test
+    fun `the AC sheet exposes its advertised modes and button-style options`() {
+        compose.setContent { Panel() }
+
+        compose.onNodeWithText("Кондиционер", useUnmergedTree = true).performClick()
+
+        compose.onNodeWithText("Thermostat").assertIsDisplayed()
+        compose.onNodeWithText("Fan").assertIsDisplayed()
+        compose.onNodeWithText("Swing").assertIsDisplayed()
+        compose.onNodeWithText("Ionization").assertIsDisplayed()
+        compose.onNodeWithText("Keep warm").assertIsDisplayed()
+        compose.onNodeWithText("Backlight").assertIsDisplayed()
     }
 
     @Test

@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Test
 import ru.domovoy.R
 import ru.domovoy.core.Bounds
 import ru.domovoy.core.ColorSetting
+import ru.domovoy.core.Mode
 import ru.domovoy.core.Reading
 import java.time.Instant
 import kotlin.test.assertEquals
@@ -100,63 +101,10 @@ class TileLayoutTest {
     }
 
     @Test
-    fun `an air conditioner and a recuperator are climate`() {
-        // The two things in the flat that move air. They are the same family on the wall whatever
-        // vendor is behind them — one is Yandex and the other Tuya, and nobody standing in the
-        // hallway cares which.
-        assertEquals(TileHue.Climate, hue(ac(isOn = true)))
-        assertEquals(TileHue.Climate, hue(recuperator(temperature = 29.3, humidity = 32.2)))
-    }
-
-    @Test
-    fun `a bulb and a light strip are light`() {
-        assertEquals(TileHue.Light, hue(bulb(isOn = true)))
-        assertEquals(TileHue.Light, hue(strip(isOn = true)))
-    }
-
-    @Test
-    fun `a curtain and a launcher are neutral`() {
-        // Three families and no more: a fourth hue on a wall read from four metres is decoration
-        // rather than information, so everything that is neither air nor light shares the quiet one.
-        assertEquals(TileHue.Neutral, hue(curtain(openPercent = 100.0)))
-        assertEquals(TileHue.Neutral, hue(launcher(openable = true)))
-    }
-
-    @Test
-    fun `a tile's hue is its type's and does not move with its state`() {
-        // The two axes are separate on purpose: hue says what kind of thing this is, mood says
-        // whether the hue gets used at all. A lamp that is off is still a lamp — it is mood that
-        // paints it neutral, and hue must not quietly agree by turning into something else.
-        listOf(true, false, null).forEach { state ->
-            assertEquals(TileHue.Light, hue(bulb(isOn = state)))
-            assertEquals(TileHue.Light, hue(strip(isOn = state)))
-            assertEquals(TileHue.Climate, hue(ac(isOn = state)))
-            assertEquals(TileHue.Climate, hue(recuperator(temperature = 29.3, humidity = 32.2, isOn = state)))
-        }
-        listOf(0.0, 100.0, null).forEach { position ->
-            assertEquals(TileHue.Neutral, hue(curtain(openPercent = position)))
-        }
-        // Failing is a state too, and the recuperator is the one tile carrying its own error.
-        val failing = recuperator(temperature = null, humidity = null, isOn = null, error = "timeout")
-        assertEquals(TileMood.Failing, mood(failing.isOn, failing.error))
-        assertEquals(TileHue.Climate, hue(failing))
-        // The launcher's failure is the app being gone, and it is not a hue either.
-        assertEquals(TileHue.Neutral, hue(launcher(openable = false)))
-    }
-
-    @Test
     fun `curtain art is the same two-half hardware at every position`() {
         listOf(0.0, 40.0, 100.0, null).forEach { position ->
             assertEquals(R.drawable.device_art_curtain, art(curtain(openPercent = position)))
         }
-    }
-
-    @Test
-    fun `a room's lamps are one light tile, whatever they are doing`() {
-        // The group tile is in the family of the seven it stands for, and its hue does not move
-        // with them any more than a single lamp's does.
-        assertEquals(TileHue.Light, hue(lamps(on = 7, off = 0)))
-        assertEquals(TileHue.Light, hue(lamps(on = 0, off = 7)))
     }
 
     @Test
@@ -301,7 +249,7 @@ class TileLayoutTest {
         // of saying itself, and on this wall it needs one. The reference says "on" three times over
         // — a dot, an accented power button, and the art lighting up — because a single mark
         // carrying a single state is a mark that can be lost behind a blue light filter.
-        assertEquals(setOf(TileMark.Family, TileMark.Power), marks(TileMood.On))
+        assertEquals(setOf(TileMark.Lit, TileMark.Power), marks(TileMood.On))
         // The red wifi icon is enough: the hardware image itself remains unchanged and untinted.
         assertEquals(setOf(TileMark.Offline), marks(TileMood.Failing))
         assertEquals(emptySet(), marks(TileMood.Off))
@@ -464,11 +412,11 @@ class TileLayoutTest {
     }
 
     @Test
-    fun `a bulb promotes nothing, in every state it has`() {
-        // A bulb is on or off and carries no number, and a *named* bulb tile is by construction the
-        // one the panel has no state for at all. There is nothing here to promote and inventing one
-        // would be the wall's loudest type spent on the least it knows.
-        listOf(true, false, null).forEach { state -> assertNull(promoted(bulb(isOn = state))) }
+    fun `a dimmable bulb promotes brightness while a relay promotes nothing`() {
+        listOf(true, false, null).forEach { state ->
+            assertEquals("72%", promoted(bulb(isOn = state, brightnessPercent = 72.0)))
+            assertNull(promoted(bulb(isOn = state)))
+        }
     }
 
     @Test
@@ -537,9 +485,9 @@ class TileLayoutTest {
 
     @Test
     fun `an empty promoted slot is an answer and stays an answer`() {
-        // A bulb is on or off and carries no number; a launcher reads nothing about the flat at
-        // all. Both leave the slot empty rather than setting the word "unknown" at 44sp — and the
-        // card reserves it either way, which is what keeps their bottom edges on the strip's line.
+        // A relay-backed bulb carries no number; a launcher reads nothing about the flat at all.
+        // Both leave the slot empty rather than setting the word "unknown" at 44sp — and the card
+        // reserves it either way, which is what keeps their bottom edges on the strip's line.
         assertNull(anatomy(bulb(isOn = true), now, error = null).promoted)
         assertNull(anatomy(launcher(openable = true)).promoted)
         assertEquals("22 °C", anatomy(ac(isOn = true), now, error = null).promoted)
@@ -666,6 +614,10 @@ class TileLayoutTest {
         assertEquals(TileControls.ToggleAndLevel, controls(strip(isOn = true)))
         assertEquals(TileControls.Level, controls(curtain(openPercent = 40.0)))
         assertEquals(TileControls.Toggle, controls(recuperator(temperature = 29.3, humidity = 32.2)))
+        assertEquals(
+            TileControls.ToggleAndLevel,
+            controls(bulb(isOn = true, brightnessPercent = 72.0)),
+        )
         assertEquals(TileControls.Toggle, controls(bulb(isOn = true)))
         assertEquals(TileControls.None, controls(launcher(openable = true)))
     }
@@ -677,6 +629,7 @@ class TileLayoutTest {
         assertEquals(TileControls.Toggle, controls(ac(isOn = true, bounds = null)))
         assertEquals(TileControls.Toggle, controls(strip(isOn = true, bounds = null)))
         assertEquals(TileControls.None, controls(curtain(openPercent = 40.0, bounds = null)))
+        assertEquals(TileControls.Toggle, controls(bulb(isOn = true, brightnessPercent = null)))
     }
 
     @Test
@@ -686,6 +639,10 @@ class TileLayoutTest {
         // withdrawing the capability.
         listOf(true, false, null).forEach { state ->
             assertEquals(TileControls.ToggleAndLevel, controls(ac(isOn = state)))
+            assertEquals(
+                TileControls.ToggleAndLevel,
+                controls(bulb(isOn = state, brightnessPercent = 72.0)),
+            )
             assertEquals(TileControls.Toggle, controls(bulb(isOn = state)))
         }
         assertEquals(
@@ -707,7 +664,7 @@ class TileLayoutTest {
         assertNull(action(ac(isOn = true)))
         assertNull(action(strip(isOn = true)))
         assertNull(action(bulb(isOn = true)))
-        assertNull(action(recuperator(temperature = 29.3, humidity = 32.2)))
+        assertEquals(TileAction.Fan, action(recuperator(temperature = 29.3, humidity = 32.2)))
         assertNull(action(lamps(on = 5, off = 2)))
         // The launcher's is a rule and not an absence: it opens somebody else's app and has no
         // state to act on, so it gets no button however installed it is.
@@ -716,6 +673,29 @@ class TileLayoutTest {
         // The one kind that has a button: the curtain, whose ends of travel are the same verified
         // `range` action its slider already sends.
         assertEquals(TileAction.Close, action(curtain(openPercent = 40.0)))
+    }
+
+    @Test
+    fun `an AC with a fan mode and a wide powered recuperator get the useful fan shortcut`() {
+        val fan = Mode("auto", listOf("low", "medium", "high", "auto"), Reading.Never, Reading.Never)
+        val ac = ac(isOn = true).copy(modes = mapOf("fan_speed" to fan))
+        val recuperator = recuperator(temperature = 29.3, humidity = 32.2, isOn = true)
+
+        assertEquals(TileAction.Fan, action(ac))
+        assertEquals("low", nextFanMode(ac))
+        assertEquals(TileAction.Fan, action(recuperator))
+        assertEquals(FanSpeed.Medium, nextFanSpeed(recuperator))
+    }
+
+    @Test
+    fun `fan shortcuts disappear when they cannot safely do anything`() {
+        val noFan = ac(isOn = true)
+        val offRecuperator = recuperator(temperature = 29.3, humidity = 32.2, isOn = false)
+        val narrowRecuperator = recuperator(temperature = null, humidity = null, isOn = true)
+
+        assertNull(action(noFan))
+        assertNull(action(offRecuperator))
+        assertNull(action(narrowRecuperator))
     }
 
     @Test
@@ -773,6 +753,7 @@ class TileLayoutTest {
         // The tile keeps the real curtain image; the button alone uses a vector target-state icon.
         assertEquals(R.drawable.ic_vertical_shades, glyph(TileAction.Open))
         assertEquals(R.drawable.ic_vertical_shades_closed, glyph(TileAction.Close))
+        assertEquals(R.drawable.ic_mode_fan, glyph(TileAction.Fan))
     }
 
     @Test
@@ -938,13 +919,19 @@ class TileLayoutTest {
         (1..on).map { bulb(isOn = true) } + (1..off).map { bulb(isOn = false) },
     )
 
-    private fun bulb(isOn: Boolean?) = BulbTileState(
+    private fun bulb(
+        isOn: Boolean?,
+        brightnessPercent: Double? = null,
+    ) = BulbTileState(
         id = "light-01",
         name = "Лампа",
         room = "Коридор",
         isOn = isOn,
         lastUpdated = Reading.At(now),
         stateChangedAt = Reading.At(now),
+        brightnessPercent = brightnessPercent,
+        brightnessBounds = brightnessPercent?.let { BOUNDS },
+        brightnessLastUpdated = brightnessPercent?.let { Reading.At(now) } ?: Reading.Never,
     )
 
     private fun strip(

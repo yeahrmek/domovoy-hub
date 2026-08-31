@@ -1,6 +1,8 @@
 # Vendor scope and build order
 
-Desk research, 2026-08-15. No vendor endpoint has been called; nothing has been run on the tablet.
+Desk research, 2026-08-15 — and everything below "Scope" was written before any vendor endpoint had
+been called. Yandex and Tuya have since been called for real, and the panel has run on the tablet;
+"What can actually be written, per vendor" is the part of this file that reflects that.
 Per-vendor detail and the verified/inferred split live in [yandex.md](yandex.md),
 [aqara.md](aqara.md), [tuya.md](tuya.md), [xiaomi.md](xiaomi.md), [domonap.md](domonap.md).
 
@@ -16,6 +18,30 @@ Per-vendor detail and the verified/inferred split live in [yandex.md](yandex.md)
 
 The Yandex smart speaker is deliberately not a tile: it appears in the API, but the IoT API cannot
 make it speak or play — that is a different and largely unofficial surface.
+
+## What can actually be written, per vendor
+
+Counted from the recorded responses; write footings as of 2026-08-31. "Drivable" is what the
+vendor's API exposes as a write; "driven" is what the panel sends today; "sent for real" is the part
+someone has watched happen against a live device.
+
+| Vendor | Drivable, per the recorded response | Driven by the panel | Sent for real |
+| --- | --- | --- | --- |
+| Yandex | `on_off`, `range`, `mode`, `toggle`, `color_setting`, plus group and scenario actions — across 13 device types, 8 of them in the flat | `on_off`, `range`, `mode`, `toggle`, and `color_setting` as `rgb` + `scene` | **all of those**, 2026-08-30, each sent and restored. Kelvin is the exception: accepted, never reflected |
+| Tuya | 11 of the recuperator's 13 datapoints are `rw`: on/off, three speeds, three humidity levels, sleep / fresh-air / exhaust / regenerate. `huimi` and `temper` are `ro` | on/off and speed | **power and medium speed**, 2026-08-30, restored to off afterwards |
+| Aqara | unknown, and unknowable today: the project is still in review, so there are no keys. The lock is read-only by project rule regardless | nothing | n/a |
+| Xiaomi | nothing through us. Mi Home is hosted, not integrated; the same devices' Yandex-side surface is on/off plus one mode | nothing | n/a |
+
+The per-device detail is in [yandex.md](yandex.md) ("What every type of device can be driven with",
+"Live capability verification"), [tuya.md](tuya.md) ("`shadow/properties` and `/model` — the real
+surface", "Live write verification") and [xiaomi.md](xiaomi.md). Domonap is not in this table: it
+has no API to enumerate — see [domonap.md](domonap.md).
+
+What this table is really saying, and it changed on 2026-08-30: **the gap between what the API
+exposes and what the panel drives is now small, and it is the untested edges that are left** —
+Kelvin on both vendors' lights, groups, scenarios, and Tuya's humidity and airflow presets. Two
+writes are known to be accepted-but-inert (Yandex Kelvin, Tuya speed-while-off), which is its own
+category: neither an error nor a change.
 
 ## The evidence behind those choices
 

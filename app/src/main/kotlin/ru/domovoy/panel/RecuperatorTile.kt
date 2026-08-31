@@ -30,6 +30,7 @@ fun RecuperatorTile(
     /** What a tap on the card does: open this device's sheet. Null when there is none — see [AcTile]. */
     onOpen: (() -> Unit)? = null,
     onToggle: (String) -> Unit = {},
+    onSetSpeed: (String, FanSpeed) -> Unit = { _, _ -> },
 ) {
     // The card no longer needs the span — one radius, one anatomy, one height — and the grid still
     // asks [span] for the width, which is the one width in the panel decided by content.
@@ -39,14 +40,13 @@ fun RecuperatorTile(
     val paint = paint(tile, groupError)
     TileCard(
         anatomy = anatomy(tile, now, groupError),
-        hue = hue(tile),
         paint = paint,
         modifier = modifier,
         onClick = onOpen,
+        onAction = { onSetSpeed(tile.id, nextFanSpeed(tile)) },
         toggle = {
             TilePowerButton(
                 isOn = tile.isOn == true,
-                hue = hue(tile),
                 mood = paint.mood,
                 onToggle = { onToggle(tile.id) },
             )

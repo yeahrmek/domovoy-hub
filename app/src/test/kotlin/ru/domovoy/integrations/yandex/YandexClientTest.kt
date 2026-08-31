@@ -144,6 +144,39 @@ class YandexClientTest {
     }
 
     @Test
+    fun `a Kelvin light keeps the temperature bounds the device reported`() = runTest {
+        server.enqueue(MockResponse(body = fixture()))
+
+        val light = client().devices().getOrThrow().single { it.id == "light-01" }
+
+        assertEquals(Bounds(min = 2700.0, max = 6500.0, precision = 1.0), light.color?.temperatureBounds)
+        assertEquals(emptyList(), light.color?.scenes)
+    }
+
+    @Test
+    fun `an RGB light keeps only the scenes the device advertised`() = runTest {
+        server.enqueue(MockResponse(body = fixture()))
+
+        val light = client().devices().getOrThrow().single { it.id == "light-21" }
+
+        assertNull(light.color?.temperatureBounds)
+        assertEquals(listOf("candle", "rest", "movie", "sunrise"), light.color?.scenes)
+    }
+
+    @Test
+    fun `an air conditioner keeps its measured temperature property apart from its target`() = runTest {
+        server.enqueue(MockResponse(body = fixture()))
+
+        val ac = client().devices().getOrThrow().single { it.id == "ac-03" }
+
+        assertEquals(16.0, ac.ranges.getValue("temperature").value)
+        val measured = ac.properties.getValue("temperature")
+        assertEquals(28.0, measured.value)
+        assertEquals("unit.temperature.celsius", measured.unit)
+        assertEquals(1_786_755_372, (measured.lastUpdated as Reading.At).instant.epochSecond)
+    }
+
+    @Test
     fun `the air conditioner comes back with its temperature range as the vendor reports it`() = runTest {
         server.enqueue(MockResponse(body = fixture()))
 
@@ -263,6 +296,50 @@ class YandexClientTest {
         // The curtain reports its position as 0, not 0.0, and its precision is 1 — so "70.0" is a
         // difference from what the vendor itself sends for no gain.
         assertEquals("70", state["value"]!!.jsonPrimitive.content)
+    }
+
+    @Test
+    fun `driving a mode posts the verified mode capability shape`() = runTest {
+        server.enqueue(MockResponse(body = """{"status":"ok","request_id":"r-mode"}"""))
+
+        client().setMode("ac-03", instance = "fan_speed", value = "low").getOrThrow()
+
+        val action = actionFrom(server.takeRequest().body!!.utf8())
+        assertEquals("devices.capabilities.mode", action["type"]!!.jsonPrimitive.content)
+        val state = action["state"]!!.jsonObject
+        assertEquals("fan_speed", state["instance"]!!.jsonPrimitive.content)
+        assertEquals("low", state["value"]!!.jsonPrimitive.content)
+    }
+
+    @Test
+    fun `driving a toggle posts the verified toggle capability shape`() = runTest {
+        server.enqueue(MockResponse(body = """{"status":"ok","request_id":"r-toggle"}"""))
+
+        client().setToggle("ac-03", instance = "ionization", on = true).getOrThrow()
+
+        val action = actionFrom(server.takeRequest().body!!.utf8())
+        assertEquals("devices.capabilities.toggle", action["type"]!!.jsonPrimitive.content)
+        val state = action["state"]!!.jsonObject
+        assertEquals("ionization", state["instance"]!!.jsonPrimitive.content)
+        assertEquals(true, state["value"]!!.jsonPrimitive.boolean)
+    }
+
+    @Test
+    fun `driving RGB and a scene uses the same verified color capability with each instance`() = runTest {
+        server.enqueue(MockResponse(body = """{"status":"ok","request_id":"r-rgb"}"""))
+        server.enqueue(MockResponse(body = """{"status":"ok","request_id":"r-scene"}"""))
+
+        client().setColor("light-21", instance = "rgb", value = 0xFF0000).getOrThrow()
+        client().setColor("light-21", instance = "scene", value = "candle").getOrThrow()
+
+        val rgb = actionFrom(server.takeRequest().body!!.utf8())
+        assertEquals("devices.capabilities.color_setting", rgb["type"]!!.jsonPrimitive.content)
+        assertEquals("rgb", rgb["state"]!!.jsonObject["instance"]!!.jsonPrimitive.content)
+        assertEquals("16711680", rgb["state"]!!.jsonObject["value"]!!.jsonPrimitive.content)
+        val scene = actionFrom(server.takeRequest().body!!.utf8())
+        assertEquals("devices.capabilities.color_setting", scene["type"]!!.jsonPrimitive.content)
+        assertEquals("scene", scene["state"]!!.jsonObject["instance"]!!.jsonPrimitive.content)
+        assertEquals("candle", scene["state"]!!.jsonObject["value"]!!.jsonPrimitive.content)
     }
 
     @Test
@@ -464,4 +541,7 @@ class YandexClientTest {
     private fun fixture(): String = checkNotNull(javaClass.getResourceAsStream("/yandex/user_info.json")) {
         "missing fixture app/src/test/resources/yandex/user_info.json"
     }.use { it.readBytes().decodeToString() }
+
+    private fun actionFrom(body: String) = Json.parseToJsonElement(body).jsonObject["devices"]!!.jsonArray.single().jsonObject["actions"]!!
+        .jsonArray.single().jsonObject
 }

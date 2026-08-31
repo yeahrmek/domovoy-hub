@@ -66,7 +66,6 @@ class TileDeviceArtTest {
             MaterialTheme(colorScheme = panelDarkScheme) {
                 TilePowerButton(
                     isOn = true,
-                    hue = TileHue.Light,
                     mood = TileMood.On,
                     onToggle = { toggles++ },
                 )

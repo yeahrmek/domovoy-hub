@@ -1,7 +1,11 @@
 package ru.domovoy.panel
 
 import org.junit.jupiter.api.Test
+import ru.domovoy.core.Bounds
+import ru.domovoy.core.ColorSetting
+import ru.domovoy.core.Mode
 import ru.domovoy.core.Reading
+import ru.domovoy.core.Toggle
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
@@ -44,14 +48,17 @@ class TileSheetTest {
         // `color_setting` and a `mode` action body that docs/yandex.md still lists as open, `reset`
         // is not a capability any vendor here reported, and the air conditioner's fan mode is the
         // same unanswered `mode` question. None of them is guessed at.
-        assertEquals(setOf(SheetAction.Power, SheetAction.Level), sheetActions(SheetSubject.AirConditioner))
+        assertEquals(
+            setOf(SheetAction.Power, SheetAction.Level, SheetAction.Mode, SheetAction.Toggle),
+            sheetActions(SheetSubject.AirConditioner),
+        )
         assertEquals(setOf(SheetAction.Power, SheetAction.Level), sheetActions(SheetSubject.LightStrip))
         assertEquals(
             setOf(SheetAction.Level, SheetAction.Open, SheetAction.Close),
             sheetActions(SheetSubject.Curtain),
         )
-        assertEquals(setOf(SheetAction.Power), sheetActions(SheetSubject.Bulb))
-        assertEquals(setOf(SheetAction.Power), sheetActions(SheetSubject.Recuperator))
+        assertEquals(setOf(SheetAction.Power, SheetAction.Level, SheetAction.Color), sheetActions(SheetSubject.Bulb))
+        assertEquals(setOf(SheetAction.Power, SheetAction.Speed), sheetActions(SheetSubject.Recuperator))
         assertEquals(emptySet(), sheetActions(SheetSubject.Lock))
     }
 
@@ -95,9 +102,68 @@ class TileSheetTest {
         // The same refusal `controls` and `action` already make on the tile: with no reported bounds
         // there is no "fully open" to drive to and no grid to snap a value onto, and a control that
         // invents one is the panel making up a position.
-        assertEquals(setOf(SheetAction.Power), sheet(ac.copy(bounds = null), now, error = null).actions)
+        assertEquals(
+            setOf(SheetAction.Power, SheetAction.Mode, SheetAction.Toggle),
+            sheet(ac.copy(bounds = null), now, error = null).actions,
+        )
         assertEquals(setOf(SheetAction.Power), sheet(strip.copy(bounds = null), now, error = null).actions)
         assertEquals(emptySet(), sheet(curtain.copy(bounds = null), now, error = null).actions)
+    }
+
+    @Test
+    fun `an AC sheet carries only modes and toggles advertised by that unit`() {
+        val fan = Mode("auto", listOf("low", "medium", "high", "auto"), Reading.Never, Reading.Never)
+        val ion = Toggle(false, Reading.Never, Reading.Never)
+        val capable = ac.copy(modes = mapOf("fan_speed" to fan), toggles = mapOf("ionization" to ion))
+
+        val sheet = sheet(capable, now, error = null)
+
+        assertEquals(mapOf("fan_speed" to fan), sheet.modes)
+        assertEquals(mapOf("ionization" to ion), sheet.toggles)
+        assertTrue(SheetAction.Mode in sheet.actions)
+        assertTrue(SheetAction.Toggle in sheet.actions)
+    }
+
+    @Test
+    fun `a dimmable RGB bulb sheet has brightness RGB and only its advertised scenes`() {
+        val color =
+            ColorSetting(
+                instance = "rgb",
+                value = 0xFFAA00.toDouble(),
+                scenes = listOf("candle", "movie"),
+                lastUpdated = Reading.Never,
+                stateChangedAt = Reading.Never,
+            )
+        val capable =
+            bulb.copy(
+                brightnessPercent = 42.0,
+                brightnessBounds = Bounds(0.0, 100.0, 1.0),
+                color = color,
+            )
+
+        val sheet = sheet(capable, now, error = null)
+
+        assertEquals(42.0, sheet.level?.value)
+        assertEquals(color, sheet.color)
+        assertEquals(listOf("candle", "movie"), sheet.color?.scenes)
+        assertTrue(SheetAction.Level in sheet.actions)
+        assertTrue(SheetAction.Color in sheet.actions)
+    }
+
+    @Test
+    fun `a relay bulb has no empty brightness or color controls`() {
+        val sheet = sheet(bulb, now, error = null)
+
+        assertEquals(setOf(SheetAction.Power), sheet.actions)
+        assertNull(sheet.level)
+        assertNull(sheet.color)
+    }
+
+    @Test
+    fun `a recuperator sheet offers its three verified speeds but only while online`() {
+        assertEquals(FanSpeed.entries, sheet(recuperator, now, groupError = null).fanSpeeds)
+        assertTrue(SheetAction.Speed in sheet(recuperator, now, groupError = null).actions)
+        assertTrue(SheetAction.Speed !in sheet(offline, now, groupError = null).actions)
     }
 
     @Test
@@ -137,9 +203,9 @@ class TileSheetTest {
         // could not spend a line on is one tap away.
         val sheet = sheet(ac, now, error = null)
 
-        assertEquals(listOf("power", "target"), sheet.readings.map { it.label })
-        assertEquals(listOf("on", "22 °C"), sheet.readings.map { it.value })
-        assertEquals(listOf("1 min ago", "81 d ago"), sheet.readings.map { it.age })
+        assertEquals(listOf("power", "target", "room"), sheet.readings.map { it.label })
+        assertEquals(listOf("on", "22 °C", "26.0 °C"), sheet.readings.map { it.value })
+        assertEquals(listOf("1 min ago", "81 d ago", "1 min ago"), sheet.readings.map { it.age })
     }
 
     @Test
@@ -167,7 +233,7 @@ class TileSheetTest {
         // sheet turns a glance into a walk. So the sheet is a superset, and the way to see that is
         // that every promoted value is still printed here word for word by the one formatter both
         // use.
-        assertEquals(promoted(ac), sheet(ac, now, error = null).readings.last().value)
+        assertTrue(sheet(ac, now, error = null).readings.any { it.value == promoted(ac) })
         assertEquals(promoted(curtain), sheet(curtain, now, error = null).readings.last().value)
         assertTrue(sheet(strip, now, error = null).readings.any { it.value == promoted(strip) })
         assertTrue(
@@ -197,7 +263,7 @@ class TileSheetTest {
         val sheet = sheet(recuperator, now, groupError = null)
 
         assertEquals(listOf("power", "fan", "temperature", "humidity"), sheet.readings.map { it.label })
-        assertEquals("low + medium + high", sheet.readings[1].value)
+        assertEquals("low", sheet.readings[1].value)
         assertEquals("26.4 °C", sheet.readings[2].value)
         assertEquals("41.0 %", sheet.readings[3].value)
     }
@@ -239,7 +305,6 @@ class TileSheetTest {
     fun `a sheet is named for the device and says which room it is in`() {
         assertEquals("Кондиционер", sheet(ac, now, error = null).name)
         assertEquals("Зал", sheet(ac, now, error = null).room)
-        assertEquals(TileHue.Climate, sheet(ac, now, error = null).hue)
         assertEquals(art(ac), sheet(ac, now, error = null).art)
     }
 }

@@ -42,9 +42,8 @@ data class RecuperatorTileState(
      * which is a recuperator running no fan — and is told apart from "never reported" by
      * [speedLastUpdated] being [Reading.Never].
      *
-     * More than one at a time is possible on the wire: the three booleans are independent and
-     * whether the device enforces mutual exclusion is unverified (docs/tuya.md). The tile prints
-     * what it got rather than choosing which half of the reading to believe.
+     * A live write confirmed the device normally makes the three booleans mutually exclusive. The
+     * parser still prints every true value it receives rather than hiding an inconsistent shadow.
      */
     val speeds: List<FanSpeed>,
     /** The newest of the three speed datapoints; [Reading.Never] when none was reported. */
@@ -153,8 +152,8 @@ class RecuperatorTiles(
     /**
      * Switches one recuperator, then re-reads that one device.
      *
-     * The command path is unverified — see [TuyaClient.setOn] — and its answer promises only that
-     * the host took the request, so the tile is repainted from the re-read and not from it. A
+     * The command path is verified, but its answer promises only that the host took the request,
+     * so the tile is repainted from the re-read and not from it. A
      * recuperator whose `switch` has never reported is turned *on* by the first tap: `isOn != true`
      * rather than `!isOn`, so unknown is not read as "on".
      */
@@ -163,6 +162,27 @@ class RecuperatorTiles(
         val device = known[id] ?: return
         client
             .setOn(id, on = tile.isOn != true)
+            .mapCatching { client.read(device).getOrThrow() }
+            .onSuccess { read -> replace(read.toTile(error = null)) }
+            .onFailure { failure -> replace(tile.copy(error = failure.describe())) }
+    }
+
+    /**
+     * Selects a verified speed only while the unit is already on. The physical device ignores a
+     * speed written while off, so the UI disables these buttons until a re-read confirms power.
+     */
+    suspend fun setSpeed(
+        id: String,
+        speed: FanSpeed,
+    ) {
+        val tile = mutableState.value.tiles.firstOrNull { it.id == id } ?: return
+        val device = known[id] ?: return
+        if (tile.isOn != true || tile.online == false) {
+            replace(tile.copy(error = IllegalStateException("recuperator must be on").describe()))
+            return
+        }
+        client
+            .setSpeed(id, speed.code)
             .mapCatching { client.read(device).getOrThrow() }
             .onSuccess { read -> replace(read.toTile(error = null)) }
             .onFailure { failure -> replace(tile.copy(error = failure.describe())) }

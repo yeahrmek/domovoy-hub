@@ -6,7 +6,9 @@ import kotlinx.coroutines.flow.asStateFlow
 import ru.domovoy.core.Bounds
 import ru.domovoy.core.Device
 import ru.domovoy.core.DeviceKind
+import ru.domovoy.core.Mode
 import ru.domovoy.core.Reading
+import ru.domovoy.core.Toggle
 import ru.domovoy.integrations.yandex.YandexClient
 import java.time.Instant
 
@@ -30,6 +32,12 @@ data class AcTileState(
     val unit: String?,
     /** When the target temperature was read. */
     val temperatureLastUpdated: Reading,
+    /** Room temperature measured by the AC, separate from its writable target. */
+    val measuredTemperature: Double? = null,
+    val measuredTemperatureLastUpdated: Reading = Reading.Never,
+    /** Every mode and secondary toggle this particular unit advertised. */
+    val modes: Map<String, Mode> = emptyMap(),
+    val toggles: Map<String, Toggle> = emptyMap(),
 )
 
 /**
@@ -52,9 +60,9 @@ data class AcPanelState(
  * hands the devices to [show], so a test drives a poll directly instead of waiting for one.
  * [reread] is that same shared read, used after an action.
  *
- * The `mode` and `toggle` capabilities the flat's three units carry — `thermostat`, `fan_speed`,
- * `swing`, `ionization`, `keep_warm`, `backlight` — are parsed into the device model but are not
- * on the tile and cannot be driven from here. See docs/yandex.md.
+ * The `mode` and `toggle` capabilities the flat's units carry are retained per device for the
+ * detail sheet. Verified values are driven through [setMode] and [setToggle]; the tile itself keeps
+ * only the fan shortcut that earns its limited space. See docs/yandex.md.
  */
 class AcTiles(
     private val client: YandexClient,
@@ -112,6 +120,41 @@ class AcTiles(
             .onSuccess { reread() }
             .onFailure { failure -> mutableState.value = mutableState.value.copy(error = failure.describe()) }
     }
+
+    /** Sets a mode only when this unit advertised both the instance and the requested value. */
+    suspend fun setMode(
+        id: String,
+        instance: String,
+        value: String,
+    ) {
+        val tile = mutableState.value.tiles.firstOrNull { it.id == id } ?: return
+        val mode = tile.modes[instance]
+        if (mode == null || value !in mode.available) {
+            mutableState.value = mutableState.value.copy(error = IllegalArgumentException("unsupported mode").describe())
+            return
+        }
+        client
+            .setMode(id, instance, value)
+            .onSuccess { reread() }
+            .onFailure { failure -> mutableState.value = mutableState.value.copy(error = failure.describe()) }
+    }
+
+    /** Sets a secondary boolean only when this unit actually carries it. */
+    suspend fun setToggle(
+        id: String,
+        instance: String,
+        on: Boolean,
+    ) {
+        val tile = mutableState.value.tiles.firstOrNull { it.id == id } ?: return
+        if (instance !in tile.toggles) {
+            mutableState.value = mutableState.value.copy(error = IllegalArgumentException("unsupported toggle").describe())
+            return
+        }
+        client
+            .setToggle(id, instance, on)
+            .onSuccess { reread() }
+            .onFailure { failure -> mutableState.value = mutableState.value.copy(error = failure.describe()) }
+    }
 }
 
 private fun Device.toTile(): AcTileState {
@@ -128,5 +171,9 @@ private fun Device.toTile(): AcTileState {
         // Two ages, not one: on ac-01 the on/off was read 81 days after the temperature, and a
         // single age would have to lie about one of them.
         temperatureLastUpdated = temperature?.lastUpdated ?: Reading.Never,
+        measuredTemperature = properties[TEMPERATURE]?.value,
+        measuredTemperatureLastUpdated = properties[TEMPERATURE]?.lastUpdated ?: Reading.Never,
+        modes = modes,
+        toggles = toggles,
     )
 }

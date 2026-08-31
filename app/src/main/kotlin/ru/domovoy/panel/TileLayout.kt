@@ -152,6 +152,12 @@ internal enum class TileSurface {
  * hue moved to the accents ([TileMark], the promoted value, the slider fill) and the
  * surface was left free to carry one thing.
  *
+ * **The families are gone too, and the promoted value went with them.** A photograph of the tablet
+ * settled it: behind Samsung's blue light filter the blue and the amber are beige and brown, which
+ * is neither two families nor a safe distance from red. There is one accent now and it is on the
+ * two things a finger uses — see `PanelTheme.kt` — so every word on the card, the promoted value
+ * included, is `onSurface` on one of the four steps below.
+ *
  * **It carries the mood, and the mood is an ordering: how much the tile is asserting.** A lit device
  * is the exception worth seeing on a wall of off ones and sits highest; a tile whose own poll failed
  * wants the eye more than a quiet one; an off tile is the resting step; a tile nobody has ever read
@@ -193,13 +199,19 @@ internal fun surface(mood: TileMood): TileSurface = when (mood) {
  * well as a colour), so a mark carrying a state on its own is a state that can be lost.
  */
 internal enum class TileMark {
-    /** **On**: a filled dot in the tile's family accent, beside the art — see [TileHue]. */
-    Family,
+    /**
+     * **On**: a filled dot in the panel's one accent, beside the art.
+     *
+     * It said which *family* the lit thing belonged to as well as that it was lit, back when there
+     * were three accents. There is one now — see `tileAccent` — so this says one thing, which is
+     * the thing anybody walking past a wall panel is reading it for.
+     */
+    Lit,
 
     /**
-     * **On, again**: the tile's power control takes the family accent instead of neutral grey.
+     * **On, again**: the tile's power control takes the accent instead of neutral grey.
      *
-     * It is the same fact as [Family] said in the place a finger is already going, and it costs
+     * It is the same fact as [Lit] said in the place a finger is already going, and it costs
      * nothing that was not already drawn — the button is on every tile that has a power state.
      */
     Power,
@@ -230,7 +242,7 @@ internal enum class TileMark {
  * and why in words, and [TileSurface] moves under both.
  */
 internal fun marks(mood: TileMood): Set<TileMark> = when (mood) {
-    TileMood.On -> setOf(TileMark.Family, TileMark.Power)
+    TileMood.On -> setOf(TileMark.Lit, TileMark.Power)
     TileMood.Failing -> setOf(TileMark.Offline)
     TileMood.Off, TileMood.Unknown -> emptySet()
 }
@@ -259,7 +271,7 @@ internal data class TilePaint(
 
 /**
  * How one tile is painted, from the two errors it can have. Out here rather than inside seven
- * composables for the reason [hue], [mood], [span] and [anatomy] are: a decision no test can reach
+ * composables for the reason [mood], [span] and [anatomy] are: a decision no test can reach
  * is a decision nobody checks, and "does a group failure still leave this kind of tile its colour"
  * is exactly the question a screenshot answers slowest.
  */
@@ -322,47 +334,6 @@ internal fun paint(tile: LauncherTileState): TilePaint = paint(
 )
 
 /**
- * What kind of thing a tile is, which is the other half of its colour. One colour for everything
- * that is on makes a wall where the air conditioner and the bedroom lamp are the same object.
- *
- * Three families and no more. A fourth hue on a panel read from four metres is decoration rather
- * than information, so everything that neither moves air nor makes light shares the quiet one.
- */
-enum class TileHue {
-    /** Air conditioners and recuperators: the two things in the flat that move air. */
-    Climate,
-
-    /** Bulbs and light strips. */
-    Light,
-
-    /** Curtains and launchers — what is left, and deliberately the family without a colour. */
-    Neutral,
-}
-
-/**
- * The hue of one tile, from its type and from nothing else.
- *
- * Six overloads rather than one function over a sealed type, because the tile states are six
- * unrelated data classes and this is the whole of what they have in common. [isOn] is deliberately
- * not consulted by any of them: a lamp that is off is still a lamp, and whether the hue is used at
- * all is [mood]'s answer, not this one's. The composable maps the pair — see `tileColors`.
- */
-internal fun hue(tile: AcTileState): TileHue = TileHue.Climate
-
-internal fun hue(tile: RecuperatorTileState): TileHue = TileHue.Climate
-
-internal fun hue(tile: BulbTileState): TileHue = TileHue.Light
-
-internal fun hue(tile: LightStripTileState): TileHue = TileHue.Light
-
-internal fun hue(tile: CurtainTileState): TileHue = TileHue.Neutral
-
-internal fun hue(tile: LauncherTileState): TileHue = TileHue.Neutral
-
-/** A room's lamps are lamps. The group tile is in the same family as the seven it stands for. */
-internal fun hue(group: BulbGroup): TileHue = TileHue.Light
-
-/**
  * The unit strings Yandex names, which is the only reason the panel is willing to print a degree
  * sign or a percent sign. A number whose unit the vendor did not report is printed bare — hanging a
  * unit on it would be the panel inventing one.
@@ -378,7 +349,7 @@ private const val PERCENT_UNIT = "unit.percent"
  * else on the wall promoted anything, so the curtain's position, the strip's brightness and the
  * recuperator's temperature — the numbers somebody walking past is actually deciding something
  * about — sat at 12sp inside a dot-separated run-on line with four ages. Which one of a tile's
- * values that is is a decision with a right and a wrong answer, so it is out here beside [hue] and
+ * values that is is a decision with a right and a wrong answer, so it is out here beside [mood] and
  * [span] where a test reaches it rather than inside six composables.
  *
  * **Null is an answer and not a gap.** A tile with no value to promote leaves the slot empty rather
@@ -392,7 +363,7 @@ private const val PERCENT_UNIT = "unit.percent"
  * underneath a tile that has gone rose. Two axes again: this says *which* value, [mood] says how
  * much to trust it.
  *
- * Six overloads for the same reason [hue] and [art] have them: the tile states are six unrelated
+ * Six overloads for the same reason [mood] and [art] have them: the tile states are six unrelated
  * data classes and there is no sealed type over them. Each is also the *only* formatter for that
  * value — the status lines call these and add the word for absent — so a tile cannot print one
  * number at the top and a differently-rounded one underneath.
@@ -423,13 +394,8 @@ internal fun promoted(tile: LightStripTileState): String? {
  */
 internal fun promoted(tile: RecuperatorTileState): String? = tile.temperature?.let { measured(it, DEGREES) }
 
-/**
- * Nothing, in every state a bulb has — and a *named* bulb tile is by construction the bulb the panel
- * has no state for at all, since [bulbGroup] breaks out exactly the null ones. A lamp is on or off
- * and carries no number; the wall's largest type spent on inventing one would be the row of discs'
- * old problem in a new place.
- */
-internal fun promoted(tile: BulbTileState): String? = null
+/** Brightness is the bulb's useful numeric reading; a relay-backed light has no value to promote. */
+internal fun promoted(tile: BulbTileState): String? = tile.brightnessPercent?.let { "${it.roundToInt()}%" }
 
 /** Nothing. It reads nothing about the flat — the same reason it is the one tile taking no `now`. */
 internal fun promoted(tile: LauncherTileState): String? = null
@@ -457,7 +423,7 @@ internal fun promoted(group: BulbGroup): String = "${group.on} on"
  * stays unlit — it is not a claim that the device is off, it is the refusal to claim it is on. The
  * status line and [TileMood.Unknown] still say what the panel actually knows.
  *
- * Overloads per tile state for the same reason [hue] has them: the tile states are unrelated data
+ * Overloads per tile state for the same reason [art] has them: the tile states are unrelated data
  * classes, and the resource choice is a pure decision a test can hold.
  */
 @DrawableRes
@@ -539,7 +505,7 @@ enum class TileControls {
  * A tile whose vendor never sent bounds gets no slider rather than one over an invented range: the
  * same refusal [promoted] makes when it declines to set the word "unknown" at display size.
  *
- * Six overloads for the same reason [hue] and [art] have them — the tile states are six unrelated
+ * Six overloads for the same reason [mood] and [art] have them — the tile states are six unrelated
  * data classes and there is no sealed type over them.
  */
 internal fun controls(tile: AcTileState): TileControls = if (tile.bounds == null) TileControls.Toggle else TileControls.ToggleAndLevel
@@ -555,7 +521,11 @@ internal fun controls(tile: LightStripTileState): TileControls = if (tile.bounds
  */
 internal fun controls(tile: RecuperatorTileState): TileControls = TileControls.Toggle
 
-internal fun controls(tile: BulbTileState): TileControls = TileControls.Toggle
+internal fun controls(tile: BulbTileState): TileControls = if (tile.brightnessBounds == null) {
+    TileControls.Toggle
+} else {
+    TileControls.ToggleAndLevel
+}
 
 /**
  * Nothing. The tap is the whole tile — see [LauncherTile] — and it is the card that takes it, so
@@ -581,15 +551,9 @@ internal fun controls(group: BulbGroup): TileControls = TileControls.None
  * There is far less of it here than there, and the two reasons are both refusals this panel already
  * makes somewhere else.
  *
- * **A second action is a vendor write, and most of the ones the reference's buttons stand for have
- * never been sent.** Its air conditioner offers power and a fan mode; docs/yandex.md's open
- * questions still include *what a `devices.capabilities.mode` action body looks like for this AC and
- * whether it is accepted at all*, so a fan mode button here would be code against an endpoint nobody
- * has verified — which CLAUDE.md refuses outright, and asks to be *said* rather than guessed at. The
- * recuperators' three speeds are independent Tuya booleans whose command path is unverified in the
- * same way, and they carry a second refusal of their own: Tuya is a metered monthly allowance, so a
- * button that reads spends allowance every time somebody walks past and fidgets with it. The strip's
- * colour is reported and not controllable and says so, in words, on its own second line.
+ * The fan shortcut now exists on the AC and on a powered wide recuperator because both write paths
+ * were verified live. It remains one button: one tap advances to the next advertised/verified
+ * speed, then the normal re-read supplies the state. The strip's unconfirmed Kelvin write stays out.
  *
  * **The lock is the rule here with no subject yet.** There is no lock tile in `panel/` — Aqara is
  * not wired to one — so there is no overload below to leave empty, and this is where the rule waits.
@@ -618,6 +582,9 @@ enum class TileAction(
 
     /** Drive it to the bottom of that range: the curtain, fully shut. */
     Close("close"),
+
+    /** Advance to the next fan speed the device advertised. */
+    Fan("fan speed"),
 }
 
 /**
@@ -630,18 +597,20 @@ enum class TileAction(
  * [TileControls.Toggle] and lives on the top line already, and a wall panel with two things on one
  * tile that both turn it off is a wall panel nobody trusts.
  *
- * Seven overloads for the reason [hue], [art] and [controls] have them: the tile states are
+ * Seven overloads for the reason [mood], [art] and [controls] have them: the tile states are
  * unrelated data classes and there is no sealed type over them. Six of them are the constant `null`
  * and are written out rather than defaulted, because "this kind has no second action" is an answer
  * this file is asserting and not a gap in it — see [TileAction] for what each of them refuses.
  */
-internal fun action(tile: AcTileState): TileAction? = null
+internal fun action(tile: AcTileState): TileAction? = TileAction.Fan.takeIf { tile.modes["fan_speed"]?.available?.isNotEmpty() == true }
 
 internal fun action(tile: LightStripTileState): TileAction? = null
 
 internal fun action(tile: BulbTileState): TileAction? = null
 
-internal fun action(tile: RecuperatorTileState): TileAction? = null
+internal fun action(tile: RecuperatorTileState): TileAction? = TileAction.Fan.takeIf {
+    tile.isOn == true && tile.online != false && span(tile) == WIDE_SPAN
+}
 
 internal fun action(tile: LauncherTileState): TileAction? = null
 
@@ -688,6 +657,25 @@ internal fun actionTarget(
     when (action) {
         TileAction.Open -> it.max
         TileAction.Close -> it.min
+        TileAction.Fan -> return null
+    }
+}
+
+/** The next AC fan value in the order this unit advertised, wrapping at the end. */
+internal fun nextFanMode(tile: AcTileState): String? {
+    val mode = tile.modes["fan_speed"] ?: return null
+    if (mode.available.isEmpty()) return null
+    val current = mode.available.indexOf(mode.current)
+    return mode.available[(current + 1).mod(mode.available.size)]
+}
+
+/** The next verified Tuya speed, wrapping low → medium → high → low. */
+internal fun nextFanSpeed(tile: RecuperatorTileState): FanSpeed {
+    val current = tile.speeds.singleOrNull()
+    return when (current) {
+        FanSpeed.Low -> FanSpeed.Medium
+        FanSpeed.Medium -> FanSpeed.High
+        FanSpeed.High, null -> FanSpeed.Low
     }
 }
 
@@ -703,6 +691,7 @@ internal fun actionTarget(
 internal fun glyph(action: TileAction): Int = when (action) {
     TileAction.Open -> R.drawable.ic_vertical_shades
     TileAction.Close -> R.drawable.ic_vertical_shades_closed
+    TileAction.Fan -> R.drawable.ic_mode_fan
 }
 
 /**
@@ -718,7 +707,7 @@ internal fun glyph(action: TileAction): Int = when (action) {
  * something or with null, which is what makes the heights agree: **an empty slot is empty, not
  * absent**, and a kind cannot quietly re-flow into the space another kind is using.
  *
- * Out here rather than inside the composables for the reason [hue], [mood], [span] and [promoted]
+ * Out here rather than inside the composables for the reason [mood], [span] and [promoted]
  * are: a decision no test can reach is a decision nobody checks, and "does this tile type still
  * fill all five slots" is exactly the question a screenshot answers slowest.
  */
@@ -860,7 +849,7 @@ internal fun anatomy(
     name = tile.name,
     promoted = promoted(tile),
     status = statusLine(tile, now),
-    detail = error,
+    detail = error ?: tile.color?.let(::colorDescription),
 )
 
 /**
