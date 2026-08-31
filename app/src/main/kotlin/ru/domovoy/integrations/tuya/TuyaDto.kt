@@ -65,7 +65,7 @@ internal data class TuyaPropertyDto(
  * The body of `POST /v2.0/cloud/thing/{id}/shadow/properties/issue`. [properties] is a JSON object
  * *encoded as a string* inside the JSON body — Tuya's own shape, not a mistake here.
  *
- * UNVERIFIED: nothing has ever been written to these devices. See [TuyaClient.setOn].
+ * Verified against the physical recuperator on 2026-08-30. See docs/tuya.md.
  */
 @Serializable
 internal data class TuyaIssueDto(

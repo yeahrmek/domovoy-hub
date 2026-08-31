@@ -53,6 +53,8 @@ private const val TYPE_VALUE = "value"
  */
 private const val VALUE_SCALE = 10.0
 
+private val SPEEDS = setOf("speed_one", "speed_two", "speed_three")
+
 /**
  * Taken off the expiry so a token is replaced before it lapses rather than in the middle of a
  * call — a poll that fails on a token that expired in flight is a tile saying "not updating" for
@@ -155,12 +157,9 @@ class TuyaClient(
     /**
      * Switches one recuperator on or off.
      *
-     * **UNVERIFIED.** Nothing has ever been written to these devices: `POST
-     * /v2.0/cloud/thing/{id}/shadow/properties/issue` is the thing-model write path from Tuya's
-     * docs, and neither the route nor the body shape has been tried against the account — writing
-     * turns a real fan on in a real flat, so it wants a deliberate test rather than a probe. The
-     * v1.0 command route is not an option: the standard instruction set for this product is
-     * `switch` alone. See docs/tuya.md.
+     * The thing-model issue route and this body shape were verified on the physical device on
+     * 2026-08-30. The v1.0 command route is not an option: the standard instruction set for this
+     * product is `switch` alone. See docs/tuya.md.
      *
      * A success here means the host took the request, nothing more, so the caller re-reads rather
      * than painting the new value from this result — the same rule the Yandex toggle follows.
@@ -168,9 +167,23 @@ class TuyaClient(
     suspend fun setOn(
         deviceId: String,
         on: Boolean,
+    ): Result<Unit> = issue(deviceId, mapOf(SWITCH to on))
+
+    /** Selects one of the three speed datapoints verified on the physical recuperator. */
+    suspend fun setSpeed(
+        deviceId: String,
+        code: String,
+    ): Result<Unit> = runCatching {
+        require(code in SPEEDS) { "unsupported recuperator speed: $code" }
+        issue(deviceId, mapOf(code to true)).getOrThrow()
+    }
+
+    private suspend fun issue(
+        deviceId: String,
+        properties: Map<String, Boolean>,
     ): Result<Unit> = runCatching {
         val credentials = credentials().checked()
-        val payload = json.encodeToString(TuyaIssueDto(properties = json.encodeToString(mapOf(SWITCH to on))))
+        val payload = json.encodeToString(TuyaIssueDto(properties = json.encodeToString(properties)))
         val body =
             request(
                 credentials = credentials,
@@ -329,7 +342,7 @@ private inline fun <reified T> resultOf(
     return response.result ?: error("$call answered success with no result")
 }
 
-// The issue call's `result` shape is unverified, so only `success` is read from it.
+// The issue call's result carries no state worth trusting, so only `success` is read from it.
 private fun checkSuccess(
     body: String,
     call: String,
