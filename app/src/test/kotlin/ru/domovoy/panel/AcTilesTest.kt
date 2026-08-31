@@ -66,6 +66,77 @@ class AcTilesTest {
     }
 
     @Test
+    fun `an ac tile state retains measured temperature modes and toggles for its detail sheet`() = runTest {
+        server.enqueue(MockResponse(body = fixture()))
+        val poll = YandexPoll(client())
+
+        poll.refresh()
+
+        val tile = poll.acs.state.value.tiles.single { it.id == "ac-03" }
+        assertEquals(28.0, tile.measuredTemperature)
+        assertEquals("auto", tile.modes.getValue("fan_speed").current)
+        assertEquals("cool", tile.modes.getValue("thermostat").current)
+        assertEquals("horizontal", tile.modes.getValue("swing").current)
+        assertEquals(false, tile.toggles.getValue("ionization").isOn)
+        assertTrue("backlight" !in tile.toggles)
+    }
+
+    @Test
+    fun `setting an advertised AC mode posts it and re-reads`() = runTest {
+        server.enqueue(MockResponse(body = fixture()))
+        server.enqueue(MockResponse(body = """{"status":"ok","request_id":"r-mode"}"""))
+        server.enqueue(MockResponse(body = fixture()))
+        val poll = YandexPoll(client())
+
+        poll.refresh()
+        poll.acs.setMode("ac-03", instance = "fan_speed", value = "low")
+
+        server.takeRequest()
+        val state =
+            sentAction(
+                server.takeRequest().body?.utf8(),
+                deviceId = "ac-03",
+                type = "devices.capabilities.mode",
+            )
+        assertEquals("fan_speed", state["instance"]!!.jsonPrimitive.content)
+        assertEquals("low", state["value"]!!.jsonPrimitive.content)
+        assertEquals("/v1.0/user/info", server.takeRequest().target)
+    }
+
+    @Test
+    fun `an AC mode not advertised by that device never leaves the tablet`() = runTest {
+        server.enqueue(MockResponse(body = fixture()))
+        val poll = YandexPoll(client())
+
+        poll.refresh()
+        poll.acs.setMode("ac-03", instance = "fan_speed", value = "warp")
+
+        assertEquals(1, server.requestCount)
+        assertEquals("failed", poll.acs.state.value.error)
+    }
+
+    @Test
+    fun `setting an AC toggle posts it and re-reads`() = runTest {
+        server.enqueue(MockResponse(body = fixture()))
+        server.enqueue(MockResponse(body = """{"status":"ok","request_id":"r-toggle"}"""))
+        server.enqueue(MockResponse(body = fixture()))
+        val poll = YandexPoll(client())
+
+        poll.refresh()
+        poll.acs.setToggle("ac-03", instance = "ionization", on = true)
+
+        server.takeRequest()
+        val state =
+            sentAction(
+                server.takeRequest().body?.utf8(),
+                deviceId = "ac-03",
+                type = "devices.capabilities.toggle",
+            )
+        assertEquals("ionization", state["instance"]!!.jsonPrimitive.content)
+        assertEquals("true", state["value"]!!.jsonPrimitive.content)
+    }
+
+    @Test
     fun `all three air conditioners of the flat become tiles, and none of them a bulb or a curtain`() = runTest {
         server.enqueue(MockResponse(body = fixture()))
         val poll = YandexPoll(client())

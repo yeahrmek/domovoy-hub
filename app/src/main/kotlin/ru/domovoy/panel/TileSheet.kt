@@ -2,7 +2,10 @@ package ru.domovoy.panel
 
 import androidx.annotation.DrawableRes
 import ru.domovoy.core.Bounds
+import ru.domovoy.core.ColorSetting
+import ru.domovoy.core.Mode
 import ru.domovoy.core.Reading
+import ru.domovoy.core.Toggle
 import java.time.Instant
 import kotlin.time.Duration.Companion.days
 import kotlin.time.Duration.Companion.hours
@@ -39,15 +42,9 @@ enum class SheetSubject {
  * **The whole vocabulary of things a sheet may do**, and every one of them is a request this panel
  * has actually sent to a real device.
  *
- * The reference app's sheet has a good deal more on it — a `Color` section with five swatches, a
- * `Modes` list, `reset`, `add` — and none of that is here. Not as an omission: each rests on a
- * capability nobody has verified. `docs/yandex.md` still lists *what a `devices.capabilities.mode`
- * action body looks like* and *what a `color_setting` action body looks like* as open questions, and
- * `reset` is not a capability any vendor in this flat reported at all. `CLAUDE.md` refuses code
- * against an unverified endpoint outright and asks for the gap to be *said*; this is where it is
- * said. The recuperators' three fan speeds are the same refusal twice over — the command path is
- * unverified (docs/tuya.md) and Tuya is a metered monthly allowance, so a control somebody can
- * fidget with costs money as well as being a guess.
+ * The vocabulary is intentionally capability-shaped: AC modes and toggles, RGB/scenes and Tuya
+ * fan speed appear only after live verification, and only on a device that advertised them. Reset
+ * and the unconfirmed Kelvin path remain absent because no supported device surface justifies them.
  */
 enum class SheetAction(
     /** What the control announces itself as — the sheet's buttons are words, not glyphs. */
@@ -77,6 +74,18 @@ enum class SheetAction(
 
     /** The bottom of it — the curtain, fully shut. */
     Close("close"),
+
+    /** One of the values a device advertised for a mode instance. */
+    Mode("mode"),
+
+    /** A secondary boolean capability, such as ionization. */
+    Toggle("toggle"),
+
+    /** RGB swatches and scene presets on the one bulb that advertises them. */
+    Color("color"),
+
+    /** One of the three verified Tuya recuperator speed datapoints. */
+    Speed("speed"),
 }
 
 /**
@@ -97,24 +106,23 @@ enum class SheetAction(
  * overloads below, which drop the level on a vendor that named no bounds.
  */
 internal fun sheetActions(subject: SheetSubject): Set<SheetAction> = when (subject) {
-    SheetSubject.AirConditioner -> setOf(SheetAction.Power, SheetAction.Level)
+    SheetSubject.AirConditioner ->
+        setOf(SheetAction.Power, SheetAction.Level, SheetAction.Mode, SheetAction.Toggle)
     SheetSubject.LightStrip -> setOf(SheetAction.Power, SheetAction.Level)
     // The two ends as well as the slider: the curtain is the one device in the flat whose useful
     // positions are its extremes, and both of them are the same verified `range` action the slider
     // sends. The tile has room for one of the two — see [TileAction] — and the sheet has room for
     // both.
     SheetSubject.Curtain -> setOf(SheetAction.Level, SheetAction.Open, SheetAction.Close)
-    SheetSubject.Bulb -> setOf(SheetAction.Power)
-    // Power and nothing else. The three fan speeds are independent Tuya booleans whose command path
-    // docs/tuya.md records as unverified, and Tuya is metered by the month — see [SheetAction].
-    SheetSubject.Recuperator -> setOf(SheetAction.Power)
+    SheetSubject.Bulb -> setOf(SheetAction.Power, SheetAction.Level, SheetAction.Color)
+    SheetSubject.Recuperator -> setOf(SheetAction.Power, SheetAction.Speed)
     SheetSubject.Lock -> emptySet()
 }
 
 /**
  * **Which kinds of tile a tap opens a sheet on — and which open none, which is a rule and not a gap.**
  *
- * Overloads per tile state for the reason [hue], [art] and [controls] have them: the tile states
+ * Overloads per tile state for the reason [art] and [controls] have them: the tile states
  * are unrelated data classes and there is no sealed type over them. The two that answer null are
  * written out rather than left absent, because "this tile has nothing behind it" is a claim this
  * file is making:
@@ -184,8 +192,6 @@ internal data class TileSheet(
     val name: String,
     /** Which room it is in, or null for the ones no vendor placed. */
     val room: String?,
-    /** Its family, which is what the sheet's accents are coloured with — see [tileAccent]. */
-    val hue: TileHue,
     /** The same art the tile wears, so the sheet is recognisably the thing that was tapped. */
     @DrawableRes val art: Int,
     /** Every reading behind this device, each with its own age. */
@@ -201,6 +207,14 @@ internal data class TileSheet(
     /** The range to drive, or null when the vendor named none. Non-null exactly when [actions] has
      * [SheetAction.Level] in it. */
     val level: SheetLevel?,
+    /** Enumerated and boolean controls, exactly as this device advertised them. */
+    val modes: Map<String, Mode> = emptyMap(),
+    val toggles: Map<String, Toggle> = emptyMap(),
+    /** Color metadata for an RGB/scene surface. Kelvin remains read-only until a live write reflects. */
+    val color: ColorSetting? = null,
+    /** Verified Tuya speeds; empty on every non-recuperator and on an offline recuperator. */
+    val fanSpeeds: List<FanSpeed> = emptyList(),
+    val selectedFanSpeeds: List<FanSpeed> = emptyList(),
     /**
      * Why the panel is not updating this device, or null when it is. A sheet covers the tile it was
      * opened from, so the tile's bad news has to survive the tap — and it is the same four-word
@@ -226,17 +240,24 @@ internal fun sheet(
 ): TileSheet = TileSheet(
     name = tile.name,
     room = tile.room,
-    hue = hue(tile),
     art = art(tile),
-    readings = listOf(
+    readings = listOfNotNull(
         SheetReading("power", power(tile.isOn), sheetAge(tile.powerLastUpdated, now)),
         // The same formatter the tile promotes with, so the number at the top of the card and the
         // number in the sheet cannot come out rounded differently.
         SheetReading("target", promoted(tile) ?: UNKNOWN, sheetAge(tile.temperatureLastUpdated, now)),
+        tile.measuredTemperature?.let {
+            SheetReading("room", measured(it, DEGREES), sheetAge(tile.measuredTemperatureLastUpdated, now))
+        },
     ),
-    actions = sheetActions(subject(tile)).driving(tile.bounds),
+    actions =
+    sheetActions(subject(tile)).driving(tile.bounds)
+        .availableModes(tile.modes)
+        .availableToggles(tile.toggles),
     isOn = tile.isOn,
     level = level(tile.targetTemperature, tile.bounds),
+    modes = tile.modes,
+    toggles = tile.toggles,
     notUpdating = error,
 )
 
@@ -247,7 +268,6 @@ internal fun sheet(
 ): TileSheet = TileSheet(
     name = tile.name,
     room = tile.room,
-    hue = hue(tile),
     art = art(tile),
     readings = listOf(
         SheetReading("position", promoted(tile) ?: UNKNOWN, sheetAge(tile.lastUpdated, now)),
@@ -273,7 +293,6 @@ internal fun sheet(
 ): TileSheet = TileSheet(
     name = tile.name,
     room = tile.room,
-    hue = hue(tile),
     art = art(tile),
     readings = listOfNotNull(
         SheetReading("power", power(tile.isOn), sheetAge(tile.powerLastUpdated, now)),
@@ -287,6 +306,7 @@ internal fun sheet(
     actions = sheetActions(subject(tile)).driving(tile.bounds),
     isOn = tile.isOn,
     level = level(tile.brightnessPercent, tile.bounds),
+    color = tile.color,
     notUpdating = error,
 )
 
@@ -297,12 +317,26 @@ internal fun sheet(
 ): TileSheet = TileSheet(
     name = tile.name,
     room = tile.room,
-    hue = hue(tile),
     art = art(tile),
-    readings = listOf(SheetReading("power", power(tile.isOn), sheetAge(tile.lastUpdated, now))),
-    actions = sheetActions(subject(tile)),
+    readings = listOfNotNull(
+        SheetReading("power", power(tile.isOn), sheetAge(tile.lastUpdated, now)),
+        tile.brightnessBounds?.let {
+            SheetReading(
+                "brightness",
+                tile.brightnessPercent?.let { value -> "${value.toInt()} %" } ?: UNKNOWN,
+                sheetAge(tile.brightnessLastUpdated, now),
+            )
+        },
+        tile.color?.let { color ->
+            SheetReading("colour", colorDescription(color), sheetAge(color.lastUpdated, now))
+        },
+    ),
+    actions =
+    sheetActions(subject(tile)).driving(tile.brightnessBounds)
+        .availableColor(tile.color),
     isOn = tile.isOn,
-    level = null,
+    level = level(tile.brightnessPercent, tile.brightnessBounds),
+    color = tile.color,
     notUpdating = error,
 )
 
@@ -328,7 +362,6 @@ internal fun sheet(
     return TileSheet(
         name = tile.name,
         room = tile.room,
-        hue = hue(tile),
         art = art(tile),
         readings = listOfNotNull(
             SheetReading(
@@ -352,9 +385,16 @@ internal fun sheet(
                 sheetAge(tile.humidityLastUpdated, now),
             ),
         ),
-        actions = sheetActions(subject(tile)),
+        actions =
+        if (offline) {
+            sheetActions(subject(tile)) - SheetAction.Speed
+        } else {
+            sheetActions(subject(tile))
+        },
         isOn = tile.isOn,
         level = null,
+        fanSpeeds = if (offline) emptyList() else FanSpeed.entries,
+        selectedFanSpeeds = if (offline) emptyList() else tile.speeds,
         notUpdating = tile.error ?: groupError,
     )
 }
@@ -367,6 +407,18 @@ private fun Set<SheetAction>.driving(bounds: Bounds?): Set<SheetAction> = if (bo
     this
 } else {
     this - setOf(SheetAction.Level, SheetAction.Open, SheetAction.Close)
+}
+
+private fun Set<SheetAction>.availableModes(modes: Map<String, Mode>): Set<SheetAction> = if (modes.isEmpty()) this - SheetAction.Mode else this
+
+private fun Set<SheetAction>.availableToggles(toggles: Map<String, Toggle>): Set<SheetAction> = if (toggles.isEmpty()) this - SheetAction.Toggle else this
+
+private fun Set<SheetAction>.availableColor(color: ColorSetting?): Set<SheetAction> = if (color?.instance == "rgb" || color?.scenes?.isNotEmpty() == true) this else this - SheetAction.Color
+
+internal fun colorDescription(color: ColorSetting): String = when (color.instance) {
+    "rgb" -> color.value?.toInt()?.let { "#%06X".format(it) } ?: UNKNOWN
+    "temperature_k" -> color.value?.toInt()?.let { "$it K" } ?: UNKNOWN
+    else -> UNKNOWN
 }
 
 /** The range to drive and where in it to start, or null when the vendor named no range. */

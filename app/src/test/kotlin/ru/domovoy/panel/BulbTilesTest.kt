@@ -2,6 +2,10 @@ package ru.domovoy.panel
 
 import app.cash.turbine.test
 import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import mockwebserver3.MockResponse
 import mockwebserver3.MockWebServer
 import okhttp3.OkHttpClient
@@ -55,7 +59,61 @@ class BulbTilesTest {
         assertEquals(true, tile.isOn)
         // last_updated 1784883564 read two hours later.
         val now = Instant.ofEpochSecond(1_784_883_564 + 2 * 3600)
-        assertEquals("on · 2 h ago", statusLine(tile, now))
+        assertEquals("on · 5% · 2 h ago", statusLine(tile, now))
+    }
+
+    @Test
+    fun `a dimmable bulb retains brightness and colour capabilities while a relay has neither`() = runTest {
+        server.enqueue(MockResponse(body = fixture()))
+        val poll = YandexPoll(client())
+
+        poll.refresh()
+
+        val dimmable = poll.bulbs.state.value.tiles.single { it.id == "light-01" }
+        assertEquals(5.0, dimmable.brightnessPercent)
+        assertEquals(2700.0, dimmable.color?.temperatureBounds?.min)
+        val relay = poll.bulbs.state.value.tiles.single { it.id == "light-20" }
+        assertNull(relay.brightnessPercent)
+        assertNull(relay.color)
+    }
+
+    @Test
+    fun `setting bulb brightness uses its reported range and re-reads`() = runTest {
+        server.enqueue(MockResponse(body = fixture()))
+        server.enqueue(MockResponse(body = """{"status":"ok","request_id":"r-level"}"""))
+        server.enqueue(MockResponse(body = fixture()))
+        val poll = YandexPoll(client())
+
+        poll.refresh()
+        poll.bulbs.setBrightness("light-01", 40.0)
+
+        server.takeRequest()
+        val request = server.takeRequest()
+        val action = Json.parseToJsonElement(requireNotNull(request.body).utf8()).jsonObject["devices"]!!
+            .jsonArray.single().jsonObject["actions"]!!.jsonArray.single().jsonObject
+        assertEquals("devices.capabilities.range", action["type"]!!.jsonPrimitive.content)
+        assertEquals("brightness", action["state"]!!.jsonObject["instance"]!!.jsonPrimitive.content)
+        assertEquals("40", action["state"]!!.jsonObject["value"]!!.jsonPrimitive.content)
+        assertEquals("/v1.0/user/info", server.takeRequest().target)
+    }
+
+    @Test
+    fun `setting an advertised RGB scene uses the verified color action and re-reads`() = runTest {
+        server.enqueue(MockResponse(body = fixture()))
+        server.enqueue(MockResponse(body = """{"status":"ok","request_id":"r-scene"}"""))
+        server.enqueue(MockResponse(body = fixture()))
+        val poll = YandexPoll(client())
+
+        poll.refresh()
+        poll.bulbs.setScene("light-21", "movie")
+
+        server.takeRequest()
+        val request = server.takeRequest()
+        val action = Json.parseToJsonElement(requireNotNull(request.body).utf8()).jsonObject["devices"]!!
+            .jsonArray.single().jsonObject["actions"]!!.jsonArray.single().jsonObject
+        assertEquals("devices.capabilities.color_setting", action["type"]!!.jsonPrimitive.content)
+        assertEquals("scene", action["state"]!!.jsonObject["instance"]!!.jsonPrimitive.content)
+        assertEquals("movie", action["state"]!!.jsonObject["value"]!!.jsonPrimitive.content)
     }
 
     @Test
@@ -121,7 +179,7 @@ class BulbTilesTest {
         // The reading and its age stay exactly where they were, and the reason the panel stopped
         // reading is the tile's *second* line — a status line carrying both is a status line no
         // narrow tile on this wall can hold.
-        assertEquals("on · 2 h ago", statusLine(kept, now))
+        assertEquals("on · 5% · 2 h ago", statusLine(kept, now))
         assertEquals("failed", anatomy(kept, now, after.error).detail)
     }
 

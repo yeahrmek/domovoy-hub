@@ -64,9 +64,9 @@ data class LightStripPanelState(
  * hands the devices to [show], so a test drives a poll directly instead of waiting for one.
  * [reread] is that same shared read, used after an action.
  *
- * The `color_setting` both strips carry is parsed into the device model and printed on the tile,
- * but cannot be driven from here: there is no `setColor` on the client, and writing one means first
- * knowing what a colour action body looks like for this device. See docs/yandex.md.
+ * The `color_setting` both strips carry is parsed and printed. Kelvin writes were accepted while
+ * both tested strips reported offline but did not reflect, so this controller deliberately keeps
+ * their colour read-only. See docs/yandex.md.
  */
 class LightStripTiles(
     private val client: YandexClient,

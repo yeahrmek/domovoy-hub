@@ -2,7 +2,9 @@ package ru.domovoy.panel
 
 import ru.domovoy.core.Bounds
 import ru.domovoy.core.ColorSetting
+import ru.domovoy.core.Mode
 import ru.domovoy.core.Reading
+import ru.domovoy.core.Toggle
 import java.time.Instant
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
@@ -40,6 +42,7 @@ internal object Flat {
     private val PERCENT = Bounds(min = 1.0, max = 100.0, precision = 1.0)
     private val OPEN = Bounds(min = 0.0, max = 100.0, precision = 1.0)
     private val CELSIUS = Bounds(min = 16.0, max = 30.0, precision = 1.0)
+    private val KELVIN = Bounds(min = 2700.0, max = 6500.0, precision = 100.0)
 
     val acs = AcPanelState(
         tiles = listOf(
@@ -55,6 +58,10 @@ internal object Flat {
                 // 81 days apart from the power reading, as on the real `ac-01`: the tile prints
                 // both ages and one number for the pair would have to lie about the older.
                 temperatureLastUpdated = ago(81 * 24 * 60 * 60),
+                measuredTemperature = 26.0,
+                measuredTemperatureLastUpdated = ago(90),
+                modes = acModes(thermostat = "cool", fan = "medium", swing = "auto"),
+                toggles = acToggles(ionization = true),
             ),
             AcTileState(
                 id = "ac-02",
@@ -66,6 +73,10 @@ internal object Flat {
                 bounds = CELSIUS,
                 unit = "unit.temperature.celsius",
                 temperatureLastUpdated = ago(3 * 24 * 60 * 60),
+                measuredTemperature = 24.5,
+                measuredTemperatureLastUpdated = ago(90),
+                modes = acModes(thermostat = "auto", fan = "low", swing = "stationary"),
+                toggles = acToggles(ionization = false),
             ),
         ),
         lastPolledAt = polled(12),
@@ -151,10 +162,36 @@ internal object Flat {
     val bulbs = BulbPanelState(
         tiles = listOf(
             bulb(id = "light-01", name = "Лампа 1", room = "Коридор", isOn = true),
-            bulb(id = "light-02", name = "Лампа 2", room = "Коридор", isOn = true),
+            bulb(
+                id = "light-02",
+                name = "Лампа 2",
+                room = "Коридор",
+                isOn = true,
+                brightnessPercent = 48.0,
+                color = ColorSetting(
+                    instance = "temperature_k",
+                    value = 4200.0,
+                    temperatureBounds = KELVIN,
+                    lastUpdated = ago(90),
+                    stateChangedAt = ago(90),
+                ),
+            ),
             bulb(id = "light-03", name = "Лампа 3", room = "Коридор", isOn = false),
             bulb(id = "light-04", name = "Бра", room = "Коридор", isOn = null),
-            bulb(id = "light-05", name = "Люстра", room = "Зал", isOn = true),
+            bulb(
+                id = "light-05",
+                name = "Люстра",
+                room = "Зал",
+                isOn = true,
+                brightnessPercent = 72.0,
+                color = ColorSetting(
+                    instance = "rgb",
+                    value = 0xFFAA66.toDouble(),
+                    scenes = listOf("candle", "movie", "rest", "sunrise"),
+                    lastUpdated = ago(90),
+                    stateChangedAt = ago(90),
+                ),
+            ),
             bulb(id = "light-06", name = "Торшер", room = "Зал", isOn = false),
         ),
         lastPolledAt = polled(12),
@@ -180,7 +217,10 @@ internal object Flat {
         room = room,
         isOn = isOn,
         powerLastUpdated = ago(200),
-        speeds = listOf(FanSpeed.Low, FanSpeed.Medium, FanSpeed.High),
+        // A live write showed that these flags are mutually exclusive. Keeping one selected here
+        // makes the segmented control prove that distinction instead of rendering an impossible
+        // all-speeds-at-once state in every reference image.
+        speeds = listOf(FanSpeed.Low),
         speedLastUpdated = ago(200),
         temperature = temperature,
         temperatureLastUpdated = if (temperature == null) Reading.Never else ago(200),
@@ -195,6 +235,8 @@ internal object Flat {
         name: String,
         room: String,
         isOn: Boolean?,
+        brightnessPercent: Double? = null,
+        color: ColorSetting? = null,
     ) = BulbTileState(
         id = id,
         name = name,
@@ -204,5 +246,30 @@ internal object Flat {
         // recorded ones are exactly this.
         lastUpdated = if (isOn == null) Reading.Never else ago(20 * 24 * 60 * 60),
         stateChangedAt = if (isOn == null) Reading.Never else ago(20 * 24 * 60 * 60),
+        brightnessPercent = brightnessPercent,
+        brightnessBounds = brightnessPercent?.let { PERCENT },
+        brightnessLastUpdated = brightnessPercent?.let { ago(90) } ?: Reading.Never,
+        color = color,
+    )
+
+    private fun acModes(
+        thermostat: String,
+        fan: String,
+        swing: String,
+    ) = mapOf(
+        "thermostat" to mode(thermostat, "fan_only", "heat", "cool", "dry", "auto"),
+        "fan_speed" to mode(fan, "low", "medium", "high", "quiet", "auto"),
+        "swing" to mode(swing, "stationary", "vertical", "horizontal", "auto"),
+    )
+
+    private fun mode(
+        current: String,
+        vararg values: String,
+    ) = Mode(current, values.toList(), ago(90), ago(90))
+
+    private fun acToggles(ionization: Boolean) = mapOf(
+        "ionization" to Toggle(ionization, ago(90), ago(90)),
+        "keep_warm" to Toggle(false, ago(90), ago(90)),
+        "backlight" to Toggle(true, ago(90), ago(90)),
     )
 }

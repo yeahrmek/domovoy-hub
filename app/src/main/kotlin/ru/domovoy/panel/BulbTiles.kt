@@ -4,6 +4,8 @@ import android.util.Log
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import ru.domovoy.core.Bounds
+import ru.domovoy.core.ColorSetting
 import ru.domovoy.core.Device
 import ru.domovoy.core.DeviceKind
 import ru.domovoy.core.Reading
@@ -26,6 +28,11 @@ data class BulbTileState(
     val lastUpdated: Reading,
     /** When the bulb last actually changed. Kept, not yet shown — see docs/yandex.md. */
     val stateChangedAt: Reading,
+    /** Brightness is absent on relay-backed lights and present only on dimmable bulbs. */
+    val brightnessPercent: Double? = null,
+    val brightnessBounds: Bounds? = null,
+    val brightnessLastUpdated: Reading = Reading.Never,
+    val color: ColorSetting? = null,
 )
 
 /**
@@ -90,16 +97,73 @@ class BulbTiles(
             .onSuccess { reread() }
             .onFailure { failure -> mutableState.value = mutableState.value.copy(error = failure.describe()) }
     }
+
+    suspend fun setBrightness(
+        id: String,
+        percent: Double,
+    ) {
+        val tile = mutableState.value.tiles.firstOrNull { it.id == id } ?: return
+        val bounds = tile.brightnessBounds
+        if (bounds == null) {
+            mutableState.value = mutableState.value.copy(error = IllegalArgumentException("no brightness").describe())
+            return
+        }
+        client
+            .setRange(id, instance = BRIGHTNESS, value = bounds.snap(percent))
+            .onSuccess { reread() }
+            .onFailure { failure -> mutableState.value = mutableState.value.copy(error = failure.describe()) }
+    }
+
+    suspend fun setScene(
+        id: String,
+        scene: String,
+    ) {
+        val tile = mutableState.value.tiles.firstOrNull { it.id == id } ?: return
+        if (scene !in tile.color?.scenes.orEmpty()) {
+            mutableState.value = mutableState.value.copy(error = IllegalArgumentException("unsupported scene").describe())
+            return
+        }
+        client
+            .setColor(id, instance = SCENE, value = scene)
+            .onSuccess { reread() }
+            .onFailure { failure -> mutableState.value = mutableState.value.copy(error = failure.describe()) }
+    }
+
+    suspend fun setRgb(
+        id: String,
+        rgb: Int,
+    ) {
+        val tile = mutableState.value.tiles.firstOrNull { it.id == id } ?: return
+        if (tile.color?.instance != RGB) {
+            mutableState.value = mutableState.value.copy(error = IllegalArgumentException("no RGB").describe())
+            return
+        }
+        client
+            .setColor(id, instance = RGB, value = rgb.coerceIn(0, 0xFFFFFF))
+            .onSuccess { reread() }
+            .onFailure { failure -> mutableState.value = mutableState.value.copy(error = failure.describe()) }
+    }
 }
 
-private fun Device.toTile() = BulbTileState(
-    id = id,
-    name = name,
-    room = room,
-    isOn = onOff?.isOn,
-    lastUpdated = onOff?.lastUpdated ?: Reading.Never,
-    stateChangedAt = onOff?.stateChangedAt ?: Reading.Never,
-)
+private const val BRIGHTNESS = "brightness"
+private const val RGB = "rgb"
+private const val SCENE = "scene"
+
+private fun Device.toTile(): BulbTileState {
+    val brightness = ranges[BRIGHTNESS]
+    return BulbTileState(
+        id = id,
+        name = name,
+        room = room,
+        isOn = onOff?.isOn,
+        lastUpdated = onOff?.lastUpdated ?: Reading.Never,
+        stateChangedAt = onOff?.stateChangedAt ?: Reading.Never,
+        brightnessPercent = brightness?.value,
+        brightnessBounds = brightness?.bounds,
+        brightnessLastUpdated = brightness?.lastUpdated ?: Reading.Never,
+        color = color,
+    )
+}
 
 /**
  * The four words the panel is willing to print when something it polls stops answering, and the

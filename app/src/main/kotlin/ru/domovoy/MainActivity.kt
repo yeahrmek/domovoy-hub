@@ -283,11 +283,17 @@ private fun Panel(secrets: PanelSecrets) {
         openSheet = openSheet,
         onToggleAc = { id -> scope.launch { acs.toggle(id) } },
         onSetTemperature = { id, celsius -> scope.launch { acs.setTemperature(id, celsius) } },
+        onSetAcMode = { id, instance, value -> scope.launch { acs.setMode(id, instance, value) } },
+        onSetAcToggle = { id, instance, on -> scope.launch { acs.setToggle(id, instance, on) } },
         onSetOpen = { id, percent -> scope.launch { curtains.setOpen(id, percent) } },
         onToggleStrip = { id -> scope.launch { strips.toggle(id) } },
         onSetBrightness = { id, percent -> scope.launch { strips.setBrightness(id, percent) } },
         onToggleRecuperator = { id -> scope.launch { recuperators.toggle(id) } },
+        onSetRecuperatorSpeed = { id, speed -> scope.launch { recuperators.setSpeed(id, speed) } },
         onToggleBulb = { id -> scope.launch { tiles.toggle(id) } },
+        onSetBulbBrightness = { id, percent -> scope.launch { tiles.setBrightness(id, percent) } },
+        onSetBulbScene = { id, scene -> scope.launch { tiles.setScene(id, scene) } },
+        onSetBulbRgb = { id, rgb -> scope.launch { tiles.setRgb(id, rgb) } },
         onOpenApp = { packageName -> open(context, packageName) },
     )
 }
