@@ -179,7 +179,12 @@ Sizes to hold to, since this is read and touched at arm's length from a wall:
   This is what the column widths are sized from. Landscape would be 1204 dp and the panel is not laid out
   for it: **auto-rotate is off on the tablet** (`accelerometer_rotation` 0) rather than
   `screenOrientation` being set in the manifest, so a settings reset puts landscape back and the
-  mosaic will be wrong until it is turned off again.
+  mosaic will be wrong until it is turned off again. **That is exactly what happened** — read
+  2026-08-31, `accelerometer_rotation` was back to `1` and `mUserRotationMode=USER_ROTATION_FREE`.
+  It is a device setting with nothing in the repo holding it down, so re-check it whenever the
+  mosaic looks wrong. Since the same day the display also carries
+  `wm set-ignore-orientation-request true` — set for Domonap, which forces landscape at runtime
+  (docs/domonap.md) — which stops *any* app turning this display, the panel included.
 
 ### The lights group
 
