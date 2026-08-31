@@ -2,6 +2,7 @@ package ru.domovoy.panel
 
 import androidx.annotation.DrawableRes
 import ru.domovoy.R
+import ru.domovoy.core.Reading
 import java.time.Instant
 import kotlin.math.roundToInt
 
@@ -291,11 +292,16 @@ internal fun paint(
  * The curtain has no switch to read a mood off, so its position is the mood: open at all is on,
  * fully shut is off, and never reported is unknown — the same three answers its status line gives,
  * in the same order.
+ *
+ * **A position that has aged out is unknown too**, which is why this takes a clock — see
+ * [confirmedPosition]. A tile painted Off is the wall saying "shut" without words, and it has no
+ * business saying that about a curtain the vendor stopped reporting thirteen hours ago.
  */
 internal fun paint(
     tile: CurtainTileState,
+    now: Instant,
     groupError: String?,
-): TilePaint = paint(tile.openPercent?.let { it > 0 }, ownError = null, groupError = groupError)
+): TilePaint = paint(confirmedPosition(tile, now)?.let { it > 0 }, ownError = null, groupError = groupError)
 
 internal fun paint(
     tile: LightStripTileState,
@@ -376,8 +382,85 @@ internal fun promoted(tile: AcTileState): String? {
 /**
  * "40% open" rather than "40%": the curtain is the one tile whose number is meaningless without the
  * word, and it is the same string its status line has always led with.
+ *
+ * **This is where the panel believes the curtain is, whenever it learned it.** What the wall is
+ * willing to say at display size is [confirmedPosition]'s answer, not this one — see [anatomy]. The
+ * status line and the device sheet print this: both put the age beside it.
  */
-internal fun promoted(tile: CurtainTileState): String? = tile.openPercent?.let { "${it.roundToInt()}% open" }
+internal fun promoted(tile: CurtainTileState): String? = position(tile)?.let { percentOpen(it.percent) }
+
+private fun percentOpen(position: Double): String = "${position.roundToInt()}% open"
+
+/**
+ * **Where the panel believes one curtain is, and which reading it learned that from.**
+ *
+ * [reading] is not decoration: the tile prints one age and it has to be the age of the number beside
+ * it — see [statusLine] — and the hour rule is asked of this reading rather than of the position
+ * capability, so a curtain opened by voice a minute ago is fresh even when its percentage is a day
+ * old.
+ */
+internal data class CurtainPosition(
+    val percent: Double,
+    val reading: Reading,
+)
+
+/**
+ * **The newer of the two commands this curtain has been given**, or null when neither can place it.
+ *
+ * *Neither capability on this device is a sensor.* `range/open` is the last percentage something
+ * commanded and `on_off` is the last open or close; the curtain itself reports no position at all,
+ * so there is nothing here to prefer the percentage for except that it carries a number. Which is
+ * why the rule is simply *the newer one wins* — watched across three spoken commands on 2026-08-31,
+ * every one of which matched the curtain in the room. See docs/yandex.md.
+ *
+ * **An open or close is read as an end of travel the device named**, [Bounds.max] or [Bounds.min],
+ * for [actionTarget]'s reason: 0 and 100 are this flat's numbers rather than the panel's. With no
+ * bounds there is no end to read it as, and the answer is null rather than the percentage it
+ * overtook — that percentage is precisely the value just shown to be out of date.
+ */
+internal fun position(tile: CurtainTileState): CurtainPosition? = when {
+    isNewer(tile.openCloseLastUpdated, tile.lastUpdated) ->
+        tile.bounds?.let { bounds ->
+            tile.openClose?.let { open ->
+                CurtainPosition(if (open) bounds.max else bounds.min, tile.openCloseLastUpdated)
+            }
+        }
+    tile.openPercent != null -> CurtainPosition(tile.openPercent, tile.lastUpdated)
+    else -> null
+}
+
+/**
+ * **The curtain's position when the panel can still vouch for it, and null when it cannot** — the
+ * one reading on this wall that expires.
+ *
+ * Every other tile here reports its own changes: a lamp switched on three weeks ago carries a
+ * three-week-old timestamp and is still, reliably, on. **The curtain reports nothing.** Its
+ * `range/open` has not moved since the panel's own last write — not for a hand on the fabric, and
+ * not for a station opening it on Yandex's own hub, while a light on that hub reports an on/off
+ * within minutes. So an old reading here is not a quiet device, it is the panel remembering its own
+ * last write. On 2026-08-31 that put "0% open" on the wall at display size, from 19:26 the evening
+ * before, in front of a curtain standing fully open. See docs/yandex.md.
+ *
+ * So the position is a fact for as long as the tile would keep quiet about its age, and a memory
+ * after that: one line, [isHistory]'s, rather than a second threshold that can drift away from the
+ * one the card is printing. Past it the tile falls back to exactly what it does for a position
+ * nobody has ever read — no promoted value, [TileMood.Unknown], and Close on the button — because
+ * that is the same state: the panel does not know where this curtain is.
+ *
+ * **Which position that is, is [position]'s answer and not the percentage capability's.** "Алиса,
+ * закрой шторы" shuts the curtain and writes no percentage at all: `range/open` stood at `50` in
+ * front of a shut curtain, six minutes old and perfectly fresh by the rule above. The command wrote
+ * `on_off` instead, and reading the newer of the two is what makes the tile right about that within
+ * one poll.
+ *
+ * **Nothing is thrown away.** The number stays on the status line with its age, and on the sheet, and
+ * the slider still starts from it. What it loses is the four-metre line, which is the one place a
+ * tile speaks without room for a caveat.
+ */
+internal fun confirmedPosition(
+    tile: CurtainTileState,
+    now: Instant,
+): Double? = position(tile)?.takeUnless { isHistory(it.reading, now) }?.percent
 
 internal fun promoted(tile: LightStripTileState): String? {
     val percent = tile.brightnessPercent?.roundToInt() ?: return null
@@ -631,15 +714,21 @@ internal fun action(group: BulbGroup): TileAction? = null
  *
  * **A position nobody has read offers Close.** That is an action rather than a claim — nothing this
  * tile prints says the curtain is open, its status line says "unknown" — and Close is the useful
- * one-tap default for a wall panel at the end of the day.
+ * one-tap default for a wall panel at the end of the day. **A position that has aged out is read the
+ * same way**, which is why this takes a clock: see [confirmedPosition]. Offering Open on a
+ * thirteen-hour-old 0 is the button asserting the curtain is shut, which is the one thing it must
+ * not do — the tap is a `range` action either way and both ends are legal.
  *
  * Null when the vendor named no bounds, which is [controls]'s refusal in the same place: with no
  * reported range there is no "fully open" to drive to, and a button that picks one is the panel
  * inventing a position.
  */
-internal fun action(tile: CurtainTileState): TileAction? {
+internal fun action(
+    tile: CurtainTileState,
+    now: Instant,
+): TileAction? {
     val bounds = tile.bounds ?: return null
-    val shut = tile.openPercent != null && tile.openPercent <= bounds.min
+    val shut = confirmedPosition(tile, now)?.let { it <= bounds.min } == true
     return if (shut) TileAction.Open else TileAction.Close
 }
 
@@ -782,6 +871,11 @@ internal fun anatomy(
     detail = error,
 )
 
+/**
+ * The curtain's, and the one anatomy whose promoted value is not simply [promoted]'s: the position
+ * goes on the four-metre line only while the panel can still vouch for it — see [confirmedPosition].
+ * The status line keeps it either way, with the age that is the reason it was demoted.
+ */
 internal fun anatomy(
     tile: CurtainTileState,
     now: Instant,
@@ -789,9 +883,9 @@ internal fun anatomy(
 ): TileAnatomy = TileAnatomy(
     art = art(tile),
     controls = controls(tile),
-    action = action(tile),
+    action = action(tile, now),
     name = tile.name,
-    promoted = promoted(tile),
+    promoted = confirmedPosition(tile, now)?.let(::percentOpen),
     status = statusLine(tile, now),
     detail = error,
 )

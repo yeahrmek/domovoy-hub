@@ -270,7 +270,10 @@ internal fun sheet(
     room = tile.room,
     art = art(tile),
     readings = listOf(
-        SheetReading("position", promoted(tile) ?: UNKNOWN, sheetAge(tile.lastUpdated, now)),
+        // The sheet has room for a caveat where the card has none, so an old position keeps its
+        // number here with the age beside it — and the age is the one belonging to the reading the
+        // number came from, percentage or open/close, for [statusLine]'s reason. See [position].
+        SheetReading("position", promoted(tile) ?: UNKNOWN, sheetAge(position(tile)?.reading ?: tile.lastUpdated, now)),
     ),
     actions = sheetActions(subject(tile)).driving(tile.bounds),
     // No power: a curtain is a position, and "shut" is a position rather than a power state — the

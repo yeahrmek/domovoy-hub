@@ -89,6 +89,45 @@ internal fun notUpdating(
 private val WORTH_SAYING = 1.hours
 
 /**
+ * **Whether a reading has crossed [WORTH_SAYING] into history** — the same line [ageLine] speaks at,
+ * asked as a question instead of answered as a string, so a tile can decide what to *do* about an
+ * old value and not only how to describe it. The two must stay one line: a tile that promoted a
+ * value it was simultaneously printing an age for would be arguing with itself on its own card.
+ *
+ * [Reading.Never] is past the line by definition. A null reading is not: that is a tile with no
+ * value to age rather than one holding an old one — see [oldest].
+ *
+ * _It is not [isStale]._ That one is about whether the panel is still reading and is counted in poll
+ * intervals; this one is about how old the vendor says the value itself is. See docs/ui.md, "Stale".
+ */
+internal fun isHistory(
+    reading: Reading?,
+    now: Instant,
+): Boolean = when (reading) {
+    null -> false
+    Reading.Never -> true
+    // Milliseconds and not Duration.between, for the reason above: a stamp dated in the future —
+    // a tablet whose clock jumped back — comes out fresh rather than absurd.
+    is Reading.At -> (now.toEpochMilli() - reading.instant.toEpochMilli()).milliseconds >= WORTH_SAYING
+}
+
+/**
+ * Whether [reading] is strictly newer than [than], with [Reading.Never] older than any instant and
+ * not newer than itself: a capability that has never reported cannot have overtaken one that has.
+ *
+ * Ordering two readings against each other rather than against the clock, which is what the curtain
+ * needs — see [confirmedPosition] — and why this takes no `now`.
+ */
+internal fun isNewer(
+    reading: Reading,
+    than: Reading,
+): Boolean = when {
+    reading !is Reading.At -> false
+    than !is Reading.At -> true
+    else -> reading.instant.isAfter(than.instant)
+}
+
+/**
  * The oldest of a set of readings, with [Reading.Never] older than any instant: a capability that
  * has never reported is the least fresh thing a tile can be holding, and 33 of the 116 recorded
  * capabilities are exactly that.

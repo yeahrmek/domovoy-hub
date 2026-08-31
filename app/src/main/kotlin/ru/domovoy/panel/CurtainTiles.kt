@@ -26,6 +26,19 @@ data class CurtainTileState(
     val lastUpdated: Reading,
     /** When the curtain last actually moved. Kept, not yet shown — see docs/yandex.md. */
     val stateChangedAt: Reading,
+    /**
+     * **The last open or close this curtain was given**, from the `on_off` capability — `true` for
+     * open, `false` for shut, and null on a curtain that has taken none, which this one had for the
+     * whole of its recorded history until a station was spoken to on 2026-08-31.
+     *
+     * It is not a power state and the tile has no switch for it. It is a *position*, and on this
+     * device it is no worse a one than [openPercent]: neither capability is a sensor — the curtain
+     * reports nothing of its own — so both are only ever the last thing somebody commanded, and the
+     * newer of the two is where the curtain is. See docs/yandex.md.
+     */
+    val openClose: Boolean?,
+    /** When [openClose] was written. Which of the two readings is newer is the whole question. */
+    val openCloseLastUpdated: Reading,
 )
 
 /**
@@ -100,9 +113,12 @@ private fun Device.toTile(): CurtainTileState {
         room = room,
         openPercent = open?.value,
         bounds = open?.bounds,
-        // The age shown is the age of the position, not of the on/off the curtain also carries:
-        // on this device that one has never reported at all.
+        // Both readings are carried, and which of them the tile prints an age for depends on which
+        // is newer — see [position]. An open/close moves this clock and moves nothing else, which is
+        // how the panel learns the percentage it is holding has been overtaken.
         lastUpdated = open?.lastUpdated ?: Reading.Never,
         stateChangedAt = open?.stateChangedAt ?: Reading.Never,
+        openClose = onOff?.isOn,
+        openCloseLastUpdated = onOff?.lastUpdated ?: Reading.Never,
     )
 }

@@ -322,6 +322,45 @@ _What this does not change:_ the vendor's `last_updated` is still what a tile pr
 own staleness is still what marks a heading. A tile that has gone quiet for under an hour says
 nothing about it — the room's heading is where that is said, and it is said about the poll.
 
+### A curtain position expires
+
+One tile breaks the paragraph above, and the vendor is the reason. `WORTH_SAYING` decides whether a
+tile *prints* an age; on the curtain it also decides whether the tile still *states* the value.
+
+Every other device on this wall reports its own changes, so an old timestamp means a quiet device: a
+lamp switched on three weeks ago is still on, and that is exactly why staleness is about the poll and
+not about the reading. **The flat's curtain does not report at all.** Its `range/open` has not moved
+since the panel's own last write — not for a hand on the fabric, and not for a station opening it on
+Yandex's own hub, while a light on that same hub reports an on/off within minutes (verified live
+2026-08-31, see docs/yandex.md). So an hour on, its reading is not an old fact about the flat; it is
+the panel quoting its own last write back at itself. The morning this was found, the wall said
+`0% open` at 44sp in front of a curtain standing fully open.
+
+**Which number that is, is not simply the percentage the vendor holds.** Neither of the curtain's two
+capabilities is a sensor: `range/open` is the last percentage something commanded, `on_off` is the
+last open or close, and the motor reports nothing of its own. So there is no reason to prefer the
+percentage except that it carries a number — and preferring it puts `50% open` on the wall in front
+of a curtain a voice command shut a minute ago. **The newer of the two commands is the position**, an
+open or close read as the end of travel *the device named*, and its own reading is the age the tile
+prints. Three spoken commands on 2026-08-31, every one matching the curtain in the room.
+
+Past the hour the curtain falls back to what the tile already does for a position nobody has read:
+
+| | fresh | history |
+| --- | --- | --- |
+| promoted value | `0% open` | — |
+| status line | `0% open` | `0% open · 13 h ago` |
+| mood | `Off`, or `On` above the minimum | `Unknown` |
+| top-right button | Open | Close |
+
+**The number is demoted, not deleted.** The status line keeps it next to the age that is the reason
+for demoting it, the sheet keeps it labelled `position`, and the slider still starts from it. What it
+loses is the four-metre line — the one place a tile speaks with no room for a caveat.
+
+_It is the curtain's rule and not the wall's_, until a second device is shown to behave the same way.
+Applied to the bulbs it would blank a lamp that is on and has merely been on for weeks, which is the
+mistake the whole section above exists to prevent.
+
 ### Why a poll failed
 
 **Four words, and no vendor ever writes one of them.** `Throwable.describe()` was

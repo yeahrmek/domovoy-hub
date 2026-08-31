@@ -496,6 +496,95 @@ than a scalar.
 - **Whole numbers go out as whole numbers.** Yandex reports the position as `0`, not `0.0`, and
   precision is 1, so the action sends `"value": 70`.
 
+### The curtain never reports where it is — read live, 2026-08-31
+
+The tile said `0% open` at display size in front of a curtain standing fully open. **Nothing was
+wrong with the read.** Both endpoints agreed, thirteen hours after the panel last drove the curtain:
+
+| Capability | flags | `state` | `last_updated` |
+| --- | --- | --- | --- |
+| `range/open` | retrievable, reportable | `0` | 2026-08-30 19:26:01 (`state_changed_at` 19:25:58) |
+| `on_off/on` | retrievable, reportable | `false` | `0.0` — **never reported** |
+| `zigbee_node` | reportable | `excellent`, `is_active: true` | 2026-08-31 08:25:37, and hourly |
+
+`GET /v1.0/devices/{id}` answered `"state": "online"` and the same `open: 0`, so this is neither a
+cached list response nor an unreachable device. And 19:26:01 the previous evening is the exact minute
+the capability run above restored `open: 0`: **the newest thing Yandex knows about this curtain is
+the panel's own last write.**
+
+**It is not that Yandex missed a move it could not see.** The curtain was opened that morning through
+a Yandex station — a command Yandex itself issued, on its own hub (`skill_id: YANDEX_IO`, the curtain
+is a Zigbee node on it). An hour later neither capability had moved: `range/open` still held our
+write, and `on_off` still had never reported a value at all, both flags notwithstanding.
+
+The hub is not the problem, and neither is the account. On the same skill, in the same response,
+`Свет в гардеробе` reported `on_off: false` at 10:08 — 23 minutes before the poll. State callbacks
+arrive from this hub within minutes. **The curtain is the one device on it that does not send them.**
+
+So on this device `range/open` is not a position, it is *the last position the panel drove it to*.
+Nothing in the response tells "shut" apart from "not moved since we shut it", and there is no second
+source to cross-check against: `on_off` is silent and the `event/button` property is stateless.
+
+What the panel does about it: the position is a fact for an hour — `WORTH_SAYING`, the same line the
+tile prints an age at — and a memory after that, which reads on the wall exactly as a position nobody
+has ever read does. See docs/ui.md, "A curtain position expires".
+
+**It is not the panel's account, and it is not the API.** The Yandex app shows the same stale record
+after a voice command, so whatever the panel reads is what Yandex itself holds.
+
+**Why, most likely.** This motor is not a device the hub officially supports: Yandex's own list for
+the hub carries exactly two curtain tracks, both `Яндекс`-branded (`YNDX-00591`, `YNDX-00592`), and
+no Aqara or Xiaomi motor at all. A `lumi.curtain` (ZNCLDJ11LM) paired to it is a standard Zigbee
+window covering the hub can *command* without having an implementation that reads it back — which is
+the shape of what is observed, and matches the common report for partially-supported curtain motors:
+open/close works, the position report never arrives. Two things follow from it, neither confirmed:
+
+- **Calibration.** On this model calibration is mandatory for position reporting and for intermediate
+  positions at all; an uncalibrated motor is a documented cause of a position that never moves.
+- **State the hub stores versus state it reads.** Every timestamp this capability has ever carried
+  came from a write — ours at 19:26. Nothing suggests the hub ever *reads* the motor: `on_off` is
+  declared `retrievable` and has never held a value.
+
+### Watched across two station commands — 2026-08-31
+
+Two spoken commands, the API polled within a minute of each. This is the whole behaviour:
+
+| Spoken | Capability it drives | `range/open` after | `on_off/on` after |
+| --- | --- | --- | --- |
+| "открой шторы на 50 процентов" (10:51) | `range` | **`50`**, `lu` 10:51:34, `sca` 10:51:28 | untouched |
+| "закрой шторы" (10:53) | `on_off` | **still `50`**, `lu` still 10:51:34 | `false`, `lu` 10:53:57, `sca` still never |
+
+The curtain physically went to about half on the first and shut on the second, both confirmed by eye.
+
+- **A percentage command writes the position.** The record follows it and the timestamps are real, so
+  a position is trustworthy immediately after *anything* drives this curtain by percent — the panel
+  included, since `setOpen` is the only way it moves a curtain.
+- **An open/close command does not.** `range/open` kept `50` in front of a shut curtain. All the
+  command left behind was `on_off.last_updated`; the value stayed `false` and `state_changed_at` is
+  *still* `0.0`, so the on/off is not a readout either — one write bumped its clock without ever
+  recording a value that changed.
+- **So the record is not a position, it is the last percentage somebody commanded**, and it goes
+  wrong the moment a voice open/close moves the curtain past it. That is what the panel showed on the
+  wall this morning, and what the Yandex app shows too — it is one record, and both read it.
+
+A third command settled the last of it. **"открой шторы" at 10:57 wrote `on_off: true`, with
+`last_updated` *and* `state_changed_at` both stamped** — the value changed, so both moved, which is
+the pair of timestamps Yandex documents. The close at 10:53 had moved only `last_updated`, because
+`false` was already `false`. So the value is written on every command and not merely on a change,
+and the clock says which command was last.
+
+**What the panel does with it: the newer of the two commands is the position.** Neither capability is
+a sensor, so there is nothing to prefer the percentage for except that it carries a number — and an
+open or close is a position too, at the end of travel *this device reported*. It is right about all
+three commands above within one poll, where waiting on the percentage was wrong for two of them.
+
+The morning's "открой шторы" remains the odd one out: it left no trace on either capability, which
+neither this rule nor any other can catch. That is what the hour expiry is still for.
+
+**The workaround needs no repair.** A scenario in Дом с Алисой on a phrase of your own, whose action
+sets the curtain to a percentage rather than on/off, keeps the record — and therefore the app, and
+this panel — correct.
+
 ### The shared model, and why it grew
 
 `range` is the first non-boolean state in the panel's device model — the bulbs only ever needed a
@@ -780,6 +869,12 @@ whole of what the log is being claimed for.
   panel design decision rather than a capability-model limitation.
 - ~~Does `open` on the curtain mean percent *open* or percent *closed*, and does 0 mean shut?~~
   Answered on the real curtain: 0 is closed and 20 is partly open.
+- **Can a move of the curtain be seen at all — even one Yandex made itself?** Not so far. A station
+  opened it and an hour later `range/open` still held the panel's own last write and `on_off` had
+  still never reported, while a light on the same hub reported an on/off within minutes (read live
+  2026-08-31, above). The next step is watching the API across a station command, `on_off` and
+  `range` separately. Until then the panel cannot know where this curtain is between its own writes,
+  and says so rather than guessing.
 - ~~Does `/v1.0/devices/{id}` carry `state` (`online`/`offline`) when the list call does not?~~ Yes;
   it reported every tested Kelvin bulb and strip offline. The panel does not spend an extra call per
   tile during polling, so this remains diagnostic information rather than a tile field.
