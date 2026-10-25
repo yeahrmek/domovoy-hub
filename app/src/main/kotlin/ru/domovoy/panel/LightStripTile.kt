@@ -1,112 +1,80 @@
 package ru.domovoy.panel
 
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import ru.domovoy.core.Reading
 import java.time.Instant
 import kotlin.math.roundToInt
 
-/** The two `color_setting` instances the recorded response carries, on the strips and on light-21. */
+/** Verified colour-setting instances from recorded vendor responses. */
 private const val TEMPERATURE_K = "temperature_k"
 private const val RGB = "rgb"
 
-/**
- * One light strip: its name, whether it is on, how bright it is, how old each of those readings is,
- * and the colour it reports — which is shown and cannot be changed. When [error] is set the poll
- * behind the values failed; the tile keeps showing the last ones it had, and says so, rather than
- * blanking out or spinning.
- */
+/** Power, brightness, and read-only colour. A failed poll visibly retains the last readings. */
 @Composable
 fun LightStripTile(
     tile: LightStripTileState,
     now: Instant,
     modifier: Modifier = Modifier,
     error: String? = null,
-    /** What a tap on the card does: open this device's sheet. Null when there is none — see [AcTile]. */
+    showRoom: Boolean = false,
+    pending: Boolean = false,
+    /** Open the device sheet; null leaves the card non-clickable. */
     onOpen: (() -> Unit)? = null,
     onToggle: (String) -> Unit = {},
     onSetBrightness: (String, Double) -> Unit = { _, _ -> },
 ) {
-    // The colour it reports is the second line of the status slot rather than more dots on the
-    // first — it carries an age of its own, and all six values in one run is a line nobody reads.
-    // Which is [anatomy]'s answer now; see [colorLine].
-    // Worked out once and read twice: the card takes it, and so does the power button, whose colour
-    // is the tile's second on-mark — amber here rather than Material's blue.
     val paint = paint(tile, error)
     TileCard(
         anatomy = anatomy(tile, now, error),
         paint = paint,
         modifier = modifier,
+        format = TileFormat.Control,
+        showRoom = showRoom,
+        pending = pending,
+        hasLevel = tile.bounds != null,
         onClick = onOpen,
         toggle = {
             TilePowerButton(
+                deviceName = tile.name,
+                room = tile.room,
                 isOn = tile.isOn == true,
                 mood = paint.mood,
                 onToggle = { onToggle(tile.id) },
+                enabled = !pending,
             )
         },
         level = {
             val bounds = tile.bounds
             if (bounds != null) {
-                // As on the curtain and the ac, the dragged value is local: the tile behind it only
-                // changes on the next poll, so binding the slider straight to it drags the handle
-                // back under the finger.
-                var dragged by remember(tile.id) { mutableFloatStateOf(sliderStart(tile, bounds.min)) }
-                SlimSlider(
-                    value = dragged,
-                    onValueChange = { dragged = it },
-                    valueRange = bounds.min.toFloat()..bounds.max.toFloat(),
-                    onValueChangeFinished = { onSetBrightness(tile.id, dragged.toDouble()) },
+                LevelControl(
+                    id = tile.id,
+                    value = tile.brightnessPercent,
+                    bounds = bounds,
+                    label = "Яркость",
+                    unit = if (tile.unit == "unit.percent") "%" else "",
+                    enabled = !pending,
+                    onSetValue = { onSetBrightness(tile.id, it) },
                 )
             }
         },
     )
 }
 
-// A strip that has never reported a brightness has none to start the handle from; the bottom of its
-// range is the one value that is certainly on the grid, and the line above says "unknown" anyway.
-private fun sliderStart(
-    tile: LightStripTileState,
-    min: Double,
-): Float = (tile.brightnessPercent ?: min).toFloat()
-
 /**
- * The line under the name: on/off, the brightness and **one age for the whole tile**. The reason a
- * poll failed is the tile's second line now — see [TileAnatomy] — where it takes the place of
- * [colorLine] while it lasts.
- *
- * The age is the oldest of the three readings this tile shows — the on/off, the brightness and the
- * colour on the line below — because a tile says how old it is once. It printed four ages across two
- * lines, three of which were the same instant, since one `/v1.0/user/info` stamps all three
- * capabilities of a strip that nobody has touched.
+ * Power, brightness, and the oldest displayed reading age, including colour.
+ * A poll failure temporarily replaces the colour detail.
  */
 internal fun statusLine(
     tile: LightStripTileState,
     now: Instant,
-): String {
-    val power =
-        when (tile.isOn) {
-            true -> "on"
-            false -> "off"
-            null -> "unknown"
-        }
-    return listOfNotNull(
-        power,
-        // The same string the tile promotes, plus the word for a brightness nobody has reported.
-        promoted(tile) ?: "unknown",
-        ageLine(oldest(tile.readings()), now),
-    ).joinToString(" · ")
-}
+): String = listOfNotNull(
+    power(tile.isOn),
+    "Яркость неизвестна".takeIf { tile.brightnessPercent == null },
+    ageLine(oldest(tile.readings()), now),
+).joinToString(" · ")
 
-/**
- * The readings behind everything this tile shows, the colour included — and only the ones it has a
- * value for, on [AcTileState]'s rule: what the panel never received says "unknown" rather than
- * carrying an age of its own.
- */
+/** Only readings with values contribute to age; missing values are shown as unknown. */
 private fun LightStripTileState.readings(): List<Reading> = listOfNotNull(
     powerLastUpdated.takeIf { isOn != null },
     brightnessLastUpdated.takeIf { brightnessPercent != null },
@@ -114,32 +82,22 @@ private fun LightStripTileState.readings(): List<Reading> = listOfNotNull(
 )
 
 /**
- * The colour line: what the strip reports, and that it cannot be driven. Null when the strip has no
- * `color_setting` at all — a strip that never reported one still gets the line, saying "unknown",
- * because that is a value the panel is failing to read rather than a capability the device lacks.
- *
- * **The age it used to carry has gone to the status line**, where the tile says its age once. It
- * takes no `now` at all now, which is the shape of that: this line is a value and a refusal, and
- * neither of them is a fact about the clock.
- *
- * "not controllable" is said on the tile on purpose. The panel has no colour action to send, and a
- * value shown next to an on/off and a slider otherwise reads as one more thing to tap.
+ * Label colour as read-only. Missing capability omits the line; an unread capability says unknown.
+ * Its age contributes to the tile’s single status age.
  */
 internal fun colorLine(tile: LightStripTileState): String? {
     val color = tile.color ?: return null
-    return "${colorLabel(color.instance, color.value)} · not controllable"
+    return "${colorLabel(color.instance, color.value)} · только просмотр"
 }
 
-// Both shapes are from the recorded response: temperature_k on the strips, rgb on light-21. A
-// packed 0xRRGGBB printed as 16777200 says nothing to anyone standing in the hallway.
 private fun colorLabel(
     instance: String?,
     value: Double?,
 ): String {
-    val reported = value ?: return "unknown"
+    val reported = value ?: return "Нет данных"
     return when (instance) {
         TEMPERATURE_K -> "${reported.roundToInt()} K"
         RGB -> "#%06X".format(reported.roundToInt())
-        else -> "unknown"
+        else -> "Нет данных"
     }
 }

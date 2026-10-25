@@ -1,6 +1,7 @@
 package ru.domovoy.panel
 
 import android.util.Log
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -9,6 +10,7 @@ import ru.domovoy.core.ColorSetting
 import ru.domovoy.core.Device
 import ru.domovoy.core.DeviceKind
 import ru.domovoy.core.Reading
+import ru.domovoy.integrations.tuya.TuyaApiException
 import ru.domovoy.integrations.yandex.YandexClient
 import java.io.InterruptedIOException
 import java.net.ConnectException
@@ -26,8 +28,6 @@ data class BulbTileState(
     val isOn: Boolean?,
     /** When the reading was taken; this is the age the tile prints. */
     val lastUpdated: Reading,
-    /** When the bulb last actually changed. Kept, not yet shown — see docs/yandex.md. */
-    val stateChangedAt: Reading,
     /** Brightness is absent on relay-backed lights and present only on dimmable bulbs. */
     val brightnessPercent: Double? = null,
     val brightnessBounds: Bounds? = null,
@@ -42,7 +42,7 @@ data class BulbTileState(
  */
 data class BulbPanelState(
     val tiles: List<BulbTileState> = emptyList(),
-    /** Non-null when the last poll or toggle failed. [tiles] then hold the last known values. */
+    /** Non-null when the last poll failed. [tiles] then hold the last known values. */
     val error: String? = null,
     /**
      * When the poll behind these tiles last succeeded, which is what makes the group stale — not
@@ -50,6 +50,8 @@ data class BulbPanelState(
      * refresh lands. See [isStale] and docs/ui.md, "Stale".
      */
     val lastPolledAt: Instant? = null,
+    val pending: Set<String> = emptySet(),
+    val commandErrors: Map<String, String> = emptyMap(),
 )
 
 /**
@@ -75,8 +77,9 @@ class BulbTiles(
         polledAt: Instant,
     ) {
         mutableState.value =
-            BulbPanelState(
+            mutableState.value.copy(
                 tiles = devices.filter { it.kind == DeviceKind.Bulb }.map(Device::toTile),
+                error = null,
                 lastPolledAt = polledAt,
             )
     }
@@ -91,57 +94,78 @@ class BulbTiles(
      * physically changed, so the tile is repainted from a fresh poll, not from the action result.
      */
     suspend fun toggle(id: String) {
+        if (id in mutableState.value.pending) return
         val tile = mutableState.value.tiles.firstOrNull { it.id == id } ?: return
-        client
-            .setOn(id, on = tile.isOn != true)
-            .onSuccess { reread() }
-            .onFailure { failure -> mutableState.value = mutableState.value.copy(error = failure.describe()) }
+        command(id) { client.setOn(id, on = tile.isOn != true) }
     }
 
     suspend fun setBrightness(
         id: String,
         percent: Double,
     ) {
+        if (id in mutableState.value.pending) return
         val tile = mutableState.value.tiles.firstOrNull { it.id == id } ?: return
         val bounds = tile.brightnessBounds
         if (bounds == null) {
-            mutableState.value = mutableState.value.copy(error = IllegalArgumentException("no brightness").describe())
+            mutableState.value = mutableState.value.copy(
+                commandErrors = mutableState.value.commandErrors + (id to "Яркость не регулируется"),
+            )
             return
         }
-        client
-            .setRange(id, instance = BRIGHTNESS, value = bounds.snap(percent))
-            .onSuccess { reread() }
-            .onFailure { failure -> mutableState.value = mutableState.value.copy(error = failure.describe()) }
+        command(id) { client.setRange(id, instance = BRIGHTNESS, value = bounds.snap(percent)) }
     }
 
     suspend fun setScene(
         id: String,
         scene: String,
     ) {
+        if (id in mutableState.value.pending) return
         val tile = mutableState.value.tiles.firstOrNull { it.id == id } ?: return
         if (scene !in tile.color?.scenes.orEmpty()) {
-            mutableState.value = mutableState.value.copy(error = IllegalArgumentException("unsupported scene").describe())
+            mutableState.value = mutableState.value.copy(
+                commandErrors = mutableState.value.commandErrors + (id to "Сцена недоступна"),
+            )
             return
         }
-        client
-            .setColor(id, instance = SCENE, value = scene)
-            .onSuccess { reread() }
-            .onFailure { failure -> mutableState.value = mutableState.value.copy(error = failure.describe()) }
+        command(id) { client.setColor(id, instance = SCENE, value = scene) }
     }
 
     suspend fun setRgb(
         id: String,
         rgb: Int,
     ) {
+        if (id in mutableState.value.pending) return
         val tile = mutableState.value.tiles.firstOrNull { it.id == id } ?: return
         if (tile.color?.instance != RGB) {
-            mutableState.value = mutableState.value.copy(error = IllegalArgumentException("no RGB").describe())
+            mutableState.value = mutableState.value.copy(
+                commandErrors = mutableState.value.commandErrors + (id to "Цвет не регулируется"),
+            )
             return
         }
-        client
-            .setColor(id, instance = RGB, value = rgb.coerceIn(0, 0xFFFFFF))
-            .onSuccess { reread() }
-            .onFailure { failure -> mutableState.value = mutableState.value.copy(error = failure.describe()) }
+        command(id) { client.setColor(id, instance = RGB, value = rgb.coerceIn(0, 0xFFFFFF)) }
+    }
+
+    private suspend fun command(
+        id: String,
+        issue: suspend () -> Result<Unit>,
+    ) {
+        if (id in mutableState.value.pending) return
+        mutableState.value = mutableState.value.copy(
+            pending = mutableState.value.pending + id,
+            commandErrors = mutableState.value.commandErrors - id,
+        )
+        try {
+            issue().getOrThrow()
+            reread()
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (failure: Exception) {
+            mutableState.value = mutableState.value.copy(
+                commandErrors = mutableState.value.commandErrors + (id to failure.describe()),
+            )
+        } finally {
+            mutableState.value = mutableState.value.copy(pending = mutableState.value.pending - id)
+        }
     }
 }
 
@@ -157,7 +181,6 @@ private fun Device.toTile(): BulbTileState {
         room = room,
         isOn = onOff?.isOn,
         lastUpdated = onOff?.lastUpdated ?: Reading.Never,
-        stateChangedAt = onOff?.stateChangedAt ?: Reading.Never,
         brightnessPercent = brightness?.value,
         brightnessBounds = brightness?.bounds,
         brightnessLastUpdated = brightness?.lastUpdated ?: Reading.Never,
@@ -165,48 +188,21 @@ private fun Device.toTile(): BulbTileState {
     )
 }
 
-/**
- * The four words the panel is willing to print when something it polls stops answering, and the
- * whole vocabulary — `docs/design/panel-redesign.md` item 7.
- *
- * **It used to be `message ?: className`**, so Java's own sentence went onto the status line in the
- * middle of a line whose other half was the panel's: `not updating: Unable to resolve host
- * "openapi.tuyaeu.com"`. Two things were wrong with that and only one of them is about language. The
- * string is *unbounded* — a tile is 188 or 251 dp wide and holds sixteen to twenty-four characters
- * of `bodyMedium` — so a vendor's error text decided how tall that tile came out, which is the one
- * thing the anatomy in `TileCard` exists to stop anything doing.
- *
- * **The mapping is by type and not by message**, because a message is the vendor's to change and a
- * type is not. What the four cover, in the order a wall panel meets them:
- *
- * - **unreachable** — the tablet's Wi-Fi is down or DNS is not answering. `AGENTS.md` says to assume
- *   this happens, and on this flat's own network it is the common one.
- * - **timed out** — the request went out and nothing came back inside the client's call timeout.
- *   OkHttp's own call timeout arrives as the *parent* [InterruptedIOException] rather than as a
- *   [SocketTimeoutException], so both are here; every vendor client in this app sets one.
- * - **refused** — something answered the connection with "no".
- * - **failed** — everything else, which is one word for two very different things: an I/O failure
- *   with no name of its own, and the panel's own `error(…)` checks on a response it did not like
- *   (`HTTP 403`, a `status` that is not `ok`, a token that is not in the store). _That last one is
- *   this mapping's price and it is a real one_ — the client's "no Yandex token stored — set
- *   yandex.oauth.token in local.properties and reinstall" is 76 characters and cannot be on a tile
- *   whatever the rule is, so it goes to [describe]'s `Log` line and docs/yandex.md says so.
- *
- * Pure, and separate from [describe] for exactly that reason: this is the half a table test can ask
- * a hundred questions of, and `Log` is the half it cannot.
- */
+/** Short UI labels selected by exception type and structured vendor code; raw details stay in Log. */
 internal fun reason(failure: Throwable): String = when (failure) {
-    is UnknownHostException, is NoRouteToHostException -> "unreachable"
-    is SocketTimeoutException, is InterruptedIOException -> "timed out"
-    is ConnectException -> "refused"
-    else -> "failed"
+    // 28841002 is the observed IoT Core subscription-expired error; never match vendor prose.
+    is TuyaApiException -> if (failure.code == 28841002L) "Подписка истекла" else "Сервис недоступен"
+    is UnknownHostException, is NoRouteToHostException -> "Нет связи с сервисом"
+    is SocketTimeoutException, is InterruptedIOException -> "Сервис не ответил"
+    is ConnectException -> "Сервис отклонил соединение"
+    else -> "Не удалось выполнить запрос"
 }
 
 /** Where the exception's own words go, since they no longer go on the wall. */
 private const val LOG_TAG = "DomovoyPanel"
 
 /**
- * How a failure reads on a tile: one of [reason]'s four words, with everything the exception
+ * How a failure reads on a tile: [reason]'s short label, with everything the exception
  * actually said written to `Log` on the way past.
  *
  * Shared by every group — one Yandex call feeds four of them and Tuya's per-device reads the

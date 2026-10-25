@@ -10,29 +10,16 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import mockwebserver3.MockResponse
 import mockwebserver3.MockWebServer
-import okhttp3.OkHttpClient
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
-import ru.domovoy.integrations.yandex.YandexClient
 import java.time.Instant
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
-import kotlin.time.Duration
-import kotlin.time.Duration.Companion.seconds
 
-/**
- * One `/v1.0/user/info` call is the whole house, so one panel refresh is one request no matter how
- * many tile groups read from it. Yandex publishes no rate limit for this endpoint — see
- * docs/yandex.md — and a call per group scales with every tile type the panel grows, so what is
- * asserted here is the request count itself, not just the values that come out of it.
- */
+/** One shared fetch serves every group; the request count protects the vendor allowance. */
 class YandexPollTest {
-    /**
-     * Late enough to be after all three groups' readings. One "now" across the panel, and the three
-     * groups still print three different ages — which is the point: they were read at different
-     * times and each keeps its own.
-     */
+    /** After all recorded readings; each group still retains its own age. */
     private val now = Instant.ofEpochSecond(1_786_667_880L + 2 * 3600)
 
     private lateinit var server: MockWebServer
@@ -50,8 +37,8 @@ class YandexPollTest {
 
     @Test
     fun `one poll is one request, and it feeds every tile group`() = runTest {
-        server.enqueue(MockResponse(body = fixture()))
-        val poll = YandexPoll(client())
+        server.enqueue(MockResponse(body = yandexFixture()))
+        val poll = YandexPoll(server.yandexClient())
 
         poll.refresh()
 
@@ -66,9 +53,9 @@ class YandexPollTest {
 
     @Test
     fun `one failed poll errors every group at once, each keeping its own values and ages`() = runTest {
-        server.enqueue(MockResponse(body = fixture()))
+        server.enqueue(MockResponse(body = yandexFixture()))
         server.enqueue(MockResponse(code = 500, body = "boom"))
-        val poll = YandexPoll(client())
+        val poll = YandexPoll(server.yandexClient())
 
         poll.refresh()
         val bulbsBefore = poll.bulbs.state.value.tiles
@@ -82,35 +69,29 @@ class YandexPollTest {
         val curtains = poll.curtains.state.value
         val acs = poll.acs.state.value
         val strips = poll.strips.state.value
-        // The one failure reaches every group: no group is left painting a value as current while
-        // the panel behind it is not updating. One reason, the same one, in all four — and it is one
-        // of the four words the panel prints rather than the 500's body. See BulbTilesTest's table.
-        assertEquals("failed", bulbs.error, "the bulbs must say why")
-        assertEquals("failed", curtains.error, "the curtains must say why")
-        assertEquals("failed", acs.error, "the air conditioners must say why")
-        assertEquals("failed", strips.error, "the strips must say why")
+        // A shared fetch failure reaches every group, using the bounded error labels.
+        assertEquals("Не удалось выполнить запрос", bulbs.error, "the bulbs must say why")
+        assertEquals("Не удалось выполнить запрос", curtains.error, "the curtains must say why")
+        assertEquals("Не удалось выполнить запрос", acs.error, "the air conditioners must say why")
+        assertEquals("Не удалось выполнить запрос", strips.error, "the strips must say why")
         assertEquals(bulbsBefore, bulbs.tiles)
         assertEquals(curtainsBefore, curtains.tiles)
         assertEquals(acsBefore, acs.tiles)
         assertEquals(stripsBefore, strips.tiles)
-        // Sharing the fetch does not merge the ages: the bulb, the curtain and the ac were read
-        // days apart, the strips never at all, and one "last read" for the panel would be a lie
-        // about most of them.
-        assertEquals("on · 5% · 20 d ago", statusLine(bulbs.tiles.single { it.id == "light-01" }, now))
-        assertEquals("0% open · 2 h ago", statusLine(curtains.tiles.single(), now))
-        assertEquals("off · 18 °C · 98 d ago", statusLine(acs.tiles.single { it.id == "ac-01" }, now))
-        assertEquals("on · 26% · never read", statusLine(strips.tiles.single { it.id == "light-strip-01" }, now))
+        // Shared fetching must preserve each capability's timestamp.
+        assertEquals("Включено · 20 дн. назад", statusLine(bulbs.tiles.single { it.id == "light-01" }, now))
+        assertEquals("0% · 2 ч назад", statusLine(curtains.tiles.single(), now))
+        assertEquals("Выключено · 98 дн. назад", statusLine(acs.tiles.single { it.id == "ac-01" }, now))
+        assertEquals("Включено · Время неизвестно", statusLine(strips.tiles.single { it.id == "light-strip-01" }, now))
     }
 
     @Test
     fun `a refresh that succeeded stamps when the panel last read the house, and a failed one does not`() = runTest {
-        // The one fact the panel has no other way of holding: not when a device last reported —
-        // that is on every tile already — but when *we* last managed to read it. It is the poll's
-        // own, so the poll is what stamps it.
-        server.enqueue(MockResponse(body = fixture()))
+        // lastPolledAt records our successful fetch, independently of vendor timestamps.
+        server.enqueue(MockResponse(body = yandexFixture()))
         server.enqueue(MockResponse(code = 500, body = "boom"))
         var clock = Instant.ofEpochSecond(1_786_700_000)
-        val poll = YandexPoll(client(), now = { clock })
+        val poll = YandexPoll(server.yandexClient(), now = { clock })
 
         assertNull(poll.bulbs.state.value.lastPolledAt, "nothing has been read yet")
         poll.refresh()
@@ -133,12 +114,12 @@ class YandexPollTest {
 
     @Test
     fun `the re-read after a toggle is the shared poll, not a fourth call`() = runTest {
-        server.enqueue(MockResponse(body = fixture()))
+        server.enqueue(MockResponse(body = yandexFixture()))
         server.enqueue(MockResponse(body = """{"status":"ok","request_id":"r-1","devices":[]}"""))
         // The curtain moved while the bulb was being toggled. Nothing but a shared re-read can put
         // that on the curtain tile, so this is what tells a shared poll from a bulbs-only one.
         server.enqueue(MockResponse(body = fixtureWithCurtainOpen(40)))
-        val poll = YandexPoll(client())
+        val poll = YandexPoll(server.yandexClient())
 
         poll.refresh()
         poll.bulbs.toggle("light-01")
@@ -152,24 +133,9 @@ class YandexPollTest {
         assertEquals(2, poll.strips.state.value.tiles.size)
     }
 
-    private fun client(
-        timeout: Duration = 10.seconds,
-        token: () -> String = { "test-token" },
-    ) = YandexClient(
-        http = OkHttpClient(),
-        token = token,
-        householdId = "household-flat",
-        baseUrl = server.url("/"),
-        timeout = timeout,
-    )
-
-    private fun fixture(): String = checkNotNull(javaClass.getResourceAsStream("/yandex/user_info.json")) {
-        "missing fixture app/src/test/resources/yandex/user_info.json"
-    }.use { it.readBytes().decodeToString() }
-
     /** The recorded body with curtain-01's `range` position set to [percent]. */
     private fun fixtureWithCurtainOpen(percent: Int): String {
-        val root = Json.parseToJsonElement(fixture()).jsonObject
+        val root = Json.parseToJsonElement(yandexFixture()).jsonObject
         val devices =
             root["devices"]!!.jsonArray.map { device ->
                 if (device.jsonObject["id"]?.jsonPrimitive?.content != "curtain-01") {

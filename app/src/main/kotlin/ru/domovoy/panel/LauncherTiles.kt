@@ -5,7 +5,7 @@ package ru.domovoy.panel
  * launcher tile holds one fact, and that fact is about the tablet rather than about the flat.
  */
 data class LauncherTileState(
-    /** The app this tile opens. Also what the tile prints when the app is not there to open. */
+    /** The package used to open the vendor app; never presented as interface copy. */
     val packageName: String,
     /** What the tile is called on the wall — the device, not the app: "Домофон", not "Domonap". */
     val name: String,
@@ -73,30 +73,13 @@ fun launcherTiles(canOpen: (String) -> Boolean): List<LauncherTileState> = CATAL
  * can be stale.
  */
 internal fun statusLine(tile: LauncherTileState): String = if (tile.openable) {
-    "opens the app"
+    "Открыть"
 } else {
-    "not installed"
+    "Нет приложения"
 }
 
-/**
- * The second line: the honest version of the age this tile does not have, or — when the app is not
- * there — **the package, on a line of its own where it may be cut short**.
- *
- * This is the one identifier on the wall the panel is allowed to truncate, and the reason it is
- * split off the line above rather than joined to it. `not installed · com.example.vacuum` is 34
- * characters on a 188 dp tile that holds about sixteen, so it wrapped, and it wrapped *mid-word*:
- * `com.example.vacu` over `um`, three lines deep. A package name has no shorter honest form, and a
- * device name — which the panel refuses to truncate at any width — is a different thing entirely:
- * this one is read at 30 cm by whoever is about to go and install it, not from four metres.
- *
- * "no state to read" is what the openable one says, and printing "just now" next to a name instead
- * would claim a freshness the tile never earned.
- */
-internal fun detailLine(tile: LauncherTileState): String = if (tile.openable) {
-    "no state to read"
-} else {
-    tile.packageName
-}
+/** A missing app offers a recovery step without exposing Android package identifiers. */
+internal fun detailLine(tile: LauncherTileState): String? = if (tile.openable) null else "Установите его"
 
 /** One row of the catalogue; the tiles differ only in these three values. */
 private class LauncherApp(

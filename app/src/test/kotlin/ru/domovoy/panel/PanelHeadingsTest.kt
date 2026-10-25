@@ -291,7 +291,6 @@ class PanelHeadingsTest {
         room = room,
         isOn = true,
         lastUpdated = lastUpdated,
-        stateChangedAt = Reading.Never,
     )
 
     private fun recuperator(

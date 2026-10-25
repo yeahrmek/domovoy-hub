@@ -20,19 +20,19 @@ import androidx.compose.ui.Modifier
 fun LauncherTile(
     tile: LauncherTileState,
     modifier: Modifier = Modifier,
+    showRoom: Boolean = false,
     onOpen: (String) -> Unit = {},
 ) {
     // Nothing is read here, so there is no on/off to be in a mood about: the tile sits on the
     // unread step of the ramp unless it cannot do its single job, and a missing app is the only bad
     // news it has — its own, so it takes the red offline mark rather than the group outline. The package
     // name is the reason, which is what the line under the name prints too. See [paint].
-    // The one tile that fills none of the three slots a control could go in — no switch, no slider,
-    // no value — and reserves all three anyway, which is what puts its bottom edge on the same line
-    // as the air conditioner's. See [TileCard].
     TileCard(
         anatomy = anatomy(tile),
         paint = paint(tile),
         modifier = modifier,
+        format = TileFormat.Launcher,
+        showRoom = showRoom,
         onClick = if (tile.openable) ({ onOpen(tile.packageName) }) else null,
     )
 }

@@ -1,5 +1,70 @@
 # Panel UI
 
+## Current panel behavior (2026-10-25)
+
+This section describes the current implementation. The older design record below retains the
+reasoning behind the original mosaic; its fixed-height, quarter-width, English-copy and empty-slot
+rules have been superseded.
+
+- Overview cards are ordered by format: two-column controls, three-column readings and light
+  summaries, four-column compact devices, then two-column launchers. Devices keep their format
+  when on/off, connectivity or reading freshness changes. Each row grows to its tallest card;
+  touch targets remain 64 dp and text can wrap without clipping names or ages.
+- Formats have minimum heights of 304, 240, 216 and 144 dp respectively. Empty functional slots
+  remain absent; the minimums establish consistent rows rather than one height for every device.
+  Expanded lamps appear directly under their summary row, with their own rows ordered by format.
+- A room suffix is removed from the card title only when it matches that card's room exactly or
+  through a known Russian room phrase. The full vendor name remains in device sheets and state.
+  Read-only colour metadata stays in sheets. A shared polling failure is explained once per
+  section; device-specific and command errors remain visible on their own cards. A shared outage
+  keeps Home focused on favourite rooms instead of copying all affected devices there; the Home
+  notice still covers the whole provider. Individual failures and silently stale polling continue
+  to surface affected devices. Every device remains in its room section.
+- Home cards name their room. Light groups stay separate by room on Home and in room sections;
+  expanding one group does not expand another room's lights. A group says «Свет», the lit/total
+  count, its reading age and a short expand/collapse action.
+- The foreground panel window holds `FLAG_KEEP_SCREEN_ON`; leaving the panel releases that
+  window-level request. The tablet's system sleep timeout stays unchanged.
+- Device sheets fit their content up to 94% of the panel height; longer content scrolls. The
+  background remains mounted, system Back dismisses the sheet, and intercom calls close it.
+- Sliders have a visible Material thumb, a setting label, vendor bounds and a live draft value
+  during dragging. Temperature and percentages retain their units. Sheet step controls offer
+  precise adjustment. After a command completes, an unconfirmed slider draft returns to the
+  reported reading.
+- Commands expose a per-device pending state and local error. Duplicate commands on that device
+  are blocked until the request and confirmation read finish; other devices remain available.
+  Command failures do not mark every device from the same vendor as failed. Displayed values
+  remain actual API readings, not optimistic claims about the physical device.
+- Interface labels, capability names, statuses and ages are Russian. Promoted values are not
+  repeated in status text. Launcher tiles show an action or installation hint, never package IDs.
+
+The regression suite covers compact cards/sheets, room-specific Home light groups, pending/disabled
+controls and controller command lifecycles. Screenshot references show JVM rendering at the wall's
+753 × 1204 dp size.
+
+### Physical tablet check (2026-10-25)
+
+Installed on the Samsung SM-T875 running Android 13. Checked the real dark-theme layout, device
+sheets, system Back, the explicit dismiss action, scrolling, and independent room light groups.
+A brightness request at the existing 26% value showed pending/disabled controls and completed
+without a displayed error; the reported value remained 26%. This did not test a physical light
+change. The foreground window now holds the screen on: after 130 seconds without touch the screen
+was still awake and the open device sheet had closed back to Home. The system's 120-second sleep
+timeout and charging wake setting were left unchanged. Portrait was temporarily locked for this
+check, then the original automatic rotation was restored.
+
+After the format-grouping refinement, the installed layout was checked again: native bounds
+confirmed equal bottom edges for neighbouring cards in every visible row. Light groups expanded
+and collapsed under their summaries, and the air-conditioner sheet retained its full vendor name
+while its overview title omitted the redundant room suffix. Shared outage notices appear once on
+Home, with other affected devices retained in their room sections.
+
+The Domonap launcher reaches its authorization screen; incoming calls remain untested until the
+app is signed in. Notification access and the listener service survived the panel update. Tuya
+reports an expired subscription, so recuperator writes were not tested. Distance readability,
+Samsung display filtering as seen by a person, reboot recovery and actual intercom takeover remain
+separate acceptance checks.
+
 **Scope:** how the panel is laid out and drawn. Not what it reads — that is one doc per vendor.
 
 **Status: done and merged** — seven commits: #11, #12, #14, #15, #17, #19, #20. See "History".

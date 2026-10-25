@@ -40,10 +40,9 @@ import ru.domovoy.panelTypography
  *   show the wall spending them — one accent on two controls, everything else a neutral step, and
  *   red nowhere but a failure. The failure mode is a colour retouched in light drifting in dark,
  *   which is the half of the day nobody is looking at.
- * - **The geometry.** Twelve columns against 753 dp, thirds and quarters, one 22 dp corner, one
- *   296 dp tile height across every kind. All of it is in docs/ui.md and in no assertion, and the
- *   one thing an image says that no assertion here does is whether the bottom edges of two
- *   different *kinds* of tile actually land on the same line.
+ * - **The geometry.** Twelve columns against 753 dp, compact content-driven cards, and
+ *   readable device names, rooms and ages in both themes.
+ *
  * - **The two group rules that have a shape**: which bulbs stay out of their room's lights group,
  *   and what a room's heading looks like when it has bad news.
  *
@@ -93,15 +92,7 @@ class PanelScreenshotTest {
         capture("panel-home-dark", panelDarkScheme) { Panel() }
     }
 
-    // **A taller frame than the wall, and only here.** [TileMatrix] is thirteen colour swatches
-    // rather than a picture of the panel — the wall's own 1204 dp is what the two Главная captures
-    // are for, and it is load-bearing there. A tile is 296 dp tall now that every kind fills the
-    // same five slots and the status slot is capped at two lines, so five rows of them — four moods
-    // and the outlined case — come to 1480 dp, and in a 1204 dp frame the failing row and the
-    // outline simply fell off the bottom and were recorded as nothing at all. The frame stays at
-    // 1700 rather than following the tile down: it was 1656 dp of swatch and is 1480, and a height
-    // that has to be retuned every time a slot moves is a height that will be wrong once. The width
-    // stays 753 — these cards sit three across, which is the wall's own wide column.
+    // The colour matrix has a taller canvas so every mood and failure outline stays visible.
     @Test
     @Config(qualifiers = "w753dp-h1700dp-port-340dpi")
     fun `the tile colours, light`() {
@@ -169,11 +160,7 @@ class PanelScreenshotTest {
         // Коридор: three lamps the panel has a value for, standing behind one group tile, and the
         // fourth — which has never reported — as its own named tile beside it.
         //
-        // Three cards at the quarter width they take on the wall, which is what this picture is for:
-        // the group tile has to come out the same 296 dp as the lamp next to it, and the thing that
-        // would say otherwise is a picture rather than an assertion. The open and closed states are
-        // both here because they differ by one line of text in a slot that is reserved either way —
-        // if opening a group ever moved the card's bottom edge, this is where it would show.
+        // One third-width tile per lamp/group, matching the panel's compact rows.
         val koridor = Flat.bulbs.tiles.filter { it.room == "Коридор" }
         val group = bulbGroup(koridor)
         capture("lights-group", panelLightScheme) {
@@ -183,9 +170,6 @@ class PanelScreenshotTest {
                 }
                 BulbGroupTile(group = group, now = Flat.NOW, modifier = Modifier.weight(1f))
                 BulbGroupTile(group = group, now = Flat.NOW, open = true, modifier = Modifier.weight(1f))
-                // The wall's fourth column, left empty: these are quarter-width tiles and a row of
-                // three at a third each would be a picture of a width the panel does not use.
-                Spacer(modifier = Modifier.weight(1f))
             }
         }
     }
@@ -287,6 +271,8 @@ class PanelScreenshotTest {
                         // is grey there because nobody can confirm it any more.
                         toggle = {
                             TilePowerButton(
+                                deviceName = "Лампа",
+                                room = null,
                                 isOn = mood == TileMood.On || mood == TileMood.Failing,
                                 mood = mood,
                                 onToggle = {},
@@ -306,7 +292,9 @@ class PanelScreenshotTest {
                     modifier = Modifier.weight(1f),
                     // The same power button the `On` cell above has, so that "differs by a red line
                     // and by nothing else" is still what the pair shows.
-                    toggle = { TilePowerButton(isOn = true, mood = TileMood.On, onToggle = {}) },
+                    toggle = {
+                        TilePowerButton(deviceName = "Лампа", room = null, isOn = true, mood = TileMood.On, onToggle = {})
+                    },
                 )
                 // The row's other three quarters, left empty: the outline is one case and not four,
                 // and a second card here would be a pair that does not exist.
@@ -315,22 +303,16 @@ class PanelScreenshotTest {
         }
     }
 
-    /**
-     * One colour pair, in the anatomy every tile on the wall wears. It fills all five slots so that
-     * the picture is of the card the panel actually draws — a swatch with an empty promoted value
-     * and no status line would be 100 dp shorter than any real tile and would record a shape that
-     * does not exist.
-     */
+    /** One representative card, with a promoted reading and status. */
     private fun swatch(name: String) = TileAnatomy(
         art = R.drawable.device_art_bulb_on,
-        controls = TileControls.Toggle,
         // No button, like every kind but the curtain — see [TileAction]. These cards are a picture
         // of the four moods against the three hues, and a control only one kind has would be a
         // thirteenth variable in a grid that is here to hold two.
         action = null,
         name = name,
         promoted = "22 °C",
-        status = "on · 2 h ago",
+        status = "Включён · 2 ч назад",
         detail = null,
     )
 }

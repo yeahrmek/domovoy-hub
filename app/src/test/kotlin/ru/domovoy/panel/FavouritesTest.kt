@@ -8,16 +8,7 @@ import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 
-/**
- * Главная is defined in code, in one place, the way `ROOM_ORDER` is: the rooms switched on the way
- * in and on the way out, the launchers because the intercom is why somebody walks up to this panel
- * at all, and anything anywhere whose *poll* is failing or stale — so a mark on a room's tab has
- * somewhere to lead.
- *
- * The poll, and not the age printed on the tile: that age is the vendor's `last_updated`, which
- * says when the device last reported. A lamp nobody has touched for three weeks belongs on its own
- * tab, not on Главная under a warning.
- */
+/** Home membership distinguishes explicit provider failures, silent stale polls and individual failures. */
 class FavouritesTest {
     private val yandex = 15.seconds
     private val tuya = 6.minutes
@@ -90,14 +81,89 @@ class FavouritesTest {
     }
 
     @Test
-    fun `a tile whose group failed is pulled in even though its reading is fresh`() {
-        // The reading is 90 s old and the poll ran a moment ago; the call itself came back 500, and
-        // that is the thing somebody at the wall has to be told without opening every tab.
-        val sections = sections(bulbs = listOf(bulb("light-20", "Спальня", secondsAgo(90))))
+    fun `an explicit group error keeps non-favourite devices in their rooms`() {
+        val sections = sections(
+            bulbs = listOf(bulb("light-home", "Коридор"), bulb("light-bedroom", "Спальня", secondsAgo(90))),
+        )
 
         val home = favourites(sections, GroupErrors(bulbs = "HTTP 500"), polling, now, yandex, tuya)
 
-        assertEquals(listOf("light-20"), home.bulbs.map { it.id })
+        assertEquals(listOf("light-home"), home.bulbs.map { it.id })
+        assertEquals(listOf("light-bedroom"), sections.single { it.room == "Спальня" }.bulbs.map { it.id })
+    }
+
+    @Test
+    fun `shared errors do not copy other rooms onto Home even after polls expire or never succeed`() {
+        val sections = sections(
+            acs = listOf(ac("ac-home", "Зал"), ac("ac-bedroom", "Спальня")),
+            curtains = listOf(curtain("curtain-home", "Зал"), curtain("curtain-bedroom", "Спальня")),
+            strips = listOf(strip("strip-home", "Зал"), strip("strip-bedroom", "Спальня")),
+            bulbs = listOf(bulb("light-home", "Зал"), bulb("light-bedroom", "Спальня")),
+            recuperators = listOf(recuperator("fan-home", "Зал"), recuperator("fan-bedroom", "Спальня")),
+        )
+        val failure = "Подписка истекла"
+        val errors = GroupErrors(failure, failure, failure, failure, failure)
+        val expired = polledSecondsAgo(7200)
+        for (polls in listOf(GroupPolls(expired, expired, expired, expired, expired), GroupPolls(null, null, null, null, null))) {
+            val home = favourites(sections, errors, polls, now, yandex, tuya)
+
+            assertEquals(listOf("ac-home"), home.acs.map { it.id })
+            assertEquals(listOf("curtain-home"), home.curtains.map { it.id })
+            assertEquals(listOf("strip-home"), home.strips.map { it.id })
+            assertEquals(listOf("light-home"), home.bulbs.map { it.id })
+            assertEquals(listOf("fan-home"), home.recuperators.map { it.id })
+        }
+        val bedroom = sections.single { it.room == "Спальня" }
+        assertEquals(listOf("ac-bedroom"), bedroom.acs.map { it.id })
+        assertEquals(listOf("curtain-bedroom"), bedroom.curtains.map { it.id })
+        assertEquals(listOf("strip-bedroom"), bedroom.strips.map { it.id })
+        assertEquals(listOf("light-bedroom"), bedroom.bulbs.map { it.id })
+        assertEquals(listOf("fan-bedroom"), bedroom.recuperators.map { it.id })
+    }
+
+    @Test
+    fun `silent stale polls still surface every device whose group stopped answering`() {
+        val sections = sections(
+            acs = listOf(ac("ac-bedroom", "Спальня")),
+            curtains = listOf(curtain("curtain-bedroom", "Спальня")),
+            strips = listOf(strip("strip-bedroom", "Спальня")),
+            bulbs = listOf(bulb("light-bedroom", "Спальня")),
+            recuperators = listOf(recuperator("fan-bedroom", "Спальня")),
+        )
+        val expired = polledSecondsAgo(7200)
+        for (polls in listOf(GroupPolls(expired, expired, expired, expired, expired), GroupPolls(null, null, null, null, null))) {
+            val home = favourites(sections, GroupErrors(), polls, now, yandex, tuya)
+
+            assertEquals(listOf("ac-bedroom"), home.acs.map { it.id })
+            assertEquals(listOf("curtain-bedroom"), home.curtains.map { it.id })
+            assertEquals(listOf("strip-bedroom"), home.strips.map { it.id })
+            assertEquals(listOf("light-bedroom"), home.bulbs.map { it.id })
+            assertEquals(listOf("fan-bedroom"), home.recuperators.map { it.id })
+        }
+    }
+
+    @Test
+    fun `a recuperators own failure remains on Home during a shared provider error`() {
+        val sections = sections(
+            recuperators = listOf(
+                recuperator("fan-home", "Зал"),
+                recuperator("fan-healthy", "Кабинет"),
+                recuperator("fan-failed", "Спальня", error = "Нет связи"),
+            ),
+        )
+
+        val home = favourites(
+            sections,
+            GroupErrors(recuperators = "Подписка истекла"),
+            polling.copy(recuperators = null),
+            now,
+            yandex,
+            tuya,
+        )
+
+        assertEquals(listOf("fan-home", "fan-failed"), home.recuperators.map { it.id })
+        assertEquals(listOf("fan-healthy"), sections.single { it.room == "Кабинет" }.recuperators.map { it.id })
+        assertEquals(listOf("fan-failed"), sections.single { it.room == "Спальня" }.recuperators.map { it.id })
     }
 
     @Test
@@ -155,12 +221,14 @@ class FavouritesTest {
     private fun sections(
         acs: List<AcTileState> = emptyList(),
         recuperators: List<RecuperatorTileState> = emptyList(),
+        curtains: List<CurtainTileState> = emptyList(),
+        strips: List<LightStripTileState> = emptyList(),
         bulbs: List<BulbTileState> = emptyList(),
         launchers: List<LauncherTileState> = emptyList(),
     ) = roomSections(
         acs = acs,
-        curtains = emptyList(),
-        strips = emptyList(),
+        curtains = curtains,
+        strips = strips,
         recuperators = recuperators,
         bulbs = bulbs,
         launchers = launchers,
@@ -176,7 +244,6 @@ class FavouritesTest {
         room = room,
         isOn = true,
         lastUpdated = lastUpdated,
-        stateChangedAt = Reading.Never,
     )
 
     private fun ac(
@@ -215,6 +282,10 @@ class FavouritesTest {
         online = true,
         error = error,
     )
+
+    private fun curtain(id: String, room: String?) = Flat.curtains.tiles.first().copy(id = id, room = room)
+
+    private fun strip(id: String, room: String?) = Flat.strips.tiles.first().copy(id = id, room = room)
 
     private fun secondsAgo(seconds: Long) = Reading.At(now.minusSeconds(seconds))
 

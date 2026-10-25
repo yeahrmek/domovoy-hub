@@ -2,73 +2,136 @@ package ru.domovoy.panel
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedIconButton
 import androidx.compose.material3.Slider
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import ru.domovoy.R
+import ru.domovoy.core.Bounds
 
-/**
- * How thick the bar is: 20 dp, fully rounded.
- *
- * **It was 6 dp and that was too thin to look like a control.** The reasoning behind 6 was sound and
- * is kept — Material's own track is 16 dp with a tall handle beside it, and on a wide tile that
- * assembly is louder than the value it sets — but 6 dp went past quiet and came out decorative: a
- * hairline that reads as a rule between two lines of text rather than as something a finger takes
- * hold of, which is a real cost on a slider that has no handle to announce itself either.
- *
- * 20 dp is still under Material's 16-plus-handle in total weight and is unmistakably a bar. The
- * touch area is unchanged at 64 dp and always was — this is only what is drawn inside it.
- */
-private val TRACK_HEIGHT = 20.dp
+/** Retains a local draft while dragging; applies new readings when the gesture is over. */
+@Composable
+internal fun LevelControl(
+    id: String,
+    value: Double?,
+    bounds: Bounds,
+    onSetValue: (Double) -> Unit,
+    modifier: Modifier = Modifier,
+    stepButtons: Boolean = false,
+    enabled: Boolean = true,
+    label: String = "Уровень",
+    unit: String = "%",
+) {
+    val reported = (value ?: bounds.min).toFloat()
+    var dragged by remember(id, bounds) { mutableFloatStateOf(reported) }
+    var lastReported by remember(id, bounds) { mutableFloatStateOf(reported) }
+    var dragging by remember(id, bounds) { mutableStateOf(false) }
+    var wasEnabled by remember(id, bounds) { mutableStateOf(enabled) }
+    SideEffect {
+        if (!dragging && (reported != lastReported || (!wasEnabled && enabled))) {
+            dragged = reported
+            lastReported = reported
+        }
+        wasEnabled = enabled
+    }
+    val slider: @Composable (Modifier) -> Unit = { sliderModifier ->
+        SlimSlider(
+            value = dragged,
+            onValueChange = {
+                dragging = true
+                dragged = it
+            },
+            valueRange = bounds.min.toFloat()..bounds.max.toFloat(),
+            onValueChangeFinished = {
+                dragging = false
+                onSetValue(dragged.toDouble())
+            },
+            modifier = sliderModifier.semantics { contentDescription = label },
+            enabled = enabled,
+        )
+    }
+    Column(modifier = modifier) {
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                label,
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.weight(1f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            val valueText = if (dragging) {
+                "${levelNumber(bounds.snap(dragged.toDouble()))} $unit"
+            } else {
+                "${levelNumber(bounds.min)}–${levelNumber(bounds.max)} $unit"
+            }
+            Text(valueText, style = MaterialTheme.typography.labelSmall)
+        }
+        if (stepButtons) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                StepButton(R.drawable.ic_remove, "Уменьшить", enabled) {
+                    dragged = bounds.snap(dragged - bounds.precision).toFloat()
+                    onSetValue(dragged.toDouble())
+                }
+                slider(Modifier.weight(1f))
+                StepButton(R.drawable.ic_add, "Увеличить", enabled) {
+                    dragged = bounds.snap(dragged + bounds.precision).toFloat()
+                    onSetValue(dragged.toDouble())
+                }
+            }
+        } else {
+            slider(Modifier.fillMaxWidth())
+        }
+    }
+}
 
-/**
- * How present the unfilled part is. Low emphasis on purpose: the filled portion is the reading and
- * the rest is only the range it sits in.
- *
- * An alpha over the tile's own container rather than a role of its own, and that is the one thing
- * here that had to be worked out rather than picked. `outlineVariant` was the obvious candidate and
- * it is *the same value as* `secondaryContainer` in the dark scheme — so the track would have
- * vanished on exactly one tile, an open curtain at night, which is the tile nobody has looked at
- * (see docs/ui.md). Compositing a neutral over whatever the tile is wearing cannot do that.
- *
- * _The number is a guess and is this one constant._
- */
+private fun levelNumber(value: Double): String = if (value == value.toLong().toDouble()) value.toLong().toString() else value.toString()
+
+@Composable
+private fun StepButton(
+    @androidx.annotation.DrawableRes glyph: Int,
+    label: String,
+    enabled: Boolean,
+    onClick: () -> Unit,
+) {
+    OutlinedIconButton(onClick = onClick, enabled = enabled, modifier = Modifier.touchable()) {
+        Icon(painter = painterResource(glyph), contentDescription = label)
+    }
+}
+
+/** The visible track is 8 dp; its touch area is 64 dp. */
+private val TRACK_HEIGHT = 8.dp
+
+/** The unfilled track is a low-emphasis neutral composited over the tile’s current surface. */
 private const val REST_OF_TRACK_ALPHA = 0.24f
 
 /**
- * The panel's slider: a 6 dp rounded track, no visible handle, and the filled portion is the value.
- *
- * It reads as a reading with a range behind it rather than as a control demanding to be operated,
- * which is what a wall panel wants — the number above it is the point and this is how it is changed,
- * not the other way round.
- *
- * Material 3's [Slider] with its `track` and `thumb` slots overridden, **not** a `Box` with a
- * `pointerInput`: the slot version keeps the drag behaviour, the value semantics and the
- * accessibility that a hand-rolled draggable would silently drop. The thumb draws nothing at all,
- * which is safe rather than clever — the slider wraps each slot in a `Box` of its own and measures
- * that, so an empty one is a zero-size box and not a missing child.
- *
- * **The touch area is 64 dp tall whatever the track looks like.** A 6 dp visual is not a 6 dp
- * target, and this is the wall panel's rule overriding the aesthetic one. It is the track slot that
- * is 64 dp — the bar is drawn centred inside it — because the slider's own height is the taller of
- * its two slots and its drag handling covers exactly that. A `heightIn` on the outside would have
- * left the gesture where the 6 dp was.
- *
- * _Accepted with its cost:_ a slider with no handle does not announce that it can be dragged, and
- * nobody standing at a wall gets a tooltip. All three tiles that have one print a number and a unit
- * on the line above, which is the hint there is.
+ * A slim track and Material thumb inside a 64 dp touch area.
+ * Material [Slider] retains native drag behaviour, value semantics, and accessibility.
  */
-// The slot overload and the fraction the track slot reads are both annotated experimental on this
-// BOM. Opted in here rather than in `app/build.gradle.kts` — the module-wide opt-in there is for
-// Expressive, which every tile is built on, and this is one function.
+// The slot API and coerced fraction require a local experimental opt-in.
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun SlimSlider(
@@ -77,6 +140,7 @@ internal fun SlimSlider(
     onValueChangeFinished: () -> Unit,
     valueRange: ClosedFloatingPointRange<Float>,
     modifier: Modifier = Modifier,
+    enabled: Boolean = true,
 ) {
     val filled = tileAccent()
     val rest = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = REST_OF_TRACK_ALPHA)
@@ -85,8 +149,8 @@ internal fun SlimSlider(
         onValueChange = onValueChange,
         onValueChangeFinished = onValueChangeFinished,
         valueRange = valueRange,
-        modifier = modifier,
-        thumb = {},
+        modifier = modifier.height(MIN_TOUCH),
+        enabled = enabled,
         track = { state ->
             Box(
                 modifier = Modifier.fillMaxWidth().height(MIN_TOUCH),
@@ -96,8 +160,7 @@ internal fun SlimSlider(
                     modifier =
                     Modifier.fillMaxWidth().height(TRACK_HEIGHT).clip(CircleShape).background(rest),
                 ) {
-                    // The fraction is the slider's own, coerced into the range for us: a tile whose
-                    // vendor reported a value outside its own bounds still draws a bar that fits.
+                    // Material clamps the displayed fraction even when a vendor reading exceeds its bounds.
                     Box(
                         modifier =
                         Modifier.fillMaxWidth(state.coercedValueAsFraction).fillMaxHeight()
@@ -108,8 +171,3 @@ internal fun SlimSlider(
         },
     )
 }
-
-// The filled portion's colour is [tileAccent], in `TileCard.kt` — the panel's one accent, which
-// this shares with the accented power button and the on dot. It took a `TileHue` until the families
-// went; a slider that was blue on an air conditioner and amber on a lamp was two thirds of the
-// wall's colour budget spent saying something the photograph of the hardware beside it already said.

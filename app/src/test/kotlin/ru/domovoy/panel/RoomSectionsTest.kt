@@ -3,21 +3,14 @@ package ru.domovoy.panel
 import kotlinx.coroutines.test.runTest
 import mockwebserver3.MockResponse
 import mockwebserver3.MockWebServer
-import okhttp3.OkHttpClient
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import ru.domovoy.core.Reading
-import ru.domovoy.integrations.yandex.YandexClient
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
-/**
- * The panel is a wall, not a stack: what is on it is grouped by the room the device is in, whatever
- * the device type or the vendor it came from. Everything here is driven off the recorded
- * `/v1.0/user/info` — a fixture whose rooms are the flat's real ones, duplicates, empty ones and
- * all — because the awkward cases are the recorded ones, not invented ones.
- */
+/** Group recorded devices by room, including duplicate and empty room edge cases. */
 class RoomSectionsTest {
     private lateinit var server: MockWebServer
 
@@ -73,8 +66,8 @@ class RoomSectionsTest {
 
     @Test
     fun `a room the order does not name still renders, after the ones it does`() = runTest {
-        server.enqueue(MockResponse(body = fixture()))
-        val poll = YandexPoll(client())
+        server.enqueue(MockResponse(body = yandexFixture()))
+        val poll = YandexPoll(server.yandexClient())
         poll.refresh()
 
         val sections =
@@ -93,12 +86,9 @@ class RoomSectionsTest {
 
     @Test
     fun `a room only a recuperator is in is placed in the order like any other`() = runTest {
-        // "Маленькая детская" reaches the panel from local.properties alone: Yandex has no device
-        // in that room, so nothing else can name it. It is a child's bedroom all the same and
-        // belongs with the bedrooms — not after every named room, where a room the order has never
-        // heard of lands, down by the bathrooms.
-        server.enqueue(MockResponse(body = fixture()))
-        val poll = YandexPoll(client())
+        // Locally assigned Tuya rooms belong in the same room ordering as Yandex rooms.
+        server.enqueue(MockResponse(body = yandexFixture()))
+        val poll = YandexPoll(server.yandexClient())
         poll.refresh()
 
         val sections =
@@ -129,11 +119,9 @@ class RoomSectionsTest {
 
     @Test
     fun `a device no vendor placed is still on the wall, in a section of its own and last`() = runTest {
-        // Tuya's API names no room, so every recuperator arrives with room = null unless the flat's
-        // own answer was written into local.properties. Unplaced is not dropped: a device that
-        // vanishes because no vendor gave it a room is the bug this section exists to prevent.
-        server.enqueue(MockResponse(body = fixture()))
-        val poll = YandexPoll(client())
+        // Missing local room mappings put recuperators in the unplaced section; never drop them.
+        server.enqueue(MockResponse(body = yandexFixture()))
+        val poll = YandexPoll(server.yandexClient())
         poll.refresh()
 
         val sections =
@@ -159,8 +147,8 @@ class RoomSectionsTest {
 
     @Test
     fun `a recuperator the flat placed joins that room instead of the unplaced section`() = runTest {
-        server.enqueue(MockResponse(body = fixture()))
-        val poll = YandexPoll(client())
+        server.enqueue(MockResponse(body = yandexFixture()))
+        val poll = YandexPoll(server.yandexClient())
         poll.refresh()
 
         val sections =
@@ -182,8 +170,8 @@ class RoomSectionsTest {
 
     @Test
     fun `a launcher tile is grouped by room like any other`() = runTest {
-        server.enqueue(MockResponse(body = fixture()))
-        val poll = YandexPoll(client())
+        server.enqueue(MockResponse(body = yandexFixture()))
+        val poll = YandexPoll(server.yandexClient())
         poll.refresh()
 
         val sections =
@@ -196,9 +184,7 @@ class RoomSectionsTest {
                 launchers = launcherTiles(canOpen = { true }),
             )
 
-        // Both are tiles of the коридор, next to that room's own lights — not a row of shortcuts
-        // parked at the top or the bottom of the panel. The intercom is answered at the front door
-        // and the vacuum docks by it, so the room the panel hangs in is the room both belong to.
+        // The intercom and docked vacuum belong with the hallway's devices.
         val hallway = sections.single { it.room == "Коридор" }
         assertEquals(
             listOf("com.domonap.app", "com.xiaomi.smarthome"),
@@ -218,8 +204,8 @@ class RoomSectionsTest {
     fun `a launcher tile whose app is missing is still on the wall, saying so`() = runTest {
         // The tile is what tells someone the app is gone; dropping it would hide exactly the fact
         // it exists to report, and the panel would silently lose the intercom shortcut.
-        server.enqueue(MockResponse(body = fixture()))
-        val poll = YandexPoll(client())
+        server.enqueue(MockResponse(body = yandexFixture()))
+        val poll = YandexPoll(server.yandexClient())
         poll.refresh()
 
         val sections =
@@ -252,11 +238,32 @@ class RoomSectionsTest {
 
         assertEquals(
             listOf(
-                "Кондиционеры: not updating: HTTP 500",
-                "Шторы: not updating: HTTP 500",
-                "Подсветка: not updating: HTTP 500",
-                "Бризеры: not updating: timeout",
-                "Лампы: not updating: HTTP 500",
+                "Кондиционеры: нет обновления — HTTP 500",
+                "Шторы: нет обновления — HTTP 500",
+                "Подсветка: нет обновления — HTTP 500",
+                "Бризеры: нет обновления — timeout",
+                "Лампы: нет обновления — HTTP 500",
+            ),
+            failures,
+        )
+    }
+
+    @Test
+    fun `one shared outage is described once in a populated section`() {
+        val section = RoomSection(
+            room = "Зал",
+            acs = Flat.acs.tiles,
+            strips = Flat.strips.tiles,
+            recuperators = Flat.recuperators.tiles,
+        )
+        val failures = sectionFailures(
+            section,
+            GroupErrors(acs = "Нет сети", strips = "Нет сети", recuperators = "Подписка истекла"),
+        )
+        assertEquals(
+            listOf(
+                "Кондиционеры, Подсветка: нет обновления — Нет сети",
+                "Бризеры: нет обновления — Подписка истекла",
             ),
             failures,
         )
@@ -264,8 +271,8 @@ class RoomSectionsTest {
 
     @Test
     fun `a group that failed with tiles on the wall says it on the tiles, not twice`() = runTest {
-        server.enqueue(MockResponse(body = fixture()))
-        val poll = YandexPoll(client())
+        server.enqueue(MockResponse(body = yandexFixture()))
+        val poll = YandexPoll(server.yandexClient())
         poll.refresh()
         val bulbs = BulbPanelState(tiles = poll.bulbs.state.value.tiles, error = "HTTP 500")
 
@@ -282,8 +289,8 @@ class RoomSectionsTest {
     }
 
     private suspend fun sectionsFromFixture(): List<RoomSection> {
-        server.enqueue(MockResponse(body = fixture()))
-        val poll = YandexPoll(client())
+        server.enqueue(MockResponse(body = yandexFixture()))
+        val poll = YandexPoll(server.yandexClient())
         poll.refresh()
         return roomSections(
             acs = poll.acs.state.value.tiles,
@@ -313,15 +320,4 @@ class RoomSectionsTest {
         humidityLastUpdated = Reading.Never,
         online = null,
     )
-
-    private fun client() = YandexClient(
-        http = OkHttpClient(),
-        token = { "test-token" },
-        householdId = "household-flat",
-        baseUrl = server.url("/"),
-    )
-
-    private fun fixture(): String = checkNotNull(javaClass.getResourceAsStream("/yandex/user_info.json")) {
-        "missing fixture app/src/test/resources/yandex/user_info.json"
-    }.use { it.readBytes().decodeToString() }
 }

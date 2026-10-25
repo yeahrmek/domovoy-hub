@@ -164,13 +164,13 @@ internal fun ageLine(
     now: Instant,
 ): String? = when (reading) {
     null -> null
-    Reading.Never -> "never read"
+    Reading.Never -> "Время неизвестно"
     is Reading.At -> {
         val age = (now.toEpochMilli() - reading.instant.toEpochMilli()).milliseconds
         when {
             age < WORTH_SAYING -> null
-            age < 1.days -> "${age.inWholeHours} h ago"
-            else -> "${age.inWholeDays} d ago"
+            age < 1.days -> "${age.inWholeHours} ч назад"
+            else -> "${age.inWholeDays} дн. назад"
         }
     }
 }
