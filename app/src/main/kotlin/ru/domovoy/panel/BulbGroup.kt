@@ -65,36 +65,20 @@ fun bulbGroup(bulbs: List<BulbTileState>): BulbGroup {
     )
 }
 
-/**
- * How many lamps the group holds, in words: the group tile's **name**, and the first thing its
- * status line says.
- *
- * The one formatter for that count, so the name at the bottom of the card and the count being aged
- * underneath it cannot come out different — the same rule [promoted] follows for every number on
- * the wall.
- */
-internal fun lampCount(group: BulbGroup): String = if (group.lamps.size == 1) "1 lamp" else "${group.lamps.size} lamps"
+/** Russian lamp count. */
+internal fun lampCount(group: BulbGroup): String {
+    val count = group.lamps.size
+    val noun = when {
+        count % 100 in 11..14 -> "ламп"
+        count % 10 == 1 -> "лампа"
+        count % 10 in 2..4 -> "лампы"
+        else -> "ламп"
+    }
+    return "$count $noun"
+}
 
-/**
- * The group tile's status line: how many of its lamps are on, and how old the oldest of their
- * readings is.
- *
- * **It no longer opens with the count, and the count is why.** `7 lamps · 5 on · 20 d ago` is 25
- * characters on a 188 dp tile that holds about sixteen, so it wrapped — and the first seven of them
- * were the tile's own *name*, printed a slot above it. The count is the name because it does not
- * change; how many are on is the value, and this line still names the value it is ageing, which is
- * the rule it shared with the air conditioner all along.
- *
- * The group's bad news is not here either. It is the tile's second line now, with every other kind's
- * — see [TileAnatomy] — and the tile still says it once for all 28 lamps rather than 28 times.
- */
+/** The promoted count carries power; supporting text only gives the vendor reading's age. */
 internal fun bulbGroupLine(
     group: BulbGroup,
     now: Instant,
-): String = listOfNotNull(
-    "${group.on} on",
-    // The one age this tile has always printed, now under the rule every tile follows: a room whose
-    // lamps were all read this morning says nothing about ages, and one lamp that stopped answering
-    // a week ago still makes the whole group say "7 d ago". See [ageLine].
-    ageLine(group.oldest, now),
-).joinToString(" · ")
+): String = group.oldest?.let { sheetAge(it, now) } ?: "Нет данных"

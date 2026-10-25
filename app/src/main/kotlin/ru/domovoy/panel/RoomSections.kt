@@ -164,4 +164,15 @@ private fun failure(
     group: String,
     hasNoTiles: Boolean,
     error: String?,
-): String? = if (hasNoTiles && error != null) "$group: not updating: $error" else null
+): String? = if (hasNoTiles && error != null) "$group: нет обновления — $error" else null
+
+/** A shared outage is explained once per section rather than repeated on every device. */
+internal fun sectionFailures(section: RoomSection, errors: GroupErrors): List<String> = listOfNotNull(
+    errors.acs?.takeIf { section.acs.isNotEmpty() }?.let { "Кондиционеры" to it },
+    errors.curtains?.takeIf { section.curtains.isNotEmpty() }?.let { "Шторы" to it },
+    errors.strips?.takeIf { section.strips.isNotEmpty() }?.let { "Подсветка" to it },
+    errors.recuperators?.takeIf { section.recuperators.isNotEmpty() }?.let { "Бризеры" to it },
+    errors.bulbs?.takeIf { section.bulbs.isNotEmpty() }?.let { "Свет" to it },
+).groupBy({ it.second }, { it.first }).map { (reason, groups) ->
+    "${groups.joinToString(", ")}: нет обновления — $reason"
+}

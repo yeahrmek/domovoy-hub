@@ -1,5 +1,6 @@
 package ru.domovoy.panel
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -59,7 +60,7 @@ data class RecuperatorTileState(
     /** What Tuya says about reachability. Null only if a device ever comes back without it. */
     val online: Boolean?,
     /**
-     * Non-null when *this* recuperator's own read or command failed. Per tile, not per group,
+     * Non-null when *this* recuperator's own poll read failed. Per tile, not per group,
      * because state costs one call per device: four working recuperators must not be labelled
      * "not updating" because the fifth timed out.
      */
@@ -81,6 +82,8 @@ data class RecuperatorPanelState(
      * [RecuperatorTileState.error]'s news, and the poll itself ran. See docs/ui.md, "Stale".
      */
     val lastPolledAt: Instant? = null,
+    val pending: Set<String> = emptySet(),
+    val commandErrors: Map<String, String> = emptyMap(),
 )
 
 /**
@@ -129,7 +132,7 @@ class RecuperatorTiles(
         remembered.remember(devices)
         val previous = mutableState.value.tiles.associateBy { it.id }
         mutableState.value =
-            RecuperatorPanelState(
+            mutableState.value.copy(
                 tiles =
                 devices.map { device ->
                     val failure = failures[device.id]
@@ -142,6 +145,7 @@ class RecuperatorTiles(
                         device.toTile(error = null)
                     }
                 },
+                error = null,
                 lastPolledAt = polledAt,
             )
     }
@@ -160,6 +164,7 @@ class RecuperatorTiles(
      * rather than `!isOn`, so unknown is not read as "on".
      */
     suspend fun toggle(id: String) {
+        if (id in mutableState.value.pending) return
         val tile = mutableState.value.tiles.firstOrNull { it.id == id } ?: return
         val device = known[id] ?: return
         val wanted = tile.isOn != true
@@ -174,10 +179,11 @@ class RecuperatorTiles(
         id: String,
         speed: FanSpeed,
     ) {
+        if (id in mutableState.value.pending) return
         val tile = mutableState.value.tiles.firstOrNull { it.id == id } ?: return
         val device = known[id] ?: return
         if (tile.isOn != true || tile.online == false) {
-            replace(tile.copy(error = IllegalStateException("recuperator must be on").describe()))
+            commandFailure(id, "Сначала включите бризер")
             return
         }
         write(tile, device, issue = { client.setSpeed(id, speed.code) }, reflected = { speed in it.speeds })
@@ -207,24 +213,39 @@ class RecuperatorTiles(
         issue: suspend () -> Result<Unit>,
         reflected: (RecuperatorTileState) -> Boolean,
     ) {
-        issue().onFailure { failure ->
-            replace(tile.copy(error = failure.describe()))
-            return
+        val id = tile.id
+        if (id in mutableState.value.pending) return
+        mutableState.value = mutableState.value.copy(
+            pending = mutableState.value.pending + id,
+            commandErrors = mutableState.value.commandErrors - id,
+        )
+        try {
+            issue().getOrThrow()
+            var waits = CONFIRM_DELAYS
+            while (true) {
+                val read = client.read(device).getOrThrow().toTile(error = null)
+                replace(read)
+                if (reflected(read)) return
+                if (waits.isEmpty()) {
+                    commandFailure(id, "Нет подтверждения. Проверьте устройство")
+                    return
+                }
+                delay(waits.first())
+                waits = waits.drop(1)
+            }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (failure: Exception) {
+            commandFailure(id, failure.describe())
+        } finally {
+            mutableState.value = mutableState.value.copy(pending = mutableState.value.pending - id)
         }
-        var waits = CONFIRM_DELAYS
-        while (true) {
-            val read =
-                client
-                    .read(device)
-                    .getOrElse { failure ->
-                        replace(tile.copy(error = failure.describe()))
-                        return
-                    }.toTile(error = null)
-            replace(read)
-            if (reflected(read) || waits.isEmpty()) return
-            delay(waits.first())
-            waits = waits.drop(1)
-        }
+    }
+
+    private fun commandFailure(id: String, reason: String) {
+        mutableState.value = mutableState.value.copy(
+            commandErrors = mutableState.value.commandErrors + (id to reason),
+        )
     }
 
     private fun replace(tile: RecuperatorTileState) {

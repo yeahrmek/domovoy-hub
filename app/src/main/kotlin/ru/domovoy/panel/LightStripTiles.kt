@@ -1,5 +1,6 @@
 package ru.domovoy.panel
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -47,7 +48,7 @@ data class LightStripTileState(
  */
 data class LightStripPanelState(
     val tiles: List<LightStripTileState> = emptyList(),
-    /** Non-null when the last poll, toggle or set failed. [tiles] then hold the last known values. */
+    /** Non-null when the last poll failed. [tiles] then hold the last known values. */
     val error: String? = null,
     /**
      * When the poll behind these tiles last succeeded; null until the first one lands. On the
@@ -55,6 +56,8 @@ data class LightStripPanelState(
      * either tile has that can say whether it is still being read.
      */
     val lastPolledAt: Instant? = null,
+    val pending: Set<String> = emptySet(),
+    val commandErrors: Map<String, String> = emptyMap(),
 )
 
 /**
@@ -84,8 +87,9 @@ class LightStripTiles(
         polledAt: Instant,
     ) {
         mutableState.value =
-            LightStripPanelState(
+            mutableState.value.copy(
                 tiles = devices.filter { it.kind == DeviceKind.LightStrip }.map(Device::toTile),
+                error = null,
                 lastPolledAt = polledAt,
             )
     }
@@ -101,11 +105,9 @@ class LightStripTiles(
      * not read as "on".
      */
     suspend fun toggle(id: String) {
+        if (id in mutableState.value.pending) return
         val tile = mutableState.value.tiles.firstOrNull { it.id == id } ?: return
-        client
-            .setOn(id, on = tile.isOn != true)
-            .onSuccess { reread() }
-            .onFailure { failure -> mutableState.value = mutableState.value.copy(error = failure.describe()) }
+        command(id) { client.setOn(id, on = tile.isOn != true) }
     }
 
     /**
@@ -119,11 +121,32 @@ class LightStripTiles(
         id: String,
         percent: Double,
     ) {
+        if (id in mutableState.value.pending) return
         val tile = mutableState.value.tiles.firstOrNull { it.id == id } ?: return
-        client
-            .setRange(id, instance = BRIGHTNESS, value = tile.bounds?.snap(percent) ?: percent)
-            .onSuccess { reread() }
-            .onFailure { failure -> mutableState.value = mutableState.value.copy(error = failure.describe()) }
+        command(id) { client.setRange(id, instance = BRIGHTNESS, value = tile.bounds?.snap(percent) ?: percent) }
+    }
+
+    private suspend fun command(
+        id: String,
+        issue: suspend () -> Result<Unit>,
+    ) {
+        if (id in mutableState.value.pending) return
+        mutableState.value = mutableState.value.copy(
+            pending = mutableState.value.pending + id,
+            commandErrors = mutableState.value.commandErrors - id,
+        )
+        try {
+            issue().getOrThrow()
+            reread()
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (failure: Exception) {
+            mutableState.value = mutableState.value.copy(
+                commandErrors = mutableState.value.commandErrors + (id to failure.describe()),
+            )
+        } finally {
+            mutableState.value = mutableState.value.copy(pending = mutableState.value.pending - id)
+        }
     }
 }
 

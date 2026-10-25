@@ -43,8 +43,8 @@ class PanelLampsTest {
         // and it is the only thing behind it.
         compose.setContent { Panel() }
 
-        compose.onNodeWithText("7 lamps").assertIsDisplayed()
-        compose.onNodeWithText("5 on").assertIsDisplayed()
+        compose.onNodeWithText("Свет").assertIsDisplayed()
+        compose.onNodeWithText("5 из 7").assertIsDisplayed()
         compose.onNodeWithText("Лампа 1").assertDoesNotExist()
         compose.onNodeWithText("Лампа 7").assertDoesNotExist()
     }
@@ -56,22 +56,22 @@ class PanelLampsTest {
         // switch of its own.
         compose.setContent { Panel() }
 
-        compose.onNodeWithText("7 lamps").performClick()
+        compose.onNodeWithText("Свет").performClick()
 
         compose.onNodeWithText("Лампа 1").assertIsDisplayed()
         compose.onNodeWithText("Лампа 7").assertIsDisplayed()
         // And the group tile is still there above them, still carrying the count and the age: the
         // tile is not replaced by what it opens.
-        compose.onNodeWithText("7 lamps").assertIsDisplayed()
+        compose.onNodeWithText("Свет").assertIsDisplayed()
     }
 
     @Test
     fun `tapping it again puts them away`() {
         compose.setContent { Panel() }
 
-        compose.onNodeWithText("7 lamps").performClick()
+        compose.onNodeWithText("Свет").performClick()
         compose.onNodeWithText("Лампа 1").assertIsDisplayed()
-        compose.onNodeWithText("7 lamps").performClick()
+        compose.onNodeWithText("Свет").performClick()
 
         compose.onNodeWithText("Лампа 1").assertDoesNotExist()
     }
@@ -84,7 +84,7 @@ class PanelLampsTest {
 
         compose.onNodeWithText("Бра").assertIsDisplayed()
         // Seven reported, one did not: the group counts the seven and says nothing about the eighth.
-        compose.onNodeWithText("7 lamps").assertIsDisplayed()
+        compose.onNodeWithText("Свет").assertIsDisplayed()
     }
 
     /** Спальня's seven lamps, five of them lit. Fixed readings, as everything in [Flat] is. */
@@ -108,7 +108,6 @@ class PanelLampsTest {
         room = "Спальня",
         isOn = isOn,
         lastUpdated = if (isOn == null) Reading.Never else Reading.At(Flat.NOW.minusSeconds(600)),
-        stateChangedAt = Reading.Never,
     )
 
     @Composable

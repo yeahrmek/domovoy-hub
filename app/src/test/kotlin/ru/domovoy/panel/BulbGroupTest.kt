@@ -52,9 +52,9 @@ class BulbGroupTest {
         // bulb reads like every other room and gains a lamp without changing shape.
         val group = bulbGroup(listOf(bulb("light-01", isOn = true)))
 
-        assertEquals("1 lamp", lampCount(group))
-        assertEquals("1 on", promoted(group))
-        assertEquals("1 on", bulbGroupLine(group, now))
+        assertEquals("1 лампа", lampCount(group))
+        assertEquals("1 из 1", promoted(group))
+        assertEquals("Только что", bulbGroupLine(group, now))
     }
 
     @Test
@@ -66,9 +66,9 @@ class BulbGroupTest {
         val group = bulbGroup(lamps)
 
         assertEquals(7, group.lamps.size)
-        assertEquals("7 lamps", lampCount(group))
-        assertEquals("5 on", promoted(group))
-        assertEquals("5 on", bulbGroupLine(group, now))
+        assertEquals("7 ламп", lampCount(group))
+        assertEquals("5 из 7", promoted(group))
+        assertEquals("Только что", bulbGroupLine(group, now))
     }
 
     @Test
@@ -82,7 +82,7 @@ class BulbGroupTest {
         val group = bulbGroup(lamps)
 
         assertEquals(Reading.At(now.minusSeconds(7 * 86_400)), group.oldest)
-        assertEquals("7 on · 7 d ago", bulbGroupLine(group, now))
+        assertEquals("7 дн. назад", bulbGroupLine(group, now))
     }
 
     @Test
@@ -97,7 +97,7 @@ class BulbGroupTest {
         val group = bulbGroup(bulbs)
 
         assertEquals(Reading.At(now.minusSeconds(7 * 86_400)), group.oldest)
-        assertEquals("2 on · 7 d ago", bulbGroupLine(group, now))
+        assertEquals("7 дн. назад", bulbGroupLine(group, now))
     }
 
     @Test
@@ -115,7 +115,7 @@ class BulbGroupTest {
 
         assertEquals(listOf("light-04", "light-21"), group.lamps.map { it.id })
         assertEquals(Reading.Never, group.oldest)
-        assertEquals("2 on · never read", bulbGroupLine(group, now))
+        assertEquals("Время неизвестно", bulbGroupLine(group, now))
     }
 
     @Test
@@ -132,7 +132,7 @@ class BulbGroupTest {
         val group = bulbGroup(bulbs)
 
         assertEquals(1, group.on)
-        assertEquals("1 on", bulbGroupLine(group, now))
+        assertEquals("Только что", bulbGroupLine(group, now))
     }
 
     @Test
@@ -169,23 +169,23 @@ class BulbGroupTest {
         // Stale with nothing to name: the poll simply stopped landing, and there is no reason to
         // quote — see notUpdating.
         assertEquals(
-            "not updating",
+            "Нет обновлений",
             anatomy(group, now, error = null, notUpdating = true, open = false).detail,
         )
         // Either way the lamps and their age are untouched on the line above.
-        assertEquals("1 on", bulbGroupLine(group, now))
+        assertEquals("Только что", bulbGroupLine(group, now))
     }
 
     @Test
     fun `the group's status line does not repeat the name printed above it`() {
-        // "7 lamps · 5 on · 20 d ago" wrapped onto two lines of a quarter-width tile whose *name*
+        // "7 lamps · 5 on · 20 дн. назад" wrapped onto two lines of a quarter-width tile whose *name*
         // already said "7 lamps". The count is the name because it does not change; how many are
         // on is the value, and the status line ages the value it names.
         val group = bulbGroup((1..7).map { bulb("light-0$it", isOn = it <= 5) })
         val tile = anatomy(group, now, error = null, notUpdating = false, open = false)
 
-        assertEquals("7 lamps", tile.name)
-        assertFalse(tile.status.contains("lamp"), "the count is the name: ${tile.status}")
+        assertEquals("Свет", tile.name)
+        assertFalse(tile.status.contains("ламп"), "the count is the name: ${tile.status}")
     }
 
     private fun secondsAgo(seconds: Long): Reading = Reading.At(now.minusSeconds(seconds))
@@ -200,6 +200,5 @@ class BulbGroupTest {
         room = "Коридор",
         isOn = isOn,
         lastUpdated = lastUpdated,
-        stateChangedAt = Reading.Never,
     )
 }

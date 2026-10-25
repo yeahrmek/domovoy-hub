@@ -1,14 +1,17 @@
 package ru.domovoy.panel
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.focusGroup
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -19,88 +22,63 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedIconButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.dialog
+import androidx.compose.ui.semantics.isTraversalGroup
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.paneTitle
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
-import ru.domovoy.R
 
-/**
- * How dark the wall goes behind an open sheet. Enough that the sheet is unmistakably in front and
- * little enough that the tiles behind it are still legible — a panel whose readings vanish because
- * somebody tapped one of them is a panel that stopped answering the question it was tapped with.
- */
+/** Dim the background while keeping the panel visible underneath. */
 private const val SCRIM_ALPHA = 0.6f
 
-/** The sheet's own two corners. Larger than a tile's 22 dp: this is one surface, not one of twelve. */
+/** Rounded top corners distinguish the sheet from tiles. */
 private val SHEET_CORNER = 32.dp
 
-/** Inside the sheet, on all four sides. */
+/** Sheet content padding. */
 private val SHEET_PADDING = 24.dp
 
-/** Between one reading and the next, and between the readings and the controls under them. */
+/** Spacing between readings and control groups. */
 private val SHEET_GAP = 16.dp
 
-/**
- * How wide a reading's label column is. Fixed rather than measured, so the values line up down the
- * sheet instead of starting wherever the word before them ended.
- */
+/** Fixed label width keeps reading values aligned. */
 private val LABEL_WIDTH = 220.dp
 
-/**
- * **What a tap on a tile opens: the whole device, on one surface over the wall.**
- *
- * The reference app splits a phone's screen the other way round — an almost empty tile, and
- * everything behind a tap. This panel refuses that split and PLAN.md says why: a wall panel is read
- * *without being touched*, so the tile is where detail belongs and **nothing moves off it into
- * here**. What this adds is the two things a 251 dp card genuinely had no room for.
- *
- * - **An age per reading.** The tile prints one — the oldest of what it shows — because four
- *   timestamps in one paragraph is what made the wall unreadable. On `ac-01` the two readings behind
- *   it are 81 days apart, and which of them the tile is under-claiming for is a fact the panel holds
- *   and had nowhere to say. See [SheetReading].
- * - **The actions that did not fit.** One 64 dp button is all a third-width tile has room for
- *   ([TileAction]); the sheet is 753 dp wide and carries the verified, device-advertised modes,
- *   toggles, RGB scenes and fan speeds. There is still no generic reset or guessed capability.
- *
- * **It draws what [sheet] answered and decides nothing**, on [TileCard]'s rule: which readings, which
- * actions and whether there is a level at all are pure functions a test can reach, and this lays them
- * out.
- *
- * **It cannot be in the way of an intercom call.** It is drawn inside the panel's own composition, so
- * Domonap's screen — another app's activity — is in front of it by construction, and the panel closes
- * it the moment a call starts so that nothing is left over the wall when the call ends. See
- * [closeOnCall] and [returnToHome].
- */
+/** Device details and advertised controls. Stays in the panel composition and closes on calls. */
 @Composable
 internal fun DeviceSheet(
     sheet: TileSheet,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
-    /** Flips the device's own on/off. The same call the tile's power button makes; no new poll. */
+    /** The same power command as the tile. */
     onToggle: () -> Unit = {},
-    /** Drives the one range the vendor reported. The same call the tile's slider makes. */
+    /** The same range command as the tile. */
     onSetLevel: (Double) -> Unit = {},
     onSetMode: (String, String) -> Unit = { _, _ -> },
     onSetToggle: (String, Boolean) -> Unit = { _, _ -> },
     onSetScene: (String) -> Unit = {},
     onSetRgb: (Int) -> Unit = {},
     onSetSpeed: (FanSpeed) -> Unit = {},
+    pending: Boolean = false,
+    commandError: String? = null,
 ) {
-    Box(modifier = modifier.fillMaxSize()) {
-        // The wall behind, dimmed and still readable, and tapping it puts the sheet away. No
-        // indication: a ripple across a whole 753 dp wall says nothing a wall panel needs said.
+    BackHandler(onBack = onDismiss)
+    val focus = remember { FocusRequester() }
+    LaunchedEffect(sheet.id) { focus.requestFocus() }
+    BoxWithConstraints(modifier = modifier.fillMaxSize()) {
         Box(
             modifier =
             Modifier.fillMaxSize()
@@ -112,11 +90,17 @@ internal fun DeviceSheet(
                 ),
         )
         Surface(
-            modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().fillMaxHeight(0.94f),
+            modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().heightIn(max = maxHeight * 0.94f)
+                .semantics {
+                    dialog()
+                    paneTitle = sheet.name
+                    isTraversalGroup = true
+                }
+                .focusProperties { onExit = { cancelFocusChange() } }
+                .focusGroup()
+                .focusRequester(focus)
+                .focusable(),
             shape = RoundedCornerShape(topStart = SHEET_CORNER, topEnd = SHEET_CORNER),
-            // A step of the same neutral ramp every tile sits on — the surfaces stopped carrying hue
-            // and this one never started. The family is in the accents: the art, and whatever the
-            // controls fill.
             color = MaterialTheme.colorScheme.surfaceContainerLow,
             contentColor = MaterialTheme.colorScheme.onSurface,
         ) {
@@ -126,17 +110,28 @@ internal fun DeviceSheet(
                 verticalArrangement = Arrangement.spacedBy(SHEET_GAP),
             ) {
                 SheetHeading(sheet, onDismiss)
-                // The bad news the tile was carrying, kept over the tap: a sheet that covered the
-                // one line saying the panel has stopped reading this device would be the panel
-                // hiding it.
                 sheet.notUpdating?.let { reason ->
                     Text(
-                        text = "not updating: $reason",
+                        text = "Нет обновления: $reason",
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.error,
                     )
                 }
+                commandError?.let {
+                    Text(
+                        it,
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+                    )
+                }
                 sheet.readings.forEach { reading -> SheetReadingRow(reading) }
+                if (pending) {
+                    Text(
+                        "Ждём подтверждения…",
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+                    )
+                }
                 SheetControls(
                     sheet = sheet,
                     onToggle = onToggle,
@@ -146,17 +141,14 @@ internal fun DeviceSheet(
                     onSetScene = onSetScene,
                     onSetRgb = onSetRgb,
                     onSetSpeed = onSetSpeed,
+                    enabled = !pending,
                 )
             }
         }
     }
 }
 
-/**
- * The art, the room, the name, and the way out. The room is above the name rather than beside it —
- * the same order the wall has, where the heading is what you find first and the tile under it says
- * which device.
- */
+/** Device identity and the explicit dismiss action. */
 @Composable
 private fun SheetHeading(
     sheet: TileSheet,
@@ -175,15 +167,13 @@ private fun SheetHeading(
             }
             Text(text = sheet.name, style = MaterialTheme.typography.headlineMedium)
         }
-        // "done" rather than "close": the curtain's own action is called close, and a wall panel
-        // with two controls a foot apart both labelled close is one that gets pressed wrong.
         OutlinedButton(onClick = onDismiss, modifier = Modifier.touchable()) {
-            Text(text = "done", style = MaterialTheme.typography.titleMedium)
+            Text(text = "Готово", style = MaterialTheme.typography.titleMedium)
         }
     }
 }
 
-/** One reading: what it is, what it says, and how old it is. */
+/** One reading with its label, value and age. */
 @Composable
 private fun SheetReadingRow(reading: SheetReading) {
     Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -195,8 +185,6 @@ private fun SheetReadingRow(reading: SheetReading) {
         )
         Text(text = reading.value, style = MaterialTheme.typography.headlineSmall)
         Spacer(modifier = Modifier.weight(1f))
-        // **The age of this one reading**, which is the thing the tile cannot say. It is quiet
-        // because it is the answer to a question already asked, not something to be found.
         Text(
             text = reading.age,
             style = MaterialTheme.typography.bodyLarge,
@@ -205,16 +193,7 @@ private fun SheetReadingRow(reading: SheetReading) {
     }
 }
 
-/**
- * **What the sheet offers a finger, and nothing it was not offered.** A kind whose
- * [TileSheet.actions] is empty draws no control at all and no empty row where one would have been —
- * which is the door lock's whole answer, and the reason that answer is a set rather than a flag.
- *
- * **The controls carry no words of their own**, which is the tile's rule kept: its power button has
- * no label either, and the reading directly above this one names it and says what it is doing. A
- * second "power" here would be the same word twice on a surface whose whole purpose is that each
- * fact is said once, with its age.
- */
+/** Render only the actions advertised by this device. */
 @Composable
 private fun SheetControls(
     sheet: TileSheet,
@@ -225,58 +204,40 @@ private fun SheetControls(
     onSetScene: (String) -> Unit,
     onSetRgb: (Int) -> Unit,
     onSetSpeed: (FanSpeed) -> Unit,
+    enabled: Boolean,
 ) {
     if (sheet.actions.isEmpty()) return
-    // The line between what this device says and what can be done to it. On the lock there is
-    // nothing below it to divide, so there is no line either.
     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
     val level = sheet.level
     Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         if (SheetAction.Power in sheet.actions) {
             Box(modifier = Modifier.touchable(), contentAlignment = Alignment.CenterStart) {
                 TilePowerButton(
+                    deviceName = sheet.name,
+                    room = sheet.room,
                     isOn = sheet.isOn == true,
                     mood = mood(sheet.isOn, sheet.notUpdating),
                     onToggle = onToggle,
+                    enabled = enabled,
                 )
             }
             Spacer(modifier = Modifier.width(SHEET_GAP))
         }
         if (level != null) {
-            // The dragged value is local, as on every tile with a slider: the state behind it only
-            // changes on the next poll, so binding the handle straight to it would drag it back
-            // under the finger.
-            var dragged by
-                remember(sheet.name, level.bounds) { mutableFloatStateOf(level.value.toFloat()) }
-            StepButton(
-                glyph = R.drawable.ic_remove,
-                label = "decrease",
-                onClick = {
-                    dragged = level.bounds.snap(dragged - level.bounds.precision).toFloat()
-                    onSetLevel(dragged.toDouble())
-                },
-            )
-            SlimSlider(
-                value = dragged,
-                onValueChange = { dragged = it },
-                valueRange = level.bounds.min.toFloat()..level.bounds.max.toFloat(),
-                onValueChangeFinished = { onSetLevel(dragged.toDouble()) },
+            LevelControl(
+                id = sheet.id,
+                value = level.value,
+                bounds = level.bounds,
+                onSetValue = onSetLevel,
                 modifier = Modifier.weight(1f),
-            )
-            StepButton(
-                glyph = R.drawable.ic_add,
-                label = "increase",
-                onClick = {
-                    dragged = level.bounds.snap(dragged + level.bounds.precision).toFloat()
-                    onSetLevel(dragged.toDouble())
-                },
+                stepButtons = true,
+                enabled = enabled,
+                label = sheet.levelLabel,
+                unit = sheet.levelUnit,
             )
         }
     }
-    // The ends of that range, one press each — the curtain's, and the only kind that has them. They
-    // send the same `range` action the slider above sends, at the two values that are always on the
-    // grid: **the vendor's own bounds**, never 0 and 100, because Yandex can only reject what is off
-    // the grid and a rejected action reaches the wall as "not updating" for a reason that was ours.
+    // Curtain end actions use vendor bounds, never an assumed 0..100 range.
     val ends = listOf(SheetAction.Open, SheetAction.Close).filter { it in sheet.actions }
     if (ends.isNotEmpty() && level != null) {
         Row(
@@ -289,34 +250,24 @@ private fun SheetControls(
                         onSetLevel(if (end == SheetAction.Open) level.bounds.max else level.bounds.min)
                     },
                     modifier = Modifier.weight(1f).heightIn(min = MIN_TOUCH),
+                    enabled = enabled,
                 ) {
                     Text(text = end.label, style = MaterialTheme.typography.titleMedium)
                 }
             }
         }
     }
-    if (SheetAction.Mode in sheet.actions) ModeControls(sheet.modes, onSetMode)
-    if (SheetAction.Toggle in sheet.actions) ToggleControls(sheet.toggles, onSetToggle)
+    if (SheetAction.Mode in sheet.actions) ModeControls(sheet.modes, onSetMode, enabled)
+    if (SheetAction.Toggle in sheet.actions) ToggleControls(sheet.toggles, onSetToggle, enabled)
     if (SheetAction.Color in sheet.actions) {
-        ColorControls(sheet.color?.scenes.orEmpty(), onSetRgb = onSetRgb, onSetScene = onSetScene)
+        ColorControls(sheet.color?.scenes.orEmpty(), onSetRgb = onSetRgb, onSetScene = onSetScene, enabled = enabled)
     }
     if (SheetAction.Speed in sheet.actions) {
         FanSpeedControls(
             speeds = sheet.fanSpeeds,
             selected = sheet.selectedFanSpeeds,
-            enabled = sheet.isOn == true,
+            enabled = enabled && sheet.isOn == true,
             onSetSpeed = onSetSpeed,
         )
-    }
-}
-
-@Composable
-private fun StepButton(
-    @androidx.annotation.DrawableRes glyph: Int,
-    label: String,
-    onClick: () -> Unit,
-) {
-    OutlinedIconButton(onClick = onClick, modifier = Modifier.touchable()) {
-        Icon(painter = painterResource(glyph), contentDescription = label)
     }
 }

@@ -16,6 +16,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.selection.triStateToggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
@@ -30,6 +33,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.unit.dp
 import ru.domovoy.R
 import ru.domovoy.core.Mode
@@ -41,8 +45,32 @@ private val CONTROL_ICON = 26.dp
 private val CONTROL_PADDING = 14.dp
 
 /** A vendor spelling made short and readable while leaving unknown future values intact. */
-internal fun capabilityLabel(value: String): String = value.replace('_', ' ').replaceFirstChar { it.uppercase() }
-    .replace("Fan speed", "Fan")
+internal fun capabilityLabel(value: String): String = when (value) {
+    "thermostat" -> "Режим"
+    "fan_speed" -> "Вентилятор"
+    "swing" -> "Направление воздуха"
+    "fan_only" -> "Вентиляция"
+    "heat" -> "Обогрев"
+    "cool" -> "Охлаждение"
+    "dry" -> "Осушение"
+    "auto" -> "Авто"
+    "low" -> "Низкая"
+    "medium" -> "Средняя"
+    "high" -> "Высокая"
+    "quiet" -> "Тихо"
+    "turbo" -> "Турбо"
+    "stationary" -> "Неподвижно"
+    "vertical" -> "По вертикали"
+    "horizontal" -> "По горизонтали"
+    "ionization" -> "Ионизация"
+    "keep_warm" -> "Поддержание тепла"
+    "backlight" -> "Подсветка"
+    "candle" -> "Свеча"
+    "rest" -> "Отдых"
+    "movie" -> "Кино"
+    "sunrise" -> "Рассвет"
+    else -> value.replace('_', ' ').replaceFirstChar { it.uppercase() }
+}
 
 @DrawableRes
 internal fun capabilityGlyph(
@@ -83,13 +111,14 @@ internal fun sceneGlyph(scene: String): Int = when (scene) {
 internal fun ModeControls(
     modes: Map<String, Mode>,
     onSetMode: (String, String) -> Unit,
+    enabled: Boolean = true,
 ) {
     val order = listOf("thermostat", "fan_speed", "swing")
     modes.entries.sortedBy { order.indexOf(it.key).let { index -> if (index < 0) Int.MAX_VALUE else index } }
         .forEach { (instance, mode) ->
             ControlSection(capabilityLabel(instance)) {
                 Row(
-                    modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                    modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).selectableGroup(),
                     horizontalArrangement = Arrangement.spacedBy(CONTROL_GAP),
                 ) {
                     mode.available.forEach { value ->
@@ -97,6 +126,7 @@ internal fun ModeControls(
                             label = capabilityLabel(value),
                             glyph = capabilityGlyph(instance, value),
                             selected = mode.current == value,
+                            enabled = enabled,
                             onClick = { onSetMode(instance, value) },
                         )
                     }
@@ -109,9 +139,10 @@ internal fun ModeControls(
 internal fun ToggleControls(
     toggles: Map<String, Toggle>,
     onSetToggle: (String, Boolean) -> Unit,
+    enabled: Boolean = true,
 ) {
     if (toggles.isEmpty()) return
-    ControlSection("Options") {
+    ControlSection("Дополнительно") {
         Row(
             modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(CONTROL_GAP),
@@ -121,6 +152,12 @@ internal fun ToggleControls(
                     label = capabilityLabel(instance),
                     glyph = toggleGlyph(instance),
                     selected = toggle.isOn == true,
+                    toggleState = when (toggle.isOn) {
+                        true -> ToggleableState.On
+                        false -> ToggleableState.Off
+                        null -> ToggleableState.Indeterminate
+                    },
+                    enabled = enabled,
                     onClick = { onSetToggle(instance, toggle.isOn != true) },
                 )
             }
@@ -136,8 +173,8 @@ internal fun FanSpeedControls(
     onSetSpeed: (FanSpeed) -> Unit,
 ) {
     if (speeds.isEmpty()) return
-    ControlSection("Fan speed") {
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(CONTROL_GAP)) {
+    ControlSection("Скорость") {
+        Row(modifier = Modifier.fillMaxWidth().selectableGroup(), horizontalArrangement = Arrangement.spacedBy(CONTROL_GAP)) {
             speeds.forEach { speed ->
                 CapabilityButton(
                     label = capabilityLabel(speed.label),
@@ -157,19 +194,20 @@ internal fun ColorControls(
     scenes: List<String>,
     onSetRgb: (Int) -> Unit,
     onSetScene: (String) -> Unit,
+    enabled: Boolean = true,
 ) {
-    ControlSection("Color") {
+    ControlSection("Цвет") {
         Row(horizontalArrangement = Arrangement.spacedBy(CONTROL_GAP), verticalAlignment = Alignment.CenterVertically) {
-            RgbSwatch("red", Color.Red, onClick = { onSetRgb(255 shl 16) })
-            RgbSwatch("green", Color.Green, onClick = { onSetRgb(255 shl 8) })
-            RgbSwatch("blue", Color.Blue, onClick = { onSetRgb(255) })
-            RgbSwatch("white", Color.White, onClick = { onSetRgb((255 shl 16) or (255 shl 8) or 255) })
+            RgbSwatch("Красный", Color.Red, enabled = enabled, onClick = { onSetRgb(255 shl 16) })
+            RgbSwatch("Зелёный", Color.Green, enabled = enabled, onClick = { onSetRgb(255 shl 8) })
+            RgbSwatch("Синий", Color.Blue, enabled = enabled, onClick = { onSetRgb(255) })
+            RgbSwatch("Белый", Color.White, enabled = enabled, onClick = { onSetRgb((255 shl 16) or (255 shl 8) or 255) })
         }
     }
     if (scenes.isNotEmpty()) {
-        ControlSection("Scenes") {
+        ControlSection("Сцены") {
             Row(
-                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).selectableGroup(),
                 horizontalArrangement = Arrangement.spacedBy(CONTROL_GAP),
             ) {
                 scenes.forEach { scene ->
@@ -177,6 +215,7 @@ internal fun ColorControls(
                         label = capabilityLabel(scene),
                         glyph = sceneGlyph(scene),
                         selected = false,
+                        enabled = enabled,
                         onClick = { onSetScene(scene) },
                     )
                 }
@@ -208,16 +247,22 @@ private fun CapabilityButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
+    toggleState: ToggleableState? = null,
 ) {
     val container =
         if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHighest
     val content =
         if (selected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
+    val interaction = if (toggleState == null) {
+        Modifier.selectable(selected = selected, enabled = enabled, role = Role.RadioButton, onClick = onClick)
+    } else {
+        Modifier.triStateToggleable(state = toggleState, enabled = enabled, role = Role.Switch, onClick = onClick)
+    }
     Column(
         modifier =
         modifier.heightIn(min = MIN_TOUCH).clip(RoundedCornerShape(CONTROL_CORNER))
             .background(container.copy(alpha = if (enabled) 1f else 0.45f))
-            .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
+            .then(interaction)
             .padding(horizontal = CONTROL_PADDING, vertical = 10.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(4.dp),
@@ -236,6 +281,7 @@ private fun CapabilityButton(
 private fun RgbSwatch(
     label: String,
     color: Color,
+    enabled: Boolean,
     onClick: () -> Unit,
 ) {
     Box(
@@ -243,7 +289,7 @@ private fun RgbSwatch(
         Modifier.size(MIN_TOUCH).clip(CircleShape).background(color)
             .border(2.dp, MaterialTheme.colorScheme.outline, CircleShape)
             .semantics { contentDescription = label }
-            .clickable(role = Role.Button, onClick = onClick),
+            .clickable(enabled = enabled, role = Role.Button, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
         Spacer(modifier = Modifier.width(1.dp))

@@ -1,9 +1,16 @@
 package ru.domovoy.panel
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyGridScope
 import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -15,68 +22,34 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.hideFromAccessibility
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import java.time.Instant
 import kotlin.time.Duration
 
-/**
- * How a heading says its room has bad news: a `•` after the title, and the title in the error
- * colour.
- *
- * Commit 1 wrote this as a character *rather than* a colour, because there was no palette to trust
- * in both themes — true then, and untrue since commit 5 wrote both schemes out. So the colour is
- * here now. The dot stays, and the two together are the point rather than a leftover:
- *
- * - Colour alone is not a signal everyone can perceive, and this dot is the panel's only word that
- *   a room has gone quiet.
- * - Samsung's blue light filter tints the whole screen warm when it is on, which is exactly what
- *   erodes a red against a neutral. That has already bitten once here: the bulbs' lit and unlit
- *   lamps composited to two browns told apart by lightness (docs/ui.md, "Icons"). The answer there
- *   was the same — let the shape carry the state and the colour reinforce it.
- */
+/** Room failures use both an error colour and a dot so the signal survives colour filters. */
 private const val MARK = " •"
 
-/**
- * Above a heading, which is the gap that says a new room has started. Larger than the one under it:
- * a heading belongs to the tiles after it, and equal gaps would leave it floating between two rooms.
- */
-private val HEADING_TOP = 24.dp
+/** Extra space above attaches each heading to the tiles below it. */
+private val HEADING_TOP = 20.dp
 
 /** Under a heading, before the first row of its tiles. */
-private val HEADING_BOTTOM = 4.dp
+private val HEADING_BOTTOM = 8.dp
 
-/**
- * The heading's own indent, matching where a tile's text starts: a tile pads itself by 4 dp against
- * the gutter and its contents by 12 more, so 16 dp puts the room name on the same left edge as the
- * names of the tiles under it.
- */
+/** Align room headings with tile text: 4 dp outer padding plus 12 dp content padding. */
 private val HEADING_INDENT = 16.dp
 
-/**
- * The whole panel: every room down one scroll, each behind its own heading. See [panelHeadings] for
- * what the sections are and [favourites] for what is on the first of them.
- *
- * **This was a tab strip until now, and the strip was the wrong shape twice over.** It held fourteen
- * rooms across 753 dp and could not: `Гардеробная` was clipped mid-word at the right edge and
- * Ванная, Балкон and Гардероб were off the end entirely, so the mark rule — "a room says its own bad
- * news from Главная" — was false for the last third of the flat. And measured off the same capture,
- * content stopped at 563 dp of a 1205 dp screen: every tile crammed into the top half with 53 % of
- * the wall empty under it. A horizontal strip was the wrong answer to a vertical problem, and this
- * is `docs/design/panel-redesign.md` item 9 answered rather than patched.
- *
- * **Главная keeps its job.** It is the first section rather than the first tab: pulling the failing
- * and the stale to the top of a fourteen-room scroll is what makes the scroll bearable, and is what
- * the tab marks stood in for. Its tiles appear twice — once here and once in the room they are in —
- * which was true of the strip too and is the point rather than a duplication.
- *
- * The tiles themselves are the same composables as before and show the same things; their group's
- * error still reaches every one of them, because a poll that failed failed for all of them at once.
- */
+/** All rooms share one scroll. Главная repeats favourites and surfaces stale or failing devices first. */
 @Composable
 fun PanelRooms(
     acs: AcPanelState,
@@ -88,25 +61,12 @@ fun PanelRooms(
     now: Instant,
     /** The interval the Yandex groups are polled on, which is what makes their readings stale. */
     yandexInterval: Duration,
-    /** The recuperators', which is 24 times longer and would call every one of them stale. */
+    /** Tuya has its own slower polling interval because calls consume a monthly allowance. */
     tuyaInterval: Duration,
     modifier: Modifier = Modifier,
-    /**
-     * Where the wall is scrolled to. Hoisted because the idle reset drives it: after two minutes
-     * with no touch the panel goes back to the top, which is where Главная is. See [resetAfterIdle].
-     */
+    /** Hoisted so idle reset can return the panel to Главная. */
     scroll: LazyGridState = rememberLazyGridState(),
-    /**
-     * Which device's sheet is open over the wall, or null when none is — see [DeviceSheet].
-     *
-     * Hoisted for exactly [scroll]'s reason and driven by the same two things: after two minutes
-     * with nobody touching it the panel goes back to Главная and closes whatever a passer-by left
-     * open ([returnToHome]), and an intercom call closes it at once ([closeOnCall]). Both of those
-     * happen outside this composable, so the state cannot live inside it.
-     *
-     * A device id rather than the tile itself, so that what is open survives the poll that replaces
-     * every tile state in the panel four times a minute.
-     */
+    /** Open device id survives polling updates. Idle reset and intercom calls close the sheet externally. */
     openSheet: MutableState<String?> = remember { mutableStateOf(null) },
     onToggleAc: (String) -> Unit = {},
     onSetTemperature: (String, Double) -> Unit = { _, _ -> },
@@ -133,10 +93,7 @@ fun PanelRooms(
             recuperators = recuperators.error,
             bulbs = bulbs.error,
         )
-    // When each group was last read, which is what says whether it is still being read at all. The
-    // four Yandex groups carry the same instant — one call feeds them — and the recuperators their
-    // own; they are passed separately anyway, because a group that stopped polling on its own is
-    // exactly what a shared "last read" would hide.
+    // Keep polling ages separate so a stopped group cannot borrow another group’s freshness.
     val polls =
         GroupPolls(
             acs = acs.lastPolledAt,
@@ -146,58 +103,32 @@ fun PanelRooms(
             bulbs = bulbs.lastPolledAt,
         )
     val headings = panelHeadings(sections, errors, polls, now, yandexInterval, tuyaInterval)
-    // **Puts the wall back at the top when the first poll lands, and leaves it alone otherwise.**
-    //
-    // The bug this replaces: the grid's state used to be keyed on the tile count, so *any* device
-    // appearing or disappearing threw the scroll position away — under the finger of whoever was
-    // reading Спальня at the time. Only one of the two things that key was doing is worth keeping.
-    // A tablet that rebooted into a Wi-Fi that was not up yet comes up holding nothing but its
-    // launcher tiles; when the first refresh lands, twenty tiles are inserted *above* them, and a
-    // keyed grid holds the launcher in view — so the wall would come up from a reboot showing the
-    // last two tiles of the list, which is what a wall panel must not do.
-    //
-    // So: the transition from nothing polled to something polled, once, and nothing else. A device
-    // arriving on a wall that already has tiles on it is somebody's poll landing while they are
-    // reading, and it leaves them where they are. The other event that returns the panel to the top
-    // is the idle reset — two minutes of nobody touching it, driven from `MainActivity`; see
-    // [resetAfterIdle]. Neither of the two can fire under a hand.
-    //
-    // The launcher tiles are left out of the count on purpose: nothing polls them, they are on the
-    // wall from the first frame, and counting them would mean a rebooted panel never sees this
-    // transition at all.
+    // Return to the top when polled devices first arrive after boot; later device-count changes preserve scroll.
+    // Launchers are excluded because they exist before the first poll.
     val polled = sections.sumOf { it.tileCount() - it.launchers.size } > 0
     var wasPolled by remember { mutableStateOf(polled) }
     LaunchedEffect(polled) {
         if (polled && !wasPolled) scroll.scrollToItem(0)
         wasPolled = polled
     }
-    // Which rooms have their lamps open, by heading — the one piece of state the wall holds that is
-    // nobody's reading. A set rather than a single room, because opening Спальня's lamps is not a
-    // reason to close the ones somebody left open in Коридор.
-    //
-    // `remember` and not `rememberSaveable`: this is the panel's only state that a person put there
-    // with a finger, and a tablet that rebooted at 04:00 should come up closed, showing the counts,
-    // like a panel nobody has touched. The idle reset does not close them either — it scrolls to the
-    // top, and an open group eleven sections down is out of sight rather than in the way.
+    // Rooms expand independently and start collapsed after a reboot. Idle reset only scrolls to Главная.
     var openLamps by remember { mutableStateOf(emptySet<String>()) }
-    // **A box rather than the grid alone, and the box is the whole of what a sheet costs the
-    // layout**: the mosaic underneath, unchanged, and at most one device sheet in front of it. It is
-    // drawn here rather than in a `Dialog` or a `Popup` on purpose — a sheet in a window of its own
-    // is a sheet the panel's own screenshot cannot see, and this wall is checked by picture.
+    val sheetIsOpen = openSheet.value?.let { id ->
+        acs.tiles.any { it.id == id } ||
+            curtains.tiles.any { it.id == id } ||
+            strips.tiles.any { it.id == id } ||
+            recuperators.tiles.any { it.id == id } ||
+            bulbs.tiles.any { it.id == id }
+    } == true
+    // Keep the mosaic mounted beneath the sheet.
     Box(modifier = modifier) {
-        // The mosaic. Twelve columns against the 753 dp the wall tablet measured in portrait, which
-        // is the orientation it is mounted in; the number lives in one place, [COLUMNS].
-        // The span of a tile is a property of its type and not of the room it is in: anything with a
-        // slider takes a third of the panel, anything that is a name and a status line takes a
-        // quarter, and the recuperator is the only one that asks its own content — see [span].
-        // Thirds and quarters rather than a spread of widths because both divide twelve: a row fills
-        // instead of trailing dead cells. It was halves and thirds until the tile anatomy landed,
-        // and half a wall for one air conditioner was a phone's two-column proportion drawn at wall
-        // size.
-        LazyVerticalGrid(columns = GridCells.Fixed(COLUMNS), state = scroll) {
-            // Above everything, including the first heading: the groups that failed before they ever
-            // had a tile, which have no tile of their own to say it on and no room to be marked in.
-            // Full width, because it is a sentence and not a tile.
+        // Full-span rows keep card formats separate and preserve the hoisted scroll state.
+        LazyVerticalGrid(
+            columns = GridCells.Fixed(COLUMNS),
+            state = scroll,
+            modifier = if (sheetIsOpen) Modifier.clearAndSetSemantics { hideFromAccessibility() } else Modifier,
+        ) {
+            // Groups that fail before loading any tiles need a full-width message above the rooms.
             items(
                 groupFailures(acs, curtains, strips, recuperators, bulbs),
                 key = { "failure:$it" },
@@ -211,132 +142,149 @@ fun PanelRooms(
             }
             headings.forEach { heading ->
                 val section = heading.section
-                // Every key is prefixed with the section it is in, because a tile can genuinely be
-                // in two places at once — Главная holds the коридор's tiles and so does Коридор —
-                // and a `LazyVerticalGrid` given the same key twice throws.
+                // Prefix keys by section because a device can appear in both Главная and its room.
                 val room = heading.title
                 item(key = "heading:$room", span = { GridItemSpan(maxLineSpan) }) {
                     SectionHeading(title = room, marked = heading.marked)
                 }
-                // **Every tile with something behind it opens it on a tap**, keyed on the device id
-                // rather than on the tile, so what is open survives the poll that replaces every
-                // tile state four times a minute — and so a device that is on Главная *and* in its
-                // own room opens one sheet from either copy.
-                items(section.acs, key = { "$room/ac:${it.id}" }, span = { GridItemSpan(WIDE_SPAN) }) { tile ->
-                    AcTile(
-                        tile = tile,
-                        now = now,
-                        error = acs.error,
-                        onOpen = { openSheet.value = tile.id },
-                        onToggle = onToggleAc,
-                        onSetTemperature = onSetTemperature,
-                        onSetMode = onSetAcMode,
+                val noticeSection = if (heading.title == "Главная") {
+                    RoomSection(null, acs.tiles, curtains.tiles, strips.tiles, recuperators.tiles, bulbs.tiles)
+                } else {
+                    section
+                }
+                items(sectionFailures(noticeSection, errors), key = { "$room/failure:$it" }, span = { GridItemSpan(maxLineSpan) }) { failure ->
+                    Text(
+                        failure,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.padding(horizontal = HEADING_INDENT, vertical = 8.dp)
+                            .semantics { liveRegion = LiveRegionMode.Polite },
                     )
                 }
-                items(section.curtains, key = { "$room/curtain:${it.id}" }, span = { GridItemSpan(WIDE_SPAN) }) { tile ->
-                    CurtainTile(
-                        tile = tile,
-                        now = now,
-                        error = curtains.error,
-                        onOpen = { openSheet.value = tile.id },
-                        onSetOpen = onSetOpen,
-                    )
-                }
-                items(section.strips, key = { "$room/strip:${it.id}" }, span = { GridItemSpan(WIDE_SPAN) }) { tile ->
-                    LightStripTile(
-                        tile = tile,
-                        now = now,
-                        error = strips.error,
-                        onOpen = { openSheet.value = tile.id },
-                        onToggle = onToggleStrip,
-                        onSetBrightness = onSetBrightness,
-                    )
-                }
-                // The one span decided by content rather than by type: the wider column when the
-                // device has a second line to put there — a climate reading, or the reason it
-                // stopped updating — and the narrow one when it has neither. See [span].
-                items(
-                    section.recuperators,
-                    key = { "$room/recuperator:${it.id}" },
-                    span = { GridItemSpan(span(it)) },
-                ) { tile ->
-                    RecuperatorTile(
-                        tile = tile,
-                        now = now,
-                        groupError = recuperators.error,
-                        onOpen = { openSheet.value = tile.id },
-                        onToggle = onToggleRecuperator,
-                        onSetSpeed = onSetRecuperatorSpeed,
-                    )
-                }
-                // The lights group. The bulbs the panel has a value for are the many, so they are
-                // one tile saying how many there are and how many are lit rather than 28 cards —
-                // see docs/ui.md, "The lights group". The few it has no power value for
-                // come first, as named quarter-width tiles: those are the ones worth reading. Asked
-                // once per section, so that a room's group tile and the tiles it did not take come
-                // from one answer.
-                val group = bulbGroup(section.bulbs)
-                items(group.brokenOut, key = { "$room/bulb:${it.id}" }, span = { GridItemSpan(NARROW_SPAN) }) { tile ->
+                val showRoom = heading.title == "Главная"
+                fun bulbEntry(tile: BulbTileState, prefix: String) = PanelTile(
+                    "$room/$prefix:${tile.id}",
+                    if (tile.brightnessBounds != null) TileFormat.Control else TileFormat.Compact,
+                ) { modifier ->
                     BulbTile(
                         tile = tile,
                         now = now,
-                        error = bulbs.error,
+                        modifier = modifier,
+                        error = bulbs.commandErrors[tile.id],
+                        pending = tile.id in bulbs.pending,
+                        showRoom = showRoom,
                         onOpen = { openSheet.value = tile.id },
                         onToggle = onToggleBulb,
                         onSetBrightness = onSetBulbBrightness,
                     )
                 }
-                // A room whose bulbs all broke out has no group tile, and neither has a room with no
-                // bulbs at all.
-                if (group.lamps.isNotEmpty()) {
-                    val open = room in openLamps
-                    item(key = "$room/lamps", span = { GridItemSpan(NARROW_SPAN) }) {
-                        // **The one tile whose tap was already spoken for, and it keeps it.** A
-                        // group tile stands for a room's lamps rather than for a device, so there is
-                        // no device behind it for a sheet to be about — what the tap opens is the
-                        // seven, each of which has a sheet of its own. See [subject].
-                        BulbGroupTile(
-                            group = group,
-                            now = now,
-                            error = bulbs.error,
-                            // Said once for the group rather than 28 times: one call is behind all
-                            // of them, so a poll that stopped landing stopped for the whole group.
-                            notUpdating = notUpdating(bulbs.error, bulbs.lastPolledAt, now, yandexInterval),
-                            open = open,
-                            onOpen = { openLamps = if (open) openLamps - room else openLamps + room },
+                val entries = buildList {
+                    section.acs.forEach { tile ->
+                        add(
+                            PanelTile("$room/ac:${tile.id}", TileFormat.Control) { modifier ->
+                                AcTile(
+                                    tile = tile,
+                                    now = now,
+                                    modifier = modifier,
+                                    error = acs.commandErrors[tile.id],
+                                    pending = tile.id in acs.pending,
+                                    showRoom = showRoom,
+                                    onOpen = { openSheet.value = tile.id },
+                                    onToggle = onToggleAc,
+                                    onSetTemperature = onSetTemperature,
+                                    onSetMode = onSetAcMode,
+                                )
+                            },
                         )
                     }
-                    // What the tap opens: the room's lamps as ordinary tiles, each with its name,
-                    // its own age and its own switch — the thing the row of discs could never say.
-                    // They follow the group tile in the grid rather than replacing it, so the count
-                    // and the one age stay on the wall while the seven are open.
-                    if (open) {
-                        items(
-                            group.lamps,
-                            key = { "$room/lamp:${it.id}" },
-                            span = { GridItemSpan(NARROW_SPAN) },
-                        ) { tile ->
-                            BulbTile(
-                                tile = tile,
-                                now = now,
-                                error = bulbs.error,
-                                onOpen = { openSheet.value = tile.id },
-                                onToggle = onToggleBulb,
-                                onSetBrightness = onSetBulbBrightness,
+                    section.curtains.forEach { tile ->
+                        add(
+                            PanelTile("$room/curtain:${tile.id}", TileFormat.Control) { modifier ->
+                                CurtainTile(
+                                    tile = tile,
+                                    now = now,
+                                    modifier = modifier,
+                                    error = curtains.commandErrors[tile.id],
+                                    pending = tile.id in curtains.pending,
+                                    showRoom = showRoom,
+                                    onOpen = { openSheet.value = tile.id },
+                                    onSetOpen = onSetOpen,
+                                )
+                            },
+                        )
+                    }
+                    section.strips.forEach { tile ->
+                        add(
+                            PanelTile("$room/strip:${tile.id}", TileFormat.Control) { modifier ->
+                                LightStripTile(
+                                    tile = tile,
+                                    now = now,
+                                    modifier = modifier,
+                                    error = strips.commandErrors[tile.id],
+                                    pending = tile.id in strips.pending,
+                                    showRoom = showRoom,
+                                    onOpen = { openSheet.value = tile.id },
+                                    onToggle = onToggleStrip,
+                                    onSetBrightness = onSetBrightness,
+                                )
+                            },
+                        )
+                    }
+                    section.recuperators.forEach { tile ->
+                        add(
+                            PanelTile("$room/recuperator:${tile.id}", TileFormat.Reading) { modifier ->
+                                RecuperatorTile(
+                                    tile = tile,
+                                    now = now,
+                                    modifier = modifier,
+                                    groupError = recuperators.commandErrors[tile.id],
+                                    pending = tile.id in recuperators.pending,
+                                    showRoom = showRoom,
+                                    onOpen = { openSheet.value = tile.id },
+                                    onToggle = onToggleRecuperator,
+                                    onSetSpeed = onSetRecuperatorSpeed,
+                                )
+                            },
+                        )
+                    }
+                    section.bulbs.groupBy { it.room }.forEach { (bulbRoom, roomBulbs) ->
+                        val group = bulbGroup(roomBulbs)
+                        group.brokenOut.forEach { add(bulbEntry(it, "bulb")) }
+                        if (group.lamps.isNotEmpty()) {
+                            val groupKey = "$room/lamps:${bulbRoom.orEmpty()}"
+                            val open = groupKey in openLamps
+                            add(
+                                PanelTile(
+                                    groupKey,
+                                    TileFormat.Reading,
+                                    children = if (open) group.lamps.map { bulbEntry(it, "lamp") } else emptyList(),
+                                ) { modifier ->
+                                    BulbGroupTile(
+                                        group = group,
+                                        now = now,
+                                        modifier = modifier,
+                                        error = group.lamps.firstNotNullOfOrNull { lamp ->
+                                            bulbs.commandErrors[lamp.id]?.let { "${lamp.name}: $it" }
+                                        },
+                                        pending = group.lamps.any { it.id in bulbs.pending },
+                                        showRoom = showRoom,
+                                        notUpdating = bulbs.error == null && notUpdating(null, bulbs.lastPolledAt, now, yandexInterval),
+                                        open = open,
+                                        onOpen = { openLamps = if (open) openLamps - groupKey else openLamps + groupKey },
+                                    )
+                                },
                             )
                         }
                     }
+                    section.launchers.forEach { tile ->
+                        add(
+                            PanelTile("$room/launcher:${tile.packageName}", TileFormat.Launcher) { modifier ->
+                                LauncherTile(tile, modifier = modifier, showRoom = showRoom, onOpen = onOpenApp)
+                            },
+                        )
+                    }
                 }
-                // Last in the room, and the only tiles here taking no `now`: they open another app
-                // rather than showing anything the panel read, so there is no age on them to keep.
-                // No sheet either, and that is a rule rather than an oversight — see [subject].
-                items(
-                    section.launchers,
-                    key = { "$room/launcher:${it.packageName}" },
-                    span = { GridItemSpan(NARROW_SPAN) },
-                ) { tile ->
-                    LauncherTile(tile = tile, onOpen = onOpenApp)
-                }
+                tileRows(room, entries)
             }
         }
         OpenSheet(
@@ -364,20 +312,36 @@ fun PanelRooms(
     }
 }
 
+/** UI entries retain device keys while rows are packed by their content format. */
+private class PanelTile(
+    val key: String,
+    val format: TileFormat,
+    val children: List<PanelTile> = emptyList(),
+    val content: @Composable (Modifier) -> Unit,
+)
+
+/** Each row uses its tallest card; expanded lamps stay directly below their summary row. */
+private fun LazyGridScope.tileRows(prefix: String, entries: List<PanelTile>) {
+    TileFormat.entries.forEach { format ->
+        entries.filter { it.format == format }.chunked(format.columns).forEach { row ->
+            val rowKey = "$prefix/row:${row.joinToString { it.key }}"
+            item(key = rowKey, span = { GridItemSpan(maxLineSpan) }) {
+                Row(modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
+                    row.forEach { tile ->
+                        key(tile.key) { tile.content(Modifier.weight(1f).fillMaxHeight()) }
+                    }
+                    repeat(format.columns - row.size) { Spacer(Modifier.weight(1f)) }
+                }
+            }
+            val expanded = row.flatMap { it.children }
+            if (expanded.isNotEmpty()) tileRows("$rowKey/expanded", expanded)
+        }
+    }
+}
+
 /**
- * **The one sheet that may be open, found from the id the tap stored** — or nothing at all, which is
- * the usual case and is what a wall panel looks like.
- *
- * The lookup is by id across the five polled groups rather than by keeping the tile the tap was on,
- * and that is the point of storing an id: a poll lands every fifteen seconds and replaces every tile
- * state in the panel, so a held tile would be a sheet showing the readings as they were when
- * somebody touched it. This way the sheet is repainted by the same poll the wall is, and **it starts
- * no poll of its own** — Tuya is metered by the month and a sheet that read faster while open would
- * spend that allowance on being looked at.
- *
- * An id that matches nothing draws nothing: a device that disappeared between the tap and the frame
- * — an unplugged recuperator, a Yandex household filtered differently — leaves the wall rather than
- * an empty sheet over it.
+ * Look up the current tile by id so each poll refreshes the open sheet. Missing devices draw nothing.
+ * A sheet never starts extra polling: Tuya calls remain on the metered schedule.
  */
 @Composable
 private fun OpenSheet(
@@ -413,6 +377,8 @@ private fun OpenSheet(
         ac != null ->
             DeviceSheet(
                 sheet = sheet(ac, now, acs.error),
+                commandError = acs.commandErrors[id],
+                pending = id in acs.pending,
                 onDismiss = dismiss,
                 onToggle = { onToggleAc(id) },
                 onSetLevel = { celsius -> onSetTemperature(id, celsius) },
@@ -422,12 +388,16 @@ private fun OpenSheet(
         curtain != null ->
             DeviceSheet(
                 sheet = sheet(curtain, now, curtains.error),
+                commandError = curtains.commandErrors[id],
+                pending = id in curtains.pending,
                 onDismiss = dismiss,
                 onSetLevel = { percent -> onSetOpen(id, percent) },
             )
         strip != null ->
             DeviceSheet(
                 sheet = sheet(strip, now, strips.error),
+                commandError = strips.commandErrors[id],
+                pending = id in strips.pending,
                 onDismiss = dismiss,
                 onToggle = { onToggleStrip(id) },
                 onSetLevel = { percent -> onSetBrightness(id, percent) },
@@ -435,6 +405,8 @@ private fun OpenSheet(
         recuperator != null ->
             DeviceSheet(
                 sheet = sheet(recuperator, now, recuperators.error),
+                commandError = recuperators.commandErrors[id],
+                pending = id in recuperators.pending,
                 onDismiss = dismiss,
                 onToggle = { onToggleRecuperator(id) },
                 onSetSpeed = { speed -> onSetRecuperatorSpeed(id, speed) },
@@ -442,6 +414,8 @@ private fun OpenSheet(
         bulb != null ->
             DeviceSheet(
                 sheet = sheet(bulb, now, bulbs.error),
+                commandError = bulbs.commandErrors[id],
+                pending = id in bulbs.pending,
                 onDismiss = dismiss,
                 onToggle = { onToggleBulb(id) },
                 onSetLevel = { percent -> onSetBulbBrightness(id, percent) },
@@ -451,19 +425,7 @@ private fun OpenSheet(
     }
 }
 
-/**
- * A room's name, and the largest thing on the wall.
- *
- * `displayMedium` — 52sp on this panel's scale — puts it a step above the promoted value a tile
- * carries, which is what makes the scroll navigable from across the hallway: the thing you are
- * looking for when you walk up to a fourteen-room panel is the room, and only then the reading. The
- * reference app does the same and for the phone's version of the same reason.
- *
- * The mark, when the room has bad news, is [MARK] and the error colour together — the rule the tab
- * strip carried, moved to where it cannot scroll out of sight. An unmarked heading takes
- * [LocalContentColor] rather than naming a role, so it is exactly the colour the surface under it
- * would have given it.
- */
+/** Room names lead the visual hierarchy. Failures add both [MARK] and the error colour. */
 @Composable
 internal fun SectionHeading(
     title: String,
@@ -472,10 +434,8 @@ internal fun SectionHeading(
 ) {
     Text(
         text = if (marked) title + MARK else title,
-        style = MaterialTheme.typography.displayMedium,
-        // Bold rather than the scale's own weight: this is the one line on the wall that is read
-        // before anything else on it, and 52sp of regular weight next to a 44sp promoted value in
-        // a tile reads as the same emphasis at two different sizes.
+        style = MaterialTheme.typography.headlineSmall,
+
         fontWeight = FontWeight.Bold,
         color = if (marked) MaterialTheme.colorScheme.error else LocalContentColor.current,
         modifier =

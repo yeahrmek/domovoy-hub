@@ -1,5 +1,6 @@
 package ru.domovoy.panel
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -24,8 +25,6 @@ data class CurtainTileState(
     val bounds: Bounds?,
     /** When the position was read; this is the age the tile prints. */
     val lastUpdated: Reading,
-    /** When the curtain last actually moved. Kept, not yet shown — see docs/yandex.md. */
-    val stateChangedAt: Reading,
     /**
      * **The last open or close this curtain was given**, from the `on_off` capability — `true` for
      * open, `false` for shut, and null on a curtain that has taken none, which this one had for the
@@ -47,10 +46,12 @@ data class CurtainTileState(
  */
 data class CurtainPanelState(
     val tiles: List<CurtainTileState> = emptyList(),
-    /** Non-null when the last poll or move failed. [tiles] then hold the last known values. */
+    /** Non-null when the last poll failed. [tiles] then hold the last known values. */
     val error: String? = null,
     /** When the poll behind these tiles last succeeded; null until the first one lands. */
     val lastPolledAt: Instant? = null,
+    val pending: Set<String> = emptySet(),
+    val commandErrors: Map<String, String> = emptyMap(),
 )
 
 /**
@@ -76,8 +77,9 @@ class CurtainTiles(
         polledAt: Instant,
     ) {
         mutableState.value =
-            CurtainPanelState(
+            mutableState.value.copy(
                 tiles = devices.filter { it.kind == DeviceKind.Curtain }.map(Device::toTile),
+                error = null,
                 lastPolledAt = polledAt,
             )
     }
@@ -97,11 +99,32 @@ class CurtainTiles(
         id: String,
         percent: Double,
     ) {
+        if (id in mutableState.value.pending) return
         val tile = mutableState.value.tiles.firstOrNull { it.id == id } ?: return
-        client
-            .setRange(id, instance = OPEN, value = tile.bounds?.snap(percent) ?: percent)
-            .onSuccess { reread() }
-            .onFailure { failure -> mutableState.value = mutableState.value.copy(error = failure.describe()) }
+        command(id) { client.setRange(id, instance = OPEN, value = tile.bounds?.snap(percent) ?: percent) }
+    }
+
+    private suspend fun command(
+        id: String,
+        issue: suspend () -> Result<Unit>,
+    ) {
+        if (id in mutableState.value.pending) return
+        mutableState.value = mutableState.value.copy(
+            pending = mutableState.value.pending + id,
+            commandErrors = mutableState.value.commandErrors - id,
+        )
+        try {
+            issue().getOrThrow()
+            reread()
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (failure: Exception) {
+            mutableState.value = mutableState.value.copy(
+                commandErrors = mutableState.value.commandErrors + (id to failure.describe()),
+            )
+        } finally {
+            mutableState.value = mutableState.value.copy(pending = mutableState.value.pending - id)
+        }
     }
 }
 
@@ -117,7 +140,6 @@ private fun Device.toTile(): CurtainTileState {
         // is newer — see [position]. An open/close moves this clock and moves nothing else, which is
         // how the panel learns the percentage it is holding has been overtaken.
         lastUpdated = open?.lastUpdated ?: Reading.Never,
-        stateChangedAt = open?.stateChangedAt ?: Reading.Never,
         openClose = onOff?.isOn,
         openCloseLastUpdated = onOff?.lastUpdated ?: Reading.Never,
     )

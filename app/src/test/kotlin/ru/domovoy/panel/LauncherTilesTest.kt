@@ -28,8 +28,8 @@ class LauncherTilesTest {
         val tile = launcherTiles(canOpen = { true }).single { it.packageName == "com.domonap.app" }
 
         assertTrue(tile.openable)
-        assertEquals("opens the app", statusLine(tile))
-        assertEquals("no state to read", detailLine(tile))
+        assertEquals("Открыть", statusLine(tile))
+        assertEquals(null, detailLine(tile))
     }
 
     @Test
@@ -40,8 +40,8 @@ class LauncherTilesTest {
         // **The package gets a line of its own**, which is the only place on the wall an identifier
         // may be cut short rather than wrapped. Run onto the end of "not installed · " it broke
         // mid-word across three lines of a 188 dp tile — `com.example.vacu` over `um`.
-        assertEquals("not installed", statusLine(tile))
-        assertEquals("com.xiaomi.smarthome", detailLine(tile))
+        assertEquals("Нет приложения", statusLine(tile))
+        assertEquals("Установите его", detailLine(tile))
     }
 
     @Test
@@ -60,11 +60,11 @@ class LauncherTilesTest {
         // for something the panel never asked a vendor about.
         val lines =
             listOf(true, false).flatMap { open ->
-                launcherTiles { open }.flatMap { tile -> listOf(statusLine(tile), detailLine(tile)) }
+                launcherTiles { open }.flatMap { tile -> listOfNotNull(statusLine(tile), detailLine(tile)) }
             }
 
         assertTrue(
-            lines.none { line -> "ago" in line || "never read" in line || "just now" in line },
+            lines.none { line -> "назад" in line || "Время неизвестно" in line || "Только что" in line },
             "a launcher tile printed an age: $lines",
         )
     }

@@ -27,6 +27,8 @@ fun RecuperatorTile(
     now: Instant,
     modifier: Modifier = Modifier,
     groupError: String? = null,
+    showRoom: Boolean = false,
+    pending: Boolean = false,
     /** What a tap on the card does: open this device's sheet. Null when there is none — see [AcTile]. */
     onOpen: (() -> Unit)? = null,
     onToggle: (String) -> Unit = {},
@@ -42,13 +44,19 @@ fun RecuperatorTile(
         anatomy = anatomy(tile, now, groupError),
         paint = paint,
         modifier = modifier,
+        format = TileFormat.Reading,
+        showRoom = showRoom,
+        pending = pending,
         onClick = onOpen,
         onAction = { onSetSpeed(tile.id, nextFanSpeed(tile)) },
         toggle = {
             TilePowerButton(
+                deviceName = tile.name,
+                room = tile.room,
                 isOn = tile.isOn == true,
                 mood = paint.mood,
                 onToggle = { onToggle(tile.id) },
+                enabled = !pending,
             )
         },
     )
@@ -80,17 +88,12 @@ internal fun statusLine(
 ): String {
     val offline = tile.online == false
     return listOfNotNull(
-        if (offline) "offline" else powerLabel(tile.isOn),
-        speedLabel(tile).takeUnless { offline },
+        if (offline) "Нет связи" else power(tile.isOn),
+        speedLabel(tile).takeUnless {
+            offline || (tile.isOn == null && tile.speeds.isEmpty() && tile.speedLastUpdated == Reading.Never)
+        },
         ageLine(oldest(tile.readings()), now),
     ).joinToString(" · ")
-}
-
-/** The three words a recuperator's switch comes in, on the same rule every other tile follows. */
-private fun powerLabel(isOn: Boolean?): String = when (isOn) {
-    true -> "on"
-    false -> "off"
-    null -> "unknown"
 }
 
 /**
@@ -110,26 +113,15 @@ private fun RecuperatorTileState.readings(): List<Reading> = listOfNotNull(
 // false, the second is a device that reported no speed datapoint at all. Shared with the tile's
 // sheet, which prints the same speeds with an age of their own — see [TileSheet].
 internal fun speedLabel(tile: RecuperatorTileState): String = when {
-    tile.speeds.isNotEmpty() -> tile.speeds.joinToString(" + ") { it.label }
-    tile.speedLastUpdated == Reading.Never -> "unknown"
-    else -> "no speed"
+    tile.speeds.isNotEmpty() -> tile.speeds.joinToString(" + ") { capabilityLabel(it.label) }
+    tile.speedLastUpdated == Reading.Never -> "Нет данных"
+    else -> "Скорость не задана"
 }
 
-/**
- * The second line: what the recuperator measures. They get a line of their own because they are the
- * only values here that move on their own — the humidity was 26 s old on the recorded read while the
- * switch had not changed in three days.
- *
- * **Both of the ages it carried have gone to the status line**, where the tile says its age once and
- * says the oldest, this pair included. It takes no `now` now, which is what makes [span] able to ask
- * it whether there is a second line without inventing an instant to ask with.
- *
- * Null when the device reported neither, and the tile then has no second line at all: a row of
- * "unknown · unknown" says nothing the first line has not already said.
- */
+/** Humidity supports the promoted temperature without repeating it. */
 internal fun climateLine(tile: RecuperatorTileState): String? {
     if (tile.temperature == null && tile.humidity == null) return null
-    return "${measured(tile.temperature, DEGREES)} · ${measured(tile.humidity, PERCENT_SIGN)}"
+    return tile.humidity?.let { "Влажность ${measured(it, PERCENT_SIGN)}" }
 }
 
 /**
@@ -151,4 +143,4 @@ internal const val PERCENT_SIGN = "%"
 internal fun measured(
     value: Double?,
     unit: String,
-): String = value?.let { String.format(Locale.ROOT, "%.1f %s", it, unit) } ?: "unknown"
+): String = value?.let { String.format(Locale.ROOT, "%.1f %s", it, unit) } ?: "Нет данных"

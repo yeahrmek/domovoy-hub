@@ -42,7 +42,6 @@ internal object Flat {
     private val PERCENT = Bounds(min = 1.0, max = 100.0, precision = 1.0)
     private val OPEN = Bounds(min = 0.0, max = 100.0, precision = 1.0)
     private val CELSIUS = Bounds(min = 16.0, max = 30.0, precision = 1.0)
-    private val KELVIN = Bounds(min = 2700.0, max = 6500.0, precision = 100.0)
 
     val acs = AcPanelState(
         tiles = listOf(
@@ -91,7 +90,6 @@ internal object Flat {
                 openPercent = 40.0,
                 bounds = OPEN,
                 lastUpdated = ago(600),
-                stateChangedAt = ago(600),
                 // The flat's curtain has taken no open/close command — the state its `on_off` was in
                 // for the whole recorded history, and the one in which the percentage is the
                 // position the tile shows.
@@ -152,7 +150,7 @@ internal object Flat {
                 isOn = null,
                 // One of the four words `reason` maps a throwable to — the fixtures print what the
                 // wall prints, and the wall has not printed a vendor's own sentence since item 7.
-                error = "timed out",
+                error = "Устройство не отвечает",
             ),
         ),
         lastPolledAt = polled(200),
@@ -176,7 +174,6 @@ internal object Flat {
                 color = ColorSetting(
                     instance = "temperature_k",
                     value = 4200.0,
-                    temperatureBounds = KELVIN,
                     lastUpdated = ago(90),
                     stateChangedAt = ago(90),
                 ),
@@ -203,7 +200,7 @@ internal object Flat {
     )
 
     val launchers = listOf(
-        LauncherTileState(packageName = "com.example.intercom", name = "Домофон", room = "Коридор", openable = true),
+        launcherTiles { true }.first(),
         // The one that is not installed. A launcher tile whose app is gone still draws, and says so
         // — a tile that vanished would be the panel hiding the thing that broke.
         LauncherTileState(packageName = "com.example.vacuum", name = "Пылесос", room = null, openable = false),
@@ -250,7 +247,6 @@ internal object Flat {
         // A bulb with no value has no reading either — that is one capability, and 33 of the 116
         // recorded ones are exactly this.
         lastUpdated = if (isOn == null) Reading.Never else ago(20 * 24 * 60 * 60),
-        stateChangedAt = if (isOn == null) Reading.Never else ago(20 * 24 * 60 * 60),
         brightnessPercent = brightnessPercent,
         brightnessBounds = brightnessPercent?.let { PERCENT },
         brightnessLastUpdated = brightnessPercent?.let { ago(90) } ?: Reading.Never,

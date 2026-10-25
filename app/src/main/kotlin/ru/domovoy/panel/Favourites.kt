@@ -11,24 +11,10 @@ import kotlin.time.Duration
 private val FAVOURITE_ROOMS = listOf("Коридор", "Зал")
 
 /**
- * What the first section shows: every tile of [FAVOURITE_ROOMS], every launcher tile, and every tile
- * anywhere whose group has stopped updating — see [notUpdating].
- *
- * The launchers are here because the intercom is why somebody walks up to this panel at all, and
- * the not-updating tiles because a mark on a room's heading has to lead somewhere — a tile the panel
- * has stopped reading appears at the top of the wall, not only as a dot beside a room name that is
- * eleven sections down the scroll.
- *
- * What is *not* pulled in is a tile whose own reading is old. That age is the vendor's
- * `last_updated`, which says when the device reported and not whether anyone is still reading it;
- * a lamp untouched for three weeks would otherwise live on Главная for ever. See docs/ui.md,
- * "Stale".
- *
- * The section comes back with `room = null`: Главная is not a room, and the tiles on it are still
- * in the rooms [roomSections] put them in. It is named by its heading, in [panelHeadings].
- *
- * Nothing is duplicated by construction — a tile is in exactly one of [sections] — so the коридор's
- * launcher and the коридор's stale bulb each come through once, whichever rule caught them.
+ * Home keeps favourite-room devices and launchers, plus individual failures and silently stale polls.
+ * Explicit provider failures have section banners, so they do not copy every affected room here.
+ * Vendor reading age does not decide membership: an unchanged value may still be polled successfully.
+ * Devices retain their room membership and appear at most once within this section.
  */
 fun favourites(
     sections: List<RoomSection>,
@@ -38,29 +24,26 @@ fun favourites(
     yandex: Duration,
     tuya: Duration,
 ): RoomSection {
-    // A room's whole contents — because it is a favourite, or because the group feeding it has
-    // stopped updating and every tile of it is showing a value nobody is confirming — or, for the
-    // recuperators, only the tiles that failed on their own.
     fun <T> pick(
         tiles: (RoomSection) -> List<T>,
-        groupNotUpdating: Boolean,
+        silentlyStale: Boolean,
         pulledIn: (T) -> Boolean = { false },
     ): List<T> = sections.flatMap { section ->
-        val whole = section.room in FAVOURITE_ROOMS || groupNotUpdating
+        val whole = section.room in FAVOURITE_ROOMS || silentlyStale
         tiles(section).filter { whole || pulledIn(it) }
     }
     return RoomSection(
         room = null,
-        acs = pick({ it.acs }, notUpdating(errors.acs, polls.acs, now, yandex)),
-        curtains = pick({ it.curtains }, notUpdating(errors.curtains, polls.curtains, now, yandex)),
-        strips = pick({ it.strips }, notUpdating(errors.strips, polls.strips, now, yandex)),
+        acs = pick({ it.acs }, errors.acs == null && isStale(polls.acs, now, yandex)),
+        curtains = pick({ it.curtains }, errors.curtains == null && isStale(polls.curtains, now, yandex)),
+        strips = pick({ it.strips }, errors.strips == null && isStale(polls.strips, now, yandex)),
         // The only group whose tiles fail one at a time: reading a recuperator is a call per
         // device, so the fifth one timing out is the fifth one's news and belongs here on its own.
         recuperators =
-        pick({ it.recuperators }, notUpdating(errors.recuperators, polls.recuperators, now, tuya)) {
+        pick({ it.recuperators }, errors.recuperators == null && isStale(polls.recuperators, now, tuya)) {
             it.error != null
         },
-        bulbs = pick({ it.bulbs }, notUpdating(errors.bulbs, polls.bulbs, now, yandex)),
+        bulbs = pick({ it.bulbs }, errors.bulbs == null && isStale(polls.bulbs, now, yandex)),
         launchers = sections.flatMap { it.launchers },
     )
 }

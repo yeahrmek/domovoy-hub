@@ -80,6 +80,13 @@ data class TuyaCredentials(
     val uid: String,
 )
 
+/** Tuya business errors preserve their code for user-facing failure labels. */
+class TuyaApiException(
+    val code: Long?,
+    call: String,
+    apiMessage: String?,
+) : IllegalStateException("$call failed: code=$code msg=$apiMessage")
+
 /**
  * Reads the flat's recuperators, and switches one on or off.
  *
@@ -338,7 +345,7 @@ private inline fun <reified T> resultOf(
     call: String,
 ): T {
     val response = json.decodeFromString<TuyaResponseDto<T>>(body)
-    if (!response.success) error(response.failure(call))
+    if (!response.success) throw response.failure(call)
     return response.result ?: error("$call answered success with no result")
 }
 
@@ -348,12 +355,12 @@ private fun checkSuccess(
     call: String,
 ) {
     val response = json.decodeFromString<TuyaResponseDto<JsonElement>>(body)
-    if (!response.success) error(response.failure(call))
+    if (!response.success) throw response.failure(call)
 }
 
 // The code is the useful half — 1004 is the signature, 1108 a wrong method, 40001900 a project
 // that is not authorised for the route — and the message alone does not say which.
-private fun TuyaResponseDto<*>.failure(call: String): String = "$call failed: code=$code msg=$msg"
+private fun TuyaResponseDto<*>.failure(call: String): TuyaApiException = TuyaApiException(code, call, msg)
 
 private suspend fun Call.await(): Response = suspendCancellableCoroutine { continuation ->
     continuation.invokeOnCancellation { cancel() }

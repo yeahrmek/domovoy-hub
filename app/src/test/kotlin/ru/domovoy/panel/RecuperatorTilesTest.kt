@@ -1,5 +1,8 @@
 package ru.domovoy.panel
 
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
@@ -16,6 +19,7 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import ru.domovoy.core.FakeSharedPreferences
 import ru.domovoy.core.KnownRecuperators
+import ru.domovoy.integrations.tuya.TuyaApiException
 import ru.domovoy.integrations.tuya.TuyaClient
 import ru.domovoy.integrations.tuya.TuyaCredentials
 import java.time.Instant
@@ -67,7 +71,7 @@ class RecuperatorTilesTest {
         // One age, and the oldest of the four datapoints this tile shows: the switch and the speed
         // have not moved in three days while the humidity is 26 s old. The tile under-claims its
         // freshness rather than quoting the newest of them — see StalenessTest.
-        assertEquals("off · no speed · 3 d ago", statusLine(tile, now(minutes = 0)))
+        assertEquals("Выключено · Скорость не задана · 3 дн. назад", statusLine(tile, now(minutes = 0)))
     }
 
     @Test
@@ -85,7 +89,7 @@ class RecuperatorTilesTest {
         val tile = poll.recuperators.state.value.tiles.single { it.id == "xfj-01" }
         assertEquals(29.3, tile.temperature)
         assertEquals(32.2, tile.humidity)
-        assertEquals("29.3 °C · 32.2 %", climateLine(tile))
+        assertEquals("Влажность 32.2 %", climateLine(tile))
     }
 
     @Test
@@ -100,7 +104,7 @@ class RecuperatorTilesTest {
 
         val tile = poll.recuperators.state.value.tiles.single { it.id == "xfj-01" }
         assertNull(tile.temperature)
-        assertEquals("unknown · 32.2 %", climateLine(tile))
+        assertEquals("Влажность 32.2 %", climateLine(tile))
     }
 
     @Test
@@ -116,7 +120,7 @@ class RecuperatorTilesTest {
         val tile = poll.recuperators.state.value.tiles.single { it.id == "xfj-01" }
         assertNull(climateLine(tile))
         // The tile is still there, and the line that carries its staleness is untouched.
-        assertEquals("off · no speed · 3 d ago", statusLine(tile, now(minutes = 0)))
+        assertEquals("Выключено · Скорость не задана · 3 дн. назад", statusLine(tile, now(minutes = 0)))
     }
 
     @Test
@@ -132,7 +136,7 @@ class RecuperatorTilesTest {
             poll.refresh()
 
             val tile = poll.recuperators.state.value.tiles.single { it.id == "xfj-01" }
-            assertEquals("29.3 °C · 32.2 %", climateLine(tile))
+            assertEquals("Влажность 32.2 %", climateLine(tile))
         } finally {
             Locale.setDefault(previous)
         }
@@ -180,7 +184,7 @@ class RecuperatorTilesTest {
 
         val tile = poll.recuperators.state.value.tiles.single { it.id == "xfj-01" }
         assertEquals(listOf(FanSpeed.High), tile.speeds)
-        assertEquals("off · high · 3 d ago", statusLine(tile, now(minutes = 0)))
+        assertEquals("Выключено · Высокая · 3 дн. назад", statusLine(tile, now(minutes = 0)))
     }
 
     @Test
@@ -198,7 +202,7 @@ class RecuperatorTilesTest {
 
         val tile = poll.recuperators.state.value.tiles.single { it.id == "xfj-01" }
         assertEquals(listOf(FanSpeed.Low, FanSpeed.High), tile.speeds)
-        assertEquals("off · low + high · 3 d ago", statusLine(tile, now(minutes = 0)))
+        assertEquals("Выключено · Низкая + Высокая · 3 дн. назад", statusLine(tile, now(minutes = 0)))
     }
 
     @Test
@@ -212,7 +216,7 @@ class RecuperatorTilesTest {
         poll.refresh()
 
         val tile = poll.recuperators.state.value.tiles.single { it.id == "xfj-01" }
-        assertEquals("off · unknown · 3 d ago", statusLine(tile, now(minutes = 0)))
+        assertEquals("Выключено · Нет данных · 3 дн. назад", statusLine(tile, now(minutes = 0)))
     }
 
     @Test
@@ -227,7 +231,7 @@ class RecuperatorTilesTest {
 
         val tile = poll.recuperators.state.value.tiles.single { it.id == "xfj-01" }
         assertNull(tile.isOn)
-        assertEquals("unknown · no speed · 3 d ago", statusLine(tile, now(minutes = 0)))
+        assertEquals("Нет данных · Скорость не задана · 3 дн. назад", statusLine(tile, now(minutes = 0)))
     }
 
     @Test
@@ -245,7 +249,7 @@ class RecuperatorTilesTest {
         // read `offline · unknown · low + medium + high · 3 d ago` — five facts about a device that
         // is not there, 39 characters of them on a 251 dp tile that holds about 24. What survives
         // is the state and its age; what the panel is failing to read is on the line below.
-        assertEquals("offline · 3 d ago", statusLine(tile, now(minutes = 0)))
+        assertEquals("Нет связи · 3 дн. назад", statusLine(tile, now(minutes = 0)))
     }
 
     @Test
@@ -263,7 +267,7 @@ class RecuperatorTilesTest {
         assertNull(state.error, "one device failing is not the group failing")
         assertNull(state.tiles.single { it.id == "xfj-01" }.error)
         val failed = state.tiles.single { it.id == "xfj-02" }
-        assertEquals("failed", failed.error)
+        assertEquals("Не удалось выполнить запрос", failed.error)
     }
 
     @Test
@@ -283,9 +287,9 @@ class RecuperatorTilesTest {
         assertEquals(before.isOn, after.isOn)
         assertEquals(before.powerLastUpdated, after.powerLastUpdated)
         assertEquals(before.speeds, after.speeds)
-        assertEquals("off · no speed · 3 d ago", statusLine(after, now(minutes = 0)))
+        assertEquals("Выключено · Скорость не задана · 3 дн. назад", statusLine(after, now(minutes = 0)))
         assertEquals(
-            "failed",
+            "Не удалось выполнить запрос",
             anatomy(after, now(minutes = 0), groupError = null).detail,
             "the tile has to keep its values and say why they are not moving",
         )
@@ -369,7 +373,7 @@ class RecuperatorTilesTest {
         poll.refresh()
 
         assertTrue(poll.recuperators.state.value.tiles.isEmpty())
-        assertEquals("failed", poll.recuperators.state.value.error)
+        assertEquals("Не удалось выполнить запрос", poll.recuperators.state.value.error)
     }
 
     @Test
@@ -431,6 +435,8 @@ class RecuperatorTilesTest {
         val tile = poll.recuperators.state.value.tiles.single { it.id == "xfj-01" }
         assertEquals(false, tile.isOn, "the tile says what it read, never what it asked for")
         assertEquals(8 + CONFIRM_READS, server.requestCount)
+        assertEquals("Нет подтверждения. Проверьте устройство", poll.recuperators.state.value.commandErrors["xfj-01"])
+        assertTrue(poll.recuperators.state.value.pending.isEmpty())
     }
 
     @Test
@@ -482,7 +488,8 @@ class RecuperatorTilesTest {
         poll.recuperators.setSpeed("xfj-01", FanSpeed.Medium)
 
         assertEquals(7, server.requestCount)
-        assertEquals("failed", poll.recuperators.state.value.tiles.single { it.id == "xfj-01" }.error)
+        assertEquals("Сначала включите бризер", poll.recuperators.state.value.commandErrors["xfj-01"])
+        assertNull(poll.recuperators.state.value.tiles.single { it.id == "xfj-01" }.error)
     }
 
     @Test
@@ -518,9 +525,64 @@ class RecuperatorTilesTest {
         poll.recuperators.toggle("xfj-02")
 
         val after = poll.recuperators.state.value.tiles.single { it.id == "xfj-02" }
-        assertEquals(before.isOn, after.isOn)
-        assertEquals("failed", after.error)
+        assertEquals(before, after)
+        assertEquals("Не удалось выполнить запрос", poll.recuperators.state.value.commandErrors["xfj-02"])
         // The other four are untouched by one device's failed command.
+        assertTrue(poll.recuperators.state.value.tiles.filter { it.id != "xfj-02" }.all { it.error == null })
+    }
+
+    @Test
+    fun `only the subscription error code selects the subscription label`() {
+        assertEquals("Подписка истекла", reason(TuyaApiException(28841002L, "inventory", "changed vendor wording")))
+        assertEquals("Сервис недоступен", reason(TuyaApiException(40001900L, "inventory", "IoT Core service subscription has expired.")))
+        assertEquals("Не удалось выполнить запрос", reason(IllegalStateException("IoT Core service subscription has expired.")))
+    }
+
+    @Test
+    fun `an expired subscription during inventory shows its cause and preserves the last reading`() = runTest {
+        enqueueRefresh()
+        server.enqueue(MockResponse(body = fixture("subscription_expired.json")))
+        val poll = TuyaPoll(client())
+        poll.refresh()
+        val before = poll.recuperators.state.value
+
+        poll.refresh()
+
+        val after = poll.recuperators.state.value
+        assertEquals("Подписка истекла", after.error)
+        assertEquals(before.tiles, after.tiles)
+        assertEquals(before.lastPolledAt, after.lastPolledAt)
+    }
+
+    @Test
+    fun `an expired subscription during a device read names the cause on that tile`() = runTest {
+        enqueueToken()
+        server.enqueue(MockResponse(body = fixture("devices.json")))
+        server.enqueue(MockResponse(body = fixture("subscription_expired.json")))
+        repeat(4) { server.enqueue(MockResponse(body = fixture("shadow_properties.json"))) }
+        val poll = TuyaPoll(client())
+
+        poll.refresh()
+
+        val state = poll.recuperators.state.value
+        assertNull(state.error)
+        assertEquals("Подписка истекла", state.tiles.single { it.id == "xfj-01" }.error)
+        assertTrue(state.tiles.filter { it.id != "xfj-01" }.all { it.error == null })
+    }
+
+    @Test
+    fun `an expired subscription during a command names the cause without changing the reading`() = runTest {
+        enqueueRefresh()
+        server.enqueue(MockResponse(body = fixture("subscription_expired.json")))
+        val poll = TuyaPoll(client())
+        poll.refresh()
+        val before = poll.recuperators.state.value.tiles.single { it.id == "xfj-02" }
+
+        poll.recuperators.toggle("xfj-02")
+
+        val after = poll.recuperators.state.value.tiles.single { it.id == "xfj-02" }
+        assertEquals(before, after)
+        assertEquals("Подписка истекла", poll.recuperators.state.value.commandErrors["xfj-02"])
         assertTrue(poll.recuperators.state.value.tiles.filter { it.id != "xfj-02" }.all { it.error == null })
     }
 
@@ -571,7 +633,7 @@ class RecuperatorTilesTest {
         assertEquals("Бризер данина комната", tile.name)
         assertEquals("Спальня", tile.room, "the room it was placed in is remembered with it")
         assertNull(tile.isOn, "a switch position from before the reboot is not a reading")
-        assertEquals("unknown · unknown", statusLine(tile, now(minutes = 0)))
+        assertEquals("Нет данных", statusLine(tile, now(minutes = 0)))
         assertNull(restarted.recuperators.state.value.lastPolledAt, "nothing has been read yet")
     }
 
@@ -623,6 +685,76 @@ class RecuperatorTilesTest {
             recuperatorRooms(" xfj-01 = Спальня ;xfj-05;=Зал;xfj-02= ;xfj-04=Кабинет;"),
         )
         assertEquals(emptyMap(), recuperatorRooms(""))
+    }
+
+    @Test
+    fun `a recuperator command is pending until confirmed and a second tap is ignored`() = runTest {
+        enqueueRefresh()
+        server.enqueue(MockResponse(body = issued))
+        server.enqueue(MockResponse(body = shadowWith("switch", true)))
+        val poll = TuyaPoll(client())
+        poll.refresh()
+
+        val command = launch(start = CoroutineStart.UNDISPATCHED) { poll.recuperators.toggle("xfj-01") }
+        assertEquals(setOf("xfj-01"), poll.recuperators.state.value.pending)
+        poll.recuperators.toggle("xfj-01")
+        command.join()
+
+        assertTrue(poll.recuperators.state.value.pending.isEmpty())
+        assertTrue(poll.recuperators.state.value.commandErrors.isEmpty())
+        assertEquals(true, poll.recuperators.state.value.tiles.single { it.id == "xfj-01" }.isOn)
+        assertEquals(9, server.requestCount)
+    }
+
+    @Test
+    fun `a cancelled recuperator command clears pending without showing a command failure`() = runTest {
+        enqueueRefresh()
+        server.enqueue(MockResponse(body = issued))
+        server.enqueue(MockResponse(body = fixture("shadow_properties.json")))
+        val poll = TuyaPoll(client())
+        poll.refresh()
+
+        val command = launch(start = CoroutineStart.UNDISPATCHED) { poll.recuperators.toggle("xfj-01") }
+        assertEquals(setOf("xfj-01"), poll.recuperators.state.value.pending)
+        command.cancelAndJoin()
+
+        assertTrue(poll.recuperators.state.value.pending.isEmpty())
+        assertTrue(poll.recuperators.state.value.commandErrors.isEmpty())
+    }
+
+    @Test
+    fun `retry clears only the command failure while retaining any actual read failure`() = runTest {
+        for (readFails in listOf(false, true)) {
+            enqueueToken()
+            server.enqueue(MockResponse(body = fixture("devices.json")))
+            server.enqueue(
+                if (readFails) {
+                    MockResponse(code = 500, body = "read failed")
+                } else {
+                    MockResponse(body = fixture("shadow_properties.json"))
+                },
+            )
+            repeat(4) { server.enqueue(MockResponse(body = fixture("shadow_properties.json"))) }
+            server.enqueue(MockResponse(code = 500, body = "command failed"))
+            server.enqueue(MockResponse(body = issued))
+            server.enqueue(MockResponse(body = shadowWith("switch", true)))
+            val poll = TuyaPoll(client())
+            poll.refresh()
+            val readError = poll.recuperators.state.value.tiles.single { it.id == "xfj-01" }.error
+
+            poll.recuperators.toggle("xfj-01")
+
+            assertEquals(readError, poll.recuperators.state.value.tiles.single { it.id == "xfj-01" }.error)
+            assertEquals(setOf("xfj-01"), poll.recuperators.state.value.commandErrors.keys)
+            val retry = launch(start = CoroutineStart.UNDISPATCHED) { poll.recuperators.toggle("xfj-01") }
+            assertEquals(setOf("xfj-01"), poll.recuperators.state.value.pending)
+            assertTrue(poll.recuperators.state.value.commandErrors.isEmpty())
+            assertEquals(readError, poll.recuperators.state.value.tiles.single { it.id == "xfj-01" }.error)
+            retry.join()
+
+            assertNull(poll.recuperators.state.value.tiles.single { it.id == "xfj-01" }.error)
+            assertTrue(poll.recuperators.state.value.pending.isEmpty())
+        }
     }
 
     private fun now(minutes: Long): Instant = lastRead.plusSeconds(minutes * 60)

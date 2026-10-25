@@ -1,5 +1,7 @@
 package ru.domovoy.panel
 
+import androidx.activity.OnBackPressedDispatcher
+import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
 import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.material3.MaterialTheme
@@ -8,12 +10,21 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsFocused
+import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.isFocused
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performKeyInput
+import androidx.compose.ui.test.pressKey
 import kotlinx.coroutines.runBlocking
 import org.junit.Rule
 import org.junit.Test
@@ -46,19 +57,19 @@ class PanelSheetTest {
 
     @Test
     fun `tapping a tile opens the device, with an age for every reading`() {
-        // The wall says "off · 24 °C · 3 d ago": one age, the oldest of the two readings behind it,
+        // The wall says "off · 24 °C · 3 дн. назад": one age, the oldest of the two readings behind it,
         // because four timestamps in one paragraph is what made the panel unreadable. The tap is
         // where the pair comes back apart — the on/off was read a minute ago and the target three
         // days ago, and until now the panel held that difference and had nowhere to say it.
         compose.setContent { Panel() }
-        compose.onNodeWithText("target").assertDoesNotExist()
+        compose.onNodeWithText("Задано").assertDoesNotExist()
 
         compose.onNodeWithText("Кондиционер", useUnmergedTree = true).performClick()
 
-        compose.onNodeWithText("power").assertIsDisplayed()
-        compose.onNodeWithText("target").assertIsDisplayed()
-        compose.onAllNodesWithText("1 min ago").assertCountEquals(2)
-        compose.onNodeWithText("3 d ago").assertIsDisplayed()
+        compose.onNodeWithText("Питание").assertIsDisplayed()
+        compose.onNodeWithText("Задано").assertIsDisplayed()
+        compose.onAllNodesWithText("1 мин назад").assertCountEquals(2)
+        compose.onNodeWithText("3 дн. назад").assertIsDisplayed()
     }
 
     @Test
@@ -67,37 +78,74 @@ class PanelSheetTest {
 
         compose.onNodeWithText("Кондиционер", useUnmergedTree = true).performClick()
 
-        compose.onNodeWithText("Thermostat").assertIsDisplayed()
-        compose.onNodeWithText("Fan").assertIsDisplayed()
-        compose.onNodeWithText("Swing").assertIsDisplayed()
-        compose.onNodeWithText("Ionization").assertIsDisplayed()
-        compose.onNodeWithText("Keep warm").assertIsDisplayed()
-        compose.onNodeWithText("Backlight").assertIsDisplayed()
+        compose.onNodeWithText("Режим").assertIsDisplayed()
+        compose.onNodeWithText("Вентилятор").assertIsDisplayed()
+        compose.onNodeWithText("Направление воздуха").assertIsDisplayed()
+        compose.onNodeWithText("Ионизация").assertIsDisplayed()
+        compose.onNodeWithText("Поддержание тепла").assertIsDisplayed()
+        compose.onNodeWithText("Подсветка").assertIsDisplayed()
     }
 
     @Test
-    fun `nothing moves off the tile into the sheet`() {
-        // **The rule the whole change is built to.** A number that lives only behind a tap turns a
-        // glance into a walk, so the sheet is a superset: the promoted value is on the card *and* in
-        // the sheet, which is two nodes carrying the same string rather than one that moved.
+    fun `the sheet repeats the tile reading and restores it on dismiss`() {
         compose.setContent { Panel() }
         compose.onAllNodesWithText("24 °C").assertCountEquals(1)
 
         compose.onNodeWithText("Кондиционер", useUnmergedTree = true).performClick()
 
-        compose.onAllNodesWithText("24 °C").assertCountEquals(2)
+        // The background remains drawn, but its semantics are hidden while the sheet is modal.
+        compose.onNodeWithText("24 °C").assertIsDisplayed()
+        compose.onNodeWithText("Готово").performClick()
+        compose.onAllNodesWithText("24 °C").assertCountEquals(1)
     }
 
     @Test
     fun `the sheet goes away when it is done with`() {
         compose.setContent { Panel() }
         compose.onNodeWithText("Кондиционер", useUnmergedTree = true).performClick()
-        compose.onNodeWithText("done").assertIsDisplayed()
+        compose.onNodeWithText("Готово").assertIsDisplayed()
 
-        compose.onNodeWithText("done").performClick()
+        compose.onNodeWithText("Готово").performClick()
 
-        compose.onNodeWithText("done").assertDoesNotExist()
-        compose.onNodeWithText("target").assertDoesNotExist()
+        compose.onNodeWithText("Готово").assertDoesNotExist()
+        compose.onNodeWithText("Задано").assertDoesNotExist()
+    }
+
+    @Test
+    fun `system back closes the sheet without leaving the panel`() {
+        lateinit var back: OnBackPressedDispatcher
+        compose.setContent {
+            back = checkNotNull(LocalOnBackPressedDispatcherOwner.current).onBackPressedDispatcher
+            Panel()
+        }
+        compose.onNodeWithText("Кондиционер", useUnmergedTree = true).performClick()
+
+        compose.runOnIdle { back.onBackPressed() }
+
+        compose.onNodeWithText("Готово").assertDoesNotExist()
+        compose.onNodeWithText("Кондиционер", useUnmergedTree = true).assertIsDisplayed()
+    }
+
+    @Test
+    fun `the sheet takes focus and hides the background from accessibility`() {
+        compose.setContent { Panel() }
+        compose.onNodeWithText("Кондиционер", useUnmergedTree = true).performClick()
+
+        compose.onNode(SemanticsMatcher.expectValue(SemanticsProperties.PaneTitle, "Кондиционер"))
+            .assertIsFocused()
+        compose.onNode(SemanticsMatcher.keyIsDefined(SemanticsProperties.HideFromAccessibility))
+            .assertExists()
+
+        val pane = SemanticsMatcher.expectValue(SemanticsProperties.PaneTitle, "Кондиционер")
+        repeat(30) {
+            compose.onNode(isFocused()).performKeyInput { pressKey(Key.Tab) }
+            compose.onNode(isFocused()).assert(pane or hasAnyAncestor(pane))
+        }
+
+        compose.onNodeWithText("Готово").performClick()
+
+        compose.onNode(SemanticsMatcher.keyIsDefined(SemanticsProperties.HideFromAccessibility))
+            .assertDoesNotExist()
     }
 
     @Test
@@ -112,12 +160,12 @@ class PanelSheetTest {
             Panel(scroll = scroll, openSheet = openSheet)
         }
         compose.onNodeWithText("Кондиционер", useUnmergedTree = true).performClick()
-        compose.onNodeWithText("done").assertIsDisplayed()
+        compose.onNodeWithText("Готово").assertIsDisplayed()
 
         runBlocking { returnToHome(scroll, openSheet) }
 
-        compose.onNodeWithText("done").assertDoesNotExist()
-        compose.onNodeWithText("target").assertDoesNotExist()
+        compose.onNodeWithText("Готово").assertDoesNotExist()
+        compose.onNodeWithText("Задано").assertDoesNotExist()
     }
 
     @Test
@@ -131,9 +179,9 @@ class PanelSheetTest {
 
         compose.onAllNodesWithText("Домофон")[0].performClick()
 
-        compose.onNodeWithText("done").assertDoesNotExist()
-        compose.onNodeWithText("power").assertDoesNotExist()
-        assertEquals("com.example.intercom", opened)
+        compose.onNodeWithText("Готово").assertDoesNotExist()
+        compose.onNodeWithText("Питание").assertDoesNotExist()
+        assertEquals(Flat.launchers.first().packageName, opened)
     }
 
     @Test
@@ -143,15 +191,15 @@ class PanelSheetTest {
         // tap opens is the lamps, each of which is a bulb with a sheet of its own.
         compose.setContent { Panel(bulbs = twoLamps) }
 
-        compose.onNodeWithText("2 lamps").performClick()
+        compose.onNodeWithText("Свет").performClick()
 
-        compose.onNodeWithText("done").assertDoesNotExist()
+        compose.onNodeWithText("Готово").assertDoesNotExist()
         compose.onNodeWithText("Лампа 1").assertIsDisplayed()
 
         compose.onNodeWithText("Лампа 1", useUnmergedTree = true).performClick()
 
-        compose.onNodeWithText("done").assertIsDisplayed()
-        compose.onNodeWithText("power").assertIsDisplayed()
+        compose.onNodeWithText("Готово").assertIsDisplayed()
+        compose.onNodeWithText("Питание").assertIsDisplayed()
     }
 
     /** Спальня's two lamps: a group tile, and the two it opens. */
@@ -164,7 +212,6 @@ class PanelSheetTest {
                     room = "Спальня",
                     isOn = lamp == 1,
                     lastUpdated = Reading.At(Flat.NOW.minusSeconds(600)),
-                    stateChangedAt = Reading.Never,
                 )
             },
             lastPolledAt = Flat.NOW.minusSeconds(12),

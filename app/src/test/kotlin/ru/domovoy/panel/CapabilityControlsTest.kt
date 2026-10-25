@@ -29,9 +29,14 @@ class CapabilityControlsTest {
 
     @Test
     fun `vendor names are converted to short labels without losing unknown values`() {
-        assertEquals("Fan", capabilityLabel("fan_speed"))
-        assertEquals("Keep warm", capabilityLabel("keep_warm"))
-        assertEquals("Quiet", capabilityLabel("quiet"))
+        assertEquals("Вентилятор", capabilityLabel("fan_speed"))
+        assertEquals("Поддержание тепла", capabilityLabel("keep_warm"))
+        assertEquals("Тихо", capabilityLabel("quiet"))
         assertEquals("Vendor special", capabilityLabel("vendor_special"))
+    }
+
+    @Test
+    fun `the live AC turbo mode has a Russian label`() {
+        assertEquals("Турбо", capabilityLabel("turbo"))
     }
 }
