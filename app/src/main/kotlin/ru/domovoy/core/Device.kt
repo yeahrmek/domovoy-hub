@@ -45,15 +45,19 @@ data class Device(
      * 20 devices came back `false` over a perfectly good HTTP 200. See docs/tuya.md.
      */
     val online: Boolean? = null,
+    /** Original type for discovered devices without dedicated controls. */
+    val vendorType: String? = null,
+    val events: Map<String, EventProperty> = emptyMap(),
 )
 
-/** The device types the panel has a tile for. Everything else is dropped at the vendor client. */
+/** Dedicated controls plus read-only cards for other discovered device types. */
 enum class DeviceKind {
     Bulb,
     LightStrip,
     Curtain,
     AirConditioner,
     Recuperator,
+    Other,
 }
 
 /**
@@ -144,6 +148,11 @@ data class FloatProperty(
     val unit: String?,
     val lastUpdated: Reading,
     val stateChangedAt: Reading,
+)
+
+data class EventProperty(
+    val value: String?,
+    val lastUpdated: Reading,
 )
 
 /** What a [Range] will accept, as the vendor reports it. */

@@ -26,7 +26,7 @@ data class PanelHeading(
 )
 
 /**
- * Which polled groups' last read failed. Five nullable strings rather than a lookup by name so
+ * Which polled groups' last read failed. Named nullable strings rather than a lookup by name so
  * that a group can only be asked about by the name it has in the code — the heading's mark and
  * Главная both key off this, and a group silently missing from a map is a room that never says it
  * is dead.
@@ -40,16 +40,17 @@ data class GroupErrors(
     val strips: String? = null,
     val recuperators: String? = null,
     val bulbs: String? = null,
+    val discovered: String? = null,
 )
 
 /**
  * When each polled group's refresh last succeeded, `null` until the first one lands.
  *
- * Named per group for the same reason [GroupErrors] is, and it is the same five groups: what a
+ * Named per group for the same reason [GroupErrors] is, and it is the same set of groups: what a
  * lookup by name would allow is a group quietly missing from the map, which reads as "polled just
  * now" and is a room that never says it has gone quiet.
  *
- * The four Yandex groups are fed by one `/v1.0/user/info` call and so carry the same instant; the
+ * The five Yandex groups are fed by one `/v1.0/user/info` call and so carry the same instant; the
  * recuperators are their own call on their own timer and do not.
  */
 data class GroupPolls(
@@ -58,6 +59,7 @@ data class GroupPolls(
     val strips: Instant?,
     val recuperators: Instant?,
     val bulbs: Instant?,
+    val discovered: Instant? = null,
 )
 
 /**
@@ -117,4 +119,5 @@ private fun marked(
     (section.strips.isNotEmpty() && notUpdating(errors.strips, polls.strips, now, yandex)) ||
     (section.bulbs.isNotEmpty() && notUpdating(errors.bulbs, polls.bulbs, now, yandex)) ||
     (section.recuperators.isNotEmpty() && notUpdating(errors.recuperators, polls.recuperators, now, tuya)) ||
+    (section.discovered.isNotEmpty() && notUpdating(errors.discovered, polls.discovered, now, yandex)) ||
     section.recuperators.any { it.error != null }

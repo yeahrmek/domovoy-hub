@@ -20,7 +20,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.security.crypto.EncryptedSharedPreferences
@@ -28,6 +32,8 @@ import androidx.security.crypto.MasterKey
 import kotlinx.coroutines.channels.BufferOverflow.DROP_OLDEST
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
 import ru.domovoy.core.KnownRecuperators
@@ -36,12 +42,12 @@ import ru.domovoy.integrations.domonap.domonapCalls
 import ru.domovoy.integrations.tuya.TuyaClient
 import ru.domovoy.integrations.tuya.TuyaCredentials
 import ru.domovoy.integrations.yandex.YandexClient
+import ru.domovoy.panel.AdaptivePolling
 import ru.domovoy.panel.PanelRooms
 import ru.domovoy.panel.TuyaPoll
 import ru.domovoy.panel.YandexPoll
 import ru.domovoy.panel.closeOnCall
 import ru.domovoy.panel.launcherTiles
-import ru.domovoy.panel.pollPausingForCalls
 import ru.domovoy.panel.recuperatorRooms
 import ru.domovoy.panel.resetAfterIdle
 import ru.domovoy.panel.returnToHome
@@ -49,12 +55,8 @@ import java.time.Instant
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 
-/**
- * Yandex publishes no push mechanism, so the panel polls. One `/v1.0/user/info` call is the whole
- * house; 15 s is inside the rate limit Yandex's other APIs allow, though nothing is published for
- * this one — see docs/yandex.md.
- */
-private val POLL_INTERVAL = 15.seconds
+/** Advances reading ages independently of adaptive network polling. */
+private val AGE_TICK = 15.seconds
 
 /**
  * The recuperators are polled far more slowly, and on their own timer: a Tuya refresh is five calls
@@ -76,6 +78,18 @@ private val IDLE_RESET = 2.minutes
 private const val SECRETS_FILE = "domovoy-secrets"
 
 class MainActivity : ComponentActivity() {
+    private val foreground = MutableStateFlow(false)
+
+    override fun onStart() {
+        super.onStart()
+        foreground.value = true
+    }
+
+    override fun onStop() {
+        foreground.value = false
+        super.onStop()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -94,7 +108,7 @@ class MainActivity : ComponentActivity() {
                 typography = panelTypography,
             ) {
                 Surface {
-                    Panel(secrets)
+                    Panel(secrets, foreground)
                 }
             }
         }
@@ -157,7 +171,7 @@ private fun encryptedPrefs(context: Context) = EncryptedSharedPreferences.create
 )
 
 @Composable
-private fun Panel(secrets: PanelSecrets) {
+private fun Panel(secrets: PanelSecrets, foreground: StateFlow<Boolean>) {
     // One OkHttp client for both vendors: the connection pool and dispatcher are the point of
     // sharing it, and neither client knows about the other.
     val http = remember { OkHttpClient() }
@@ -185,6 +199,14 @@ private fun Panel(secrets: PanelSecrets) {
                 known = secrets.recuperators,
             )
         }
+    val tuyaPolling = remember(tuyaPoll) {
+        AdaptivePolling(activeInterval = TUYA_POLL_INTERVAL, idleInterval = TUYA_POLL_INTERVAL) {
+            tuyaPoll.refresh()
+            tuyaPoll.recuperators.state.value.error == null
+        }
+    }
+    val yandexInterval by poll.polling.interval.collectAsState()
+    val tuyaInterval by tuyaPolling.interval.collectAsState()
     val tiles = poll.bulbs
     val curtains = poll.curtains
     val acs = poll.acs
@@ -194,6 +216,7 @@ private fun Panel(secrets: PanelSecrets) {
     val curtainState by curtains.state.collectAsState()
     val acState by acs.state.collectAsState()
     val stripState by strips.state.collectAsState()
+    val discoveredState by poll.discovered.state.collectAsState()
     val recuperatorState by recuperators.state.collectAsState()
     var now by remember { mutableStateOf(Instant.now()) }
     val scope = rememberCoroutineScope()
@@ -211,6 +234,12 @@ private fun Panel(secrets: PanelSecrets) {
     // state that lives inside a composable.
     val openSheet = remember { mutableStateOf<String?>(null) }
     val touches = remember { MutableSharedFlow<Unit>(extraBufferCapacity = 1, onBufferOverflow = DROP_OLDEST) }
+    LaunchedEffect(poll, tuyaPolling, touches) {
+        touches.collect {
+            poll.polling.touch(refresh = false)
+            tuyaPolling.touch(refresh = false)
+        }
+    }
     LaunchedEffect(Unit) {
         resetAfterIdle(touches, IDLE_RESET) { scope.launch { returnToHome(scroll, openSheet) } }
     }
@@ -235,14 +264,14 @@ private fun Panel(secrets: PanelSecrets) {
 
     // One `/v1.0/user/info` call per interval feeds every group; each still holds its own
     // tiles, its own ages and its own error.
-    LaunchedEffect(poll) {
-        pollPausingForCalls(domonapCalls.state, POLL_INTERVAL, poll::refresh)
+    LaunchedEffect(poll, foreground) {
+        poll.polling.run(foreground, domonapCalls.state)
     }
 
     // Its own loop, at its own interval: Tuya is metered and Yandex is not, and one timer for
     // both would mean either paying for Yandex's cadence or waiting for Tuya's.
-    LaunchedEffect(tuyaPoll) {
-        pollPausingForCalls(domonapCalls.state, TUYA_POLL_INTERVAL, tuyaPoll::refresh)
+    LaunchedEffect(tuyaPolling, foreground) {
+        tuyaPolling.run(foreground, domonapCalls.state)
     }
 
     // The age on every tile has to keep climbing between polls, not freeze at the value the last
@@ -251,7 +280,7 @@ private fun Panel(secrets: PanelSecrets) {
     LaunchedEffect(Unit) {
         while (true) {
             now = Instant.now()
-            delay(POLL_INTERVAL)
+            delay(AGE_TICK)
         }
     }
 
@@ -261,23 +290,29 @@ private fun Panel(secrets: PanelSecrets) {
         strips = stripState,
         recuperators = recuperatorState,
         bulbs = state,
+        discovered = discoveredState,
         launchers = launchers,
         now = now,
         // Both intervals, because staleness is judged against the poll that produced the reading:
         // 15 s for the Yandex groups and 6 minutes for the recuperators. One number for both would
         // either call every recuperator stale or never call a bulb stale.
-        yandexInterval = POLL_INTERVAL,
-        tuyaInterval = TUYA_POLL_INTERVAL,
+        yandexInterval = yandexInterval,
+        tuyaInterval = tuyaInterval,
         // Every touch on the panel, seen on the way down and not consumed: this watches the
         // gestures, it does not take them. A tap that reached a switch must still flip it. Over the
         // whole screen rather than the tiles, so a touch on the empty half of a short room still
         // says somebody is standing there.
         modifier =
-        Modifier.fillMaxSize().pointerInput(Unit) {
+        Modifier.fillMaxSize().onPreviewKeyEvent {
+            touches.tryEmit(Unit)
+            poll.polling.touch(refresh = it.type == KeyEventType.KeyDown)
+            false
+        }.pointerInput(Unit) {
             awaitPointerEventScope {
                 while (true) {
-                    awaitPointerEvent(PointerEventPass.Initial)
+                    val event = awaitPointerEvent(PointerEventPass.Initial)
                     touches.tryEmit(Unit)
+                    poll.polling.touch(refresh = event.type == PointerEventType.Press)
                 }
             }
         },

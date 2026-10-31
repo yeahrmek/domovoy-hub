@@ -1,7 +1,9 @@
 package ru.domovoy.panel
 
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
@@ -12,12 +14,6 @@ import java.time.Instant
 import kotlin.test.assertEquals
 import kotlin.time.Duration.Companion.seconds
 
-/**
- * The panel yields to Domonap's call screen by getting out of the way: while a call is up it does
- * no polling at all, so it is not competing for Wi-Fi or repainting behind the call. It never
- * launches, covers or dismisses anything — the call screen is Domonap's own activity, which the
- * platform already brings to the front.
- */
 @OptIn(ExperimentalCoroutinesApi::class)
 class PanelPollingTest {
     private val interval = 15.seconds
@@ -27,7 +23,7 @@ class PanelPollingTest {
     fun `polls every interval while no call is up`() = runTest {
         val calls = MutableStateFlow<CallState>(CallState.Idle)
         var polls = 0
-        backgroundScope.launch { pollPausingForCalls(calls, interval) { polls++ } }
+        backgroundScope.launch { poll(calls, { testScheduler.currentTime }) { polls++ } }
 
         runCurrent()
         assertEquals(1, polls)
@@ -45,7 +41,7 @@ class PanelPollingTest {
     fun `stops polling while a call is up`() = runTest {
         val calls = MutableStateFlow<CallState>(CallState.Idle)
         var polls = 0
-        backgroundScope.launch { pollPausingForCalls(calls, interval) { polls++ } }
+        backgroundScope.launch { poll(calls, { testScheduler.currentTime }) { polls++ } }
         runCurrent()
         assertEquals(1, polls)
 
@@ -60,7 +56,7 @@ class PanelPollingTest {
     fun `comes back the moment the call ends, without waiting out the interval`() = runTest {
         val calls = MutableStateFlow<CallState>(CallState.Idle)
         var polls = 0
-        backgroundScope.launch { pollPausingForCalls(calls, interval) { polls++ } }
+        backgroundScope.launch { poll(calls, { testScheduler.currentTime }) { polls++ } }
         runCurrent()
         calls.value = ringing
         advanceTimeBy(interval * 4)
@@ -73,6 +69,44 @@ class PanelPollingTest {
         // No time advanced: the panel refreshes as soon as the call is over rather than leaving
         // state that went stale for the length of the call.
         assertEquals(2, polls)
+    }
+
+    @Test
+    fun `a call shorter than the poll interval refreshes as soon as it ends`() = runTest {
+        val calls = MutableStateFlow<CallState>(CallState.Idle)
+        var polls = 0
+        backgroundScope.launch { poll(calls, { testScheduler.currentTime }) { polls++ } }
+        runCurrent()
+        advanceTimeBy(1.seconds)
+        calls.value = ringing
+        runCurrent()
+        advanceTimeBy(1.seconds)
+
+        calls.value = CallState.Idle
+        runCurrent()
+
+        assertEquals(2, polls)
+    }
+
+    @Test
+    fun `a call interrupts an in-progress refresh`() = runTest {
+        val calls = MutableStateFlow<CallState>(CallState.Idle)
+        var interrupted = false
+        backgroundScope.launch {
+            poll(calls, { testScheduler.currentTime }) {
+                try {
+                    awaitCancellation()
+                } finally {
+                    interrupted = true
+                }
+            }
+        }
+        runCurrent()
+
+        calls.value = ringing
+        runCurrent()
+
+        assertEquals(true, interrupted)
     }
 
     @Test
@@ -111,5 +145,17 @@ class PanelPollingTest {
         runCurrent()
 
         assertEquals(1, closes)
+    }
+
+    private suspend fun poll(calls: StateFlow<CallState>, millis: () -> Long, refresh: suspend () -> Unit) {
+        AdaptivePolling(
+            activeInterval = interval,
+            idleInterval = interval,
+            nightInterval = interval,
+            now = { Instant.parse("2026-10-31T12:00:00Z").plusMillis(millis()) },
+        ) {
+            refresh()
+            true
+        }.run(MutableStateFlow(true), calls)
     }
 }

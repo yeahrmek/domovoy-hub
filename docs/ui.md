@@ -35,6 +35,12 @@ rules have been superseded.
   are blocked until the request and confirmation read finish; other devices remain available.
   Command failures do not mark every device from the same vendor as failed. Displayed values
   remain actual API readings, not optimistic claims about the physical device.
+- Yandex polling adapts to usage: one minute active, five minutes after two idle minutes, and
+  30 minutes idle between 23:00 and 07:00 in the tablet time zone. A pointer press/key-down and a
+  completed command trigger an immediate read; dragging only extends active use. Background and
+  intercom calls suspend scheduled reads. Consecutive failures increase the wait, resetting after
+  success. Tuya keeps its six-minute daytime minimum and has no forced touch refresh. Poll-health
+  indicators use the planned interval; the 15-second age ticker makes no network requests.
 - Interface labels, capability names, statuses and ages are Russian. Promoted values are not
   repeated in status text. Launcher tiles show an action or installation hint, never package IDs.
 

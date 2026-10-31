@@ -15,7 +15,7 @@ import java.time.Instant
  * A single device's read failing is not the group failing: the other four are handed on as normal
  * and the failure lands on that one tile.
  *
- * Nothing here schedules; [refresh] is called by whatever owns the timer. See [pollPausingForCalls].
+ * Nothing here schedules; [refresh] is called by whatever owns the timer. See [AdaptivePolling].
  */
 class TuyaPoll(
     private val client: TuyaClient,

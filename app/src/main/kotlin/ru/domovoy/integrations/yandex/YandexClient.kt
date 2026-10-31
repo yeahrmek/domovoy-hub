@@ -1,5 +1,6 @@
 package ru.domovoy.integrations.yandex
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
@@ -20,6 +21,7 @@ import ru.domovoy.core.Bounds
 import ru.domovoy.core.ColorSetting
 import ru.domovoy.core.Device
 import ru.domovoy.core.DeviceKind
+import ru.domovoy.core.EventProperty
 import ru.domovoy.core.FloatProperty
 import ru.domovoy.core.Mode
 import ru.domovoy.core.OnOff
@@ -27,7 +29,6 @@ import ru.domovoy.core.Range
 import ru.domovoy.core.Reading
 import ru.domovoy.core.Toggle
 import java.io.IOException
-import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlin.math.floor
 import kotlin.time.Duration
@@ -73,7 +74,7 @@ private val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
 private val json = Json { ignoreUnknownKeys = true }
 
 /**
- * Reads and drives the devices of one Yandex household that the panel has a tile for.
+ * Discovers all devices of one Yandex household; callers control only verified device types.
  *
  * The account behind the recorded response holds four households — the flat, two other homes and
  * a dacha. [householdId] is the only thing that says which of them the panel hangs in, so every
@@ -98,7 +99,7 @@ class YandexClient(
 
     /**
      * One `/v1.0/user/info` call is the whole house, so this is the panel's poll. Returns the
-     * devices of [householdId] the panel has a tile for — every kind together, told apart by
+     * devices of [householdId] — every kind together, told apart by
      * [Device.kind]; failures come back as a failed [Result] for the caller to show.
      */
     suspend fun devices(): Result<List<Device>> = runCatching {
@@ -110,8 +111,8 @@ class YandexClient(
         val roomNames = info.rooms.associate { it.id to it.name }
         info.devices
             .filter { it.householdId == householdId }
-            .mapNotNull { device -> KINDS[device.type]?.let { device.toDevice(it, roomNames) } }
-    }
+            .map { device -> device.toDevice(KINDS[device.type] ?: DeviceKind.Other, roomNames) }
+    }.onFailure { if (it is CancellationException) throw it }
 
     /**
      * Turns one device on or off. Success means Yandex accepted the request — the docs do not say
@@ -182,7 +183,7 @@ class YandexClient(
         if (response.status != null && response.status != "ok") {
             error("POST /v1.0/devices/actions returned status=${response.status} request_id=${response.requestId}")
         }
-    }
+    }.onFailure { if (it is CancellationException) throw it }
 
     private suspend fun get(path: String): String = send { request(path).build() }
 
@@ -202,22 +203,10 @@ class YandexClient(
             .header("Authorization", "Bearer $token")
     }
 
-    // enqueue() hands the response back as soon as the headers land, but reading the body is a
-    // blocking socket read — and it happens on whatever dispatcher called in. The panel polls from
-    // Dispatchers.Main, so without this the tablet answers NetworkOnMainThreadException and no
-    // tile ever gets a value. The request is built in here too, so reading the token out of
-    // encrypted storage — a decrypt per call — happens off the main thread as well.
+    // Decrypt credentials off Main and keep socket cancellation connected until the body is read.
     private suspend fun send(build: () -> Request): String = withContext(Dispatchers.IO) {
         val request = build()
-        http.newCall(request).await().use { response ->
-            // A wrong OAuth scope answers with a bare non-JSON "Forbidden", so the body is read
-            // before it is trusted to be JSON and quoted back in the failure.
-            val body = response.body.string()
-            if (!response.isSuccessful) {
-                error("${request.method} ${request.url.encodedPath} failed: HTTP ${response.code} ${body.take(200)}")
-            }
-            body
-        }
+        http.newCall(request).awaitBody()
     }
 }
 
@@ -245,6 +234,8 @@ private fun DeviceDto.toDevice(
     toggles = capabilities.filter { it.type == TOGGLE }.mapNotNull(CapabilityDto::toToggle).toMap(),
     color = capabilities.firstOrNull { it.type == COLOR_SETTING }?.toColorSetting(),
     properties = properties.filter { it.type == FLOAT_PROPERTY }.mapNotNull(PropertyDto::toFloatProperty).toMap(),
+    vendorType = type,
+    events = properties.filter { it.type == "devices.properties.event" }.mapNotNull(PropertyDto::toEventProperty).toMap(),
 )
 
 // A range with no state at all is kept, not dropped: its bounds are still what the device accepts,
@@ -309,6 +300,14 @@ private fun PropertyDto.toFloatProperty(): Pair<String, FloatProperty>? {
         )
 }
 
+private fun PropertyDto.toEventProperty(): Pair<String, EventProperty>? {
+    val instance = parameters?.instance ?: state?.instance ?: return null
+    return instance to EventProperty(
+        value = (state?.value as? JsonPrimitive)?.takeIf { it.isString }?.content,
+        lastUpdated = Reading.ofEpochSeconds(lastUpdated),
+    )
+}
+
 // Yandex reports a percentage as 70 and a temperature as 24, and every range recorded so far has
 // precision 1 — so sending 70.0 back is a difference from the vendor's own spelling for no gain.
 private fun Double.asJson(): JsonPrimitive = if (isFinite() && this == floor(this)) {
@@ -317,7 +316,8 @@ private fun Double.asJson(): JsonPrimitive = if (isFinite() && this == floor(thi
     JsonPrimitive(this)
 }
 
-private suspend fun Call.await(): Response = suspendCancellableCoroutine { continuation ->
+/** Keeps HTTP cancellation connected until the entire response body is consumed. */
+private suspend fun Call.awaitBody(): String = suspendCancellableCoroutine { continuation ->
     continuation.invokeOnCancellation { cancel() }
     enqueue(
         object : Callback {
@@ -325,7 +325,17 @@ private suspend fun Call.await(): Response = suspendCancellableCoroutine { conti
                 call: Call,
                 response: Response,
             ) {
-                continuation.resume(response)
+                val result = runCatching {
+                    response.use {
+                        val body = it.body.string()
+                        if (!it.isSuccessful) {
+                            val request = call.request()
+                            error("${request.method} ${request.url.encodedPath} failed: HTTP ${it.code} ${body.take(200)}")
+                        }
+                        body
+                    }
+                }
+                continuation.resumeWith(result)
             }
 
             override fun onFailure(

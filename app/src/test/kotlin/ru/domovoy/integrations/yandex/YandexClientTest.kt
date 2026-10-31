@@ -1,6 +1,8 @@
 package ru.domovoy.integrations.yandex
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
@@ -15,6 +17,8 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import mockwebserver3.MockResponse
 import mockwebserver3.MockWebServer
+import okhttp3.Call
+import okhttp3.EventListener
 import okhttp3.OkHttpClient
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
@@ -27,6 +31,7 @@ import java.time.Instant
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -50,6 +55,19 @@ class YandexClientTest {
     @AfterEach
     fun stop() {
         server.close()
+    }
+
+    @Test
+    fun `new device types in the household are discovered without an allowlist`() = runTest {
+        val body = javaClass.getResource("/yandex/discovered_devices.json")!!.readText()
+        server.enqueue(MockResponse(body = body))
+
+        val devices = client().devices().getOrThrow()
+
+        assertEquals(5, devices.size)
+        assertEquals(setOf("Датчик климата", "Умный замок", "Домофон"), devices.map { it.name }.toSet())
+        assertTrue(devices.all { it.room == "Коридор" })
+        assertNotNull(devices.single { it.name == "Датчик климата" }.properties["temperature"])
     }
 
     @Test
@@ -84,28 +102,23 @@ class YandexClientTest {
                 DeviceKind.LightStrip to 2,
                 DeviceKind.Curtain to 1,
                 DeviceKind.AirConditioner to 3,
+                DeviceKind.Other to 5,
             ),
             devices.groupingBy { it.kind }.eachCount(),
         )
     }
 
     @Test
-    fun `devices of another household and types the panel has no tile for are left out`() = runTest {
+    fun `other households are excluded while every device of this household is retained`() = runTest {
         server.enqueue(MockResponse(body = fixture()))
 
         val ids = client().devices().map { list -> list.map { it.id } }.getOrThrow()
 
-        // light-09 and light-13 are bulbs, but of other households; light-14 is of another
-        // household too. The type match is still exact — a vacuum or a socket has no tile — but
-        // devices.types.light.strip now has one of its own.
-        assertTrue(
-            ids.none { it in setOf("light-09", "light-13", "light-14") },
-            "leaked out-of-scope devices: $ids",
-        )
-        assertTrue(
-            ids.none { it.startsWith("vacuum-") || it.startsWith("socket-") },
-            "leaked a type the panel has no tile for: $ids",
-        )
+        val expected = Json.parseToJsonElement(fixture()).jsonObject["devices"]!!.jsonArray
+            .filter { it.jsonObject["household_id"]?.jsonPrimitive?.content == "household-flat" }
+            .map { it.jsonObject["id"]!!.jsonPrimitive.content }
+        assertEquals(expected, ids)
+        assertTrue(ids.none { it in setOf("light-09", "light-13", "light-14") })
     }
 
     @Test
@@ -405,6 +418,32 @@ class YandexClientTest {
     }
 
     @Test
+    fun `cancelling a poll propagates cancellation instead of reporting a failed device read`() = runTest {
+        assertFailsWith<CancellationException> {
+            client(token = { throw CancellationException("call started") }).devices()
+        }
+    }
+
+    @Test
+    fun `cancelling a poll interrupts a response body still being received`() = runBlocking {
+        val bodyStarted = CompletableDeferred<Unit>()
+        val http = OkHttpClient.Builder().eventListener(
+            object : EventListener() {
+                override fun responseBodyStart(call: Call) {
+                    bodyStarted.complete(Unit)
+                }
+            },
+        ).build()
+        server.enqueue(MockResponse.Builder().body(fixture()).throttleBody(1, 2, TimeUnit.SECONDS).build())
+        val poll = launch(Dispatchers.Default) { client(http = http).devices() }
+        withTimeout(1.seconds) { bodyStarted.await() }
+
+        poll.cancel()
+
+        withTimeout(1.seconds) { poll.join() }
+    }
+
+    @Test
     fun `with no token stored a toggle is refused rather than sent`() = runTest {
         val result = client(token = { "" }).setOn("light-01", on = true)
 
@@ -530,8 +569,9 @@ class YandexClientTest {
         householdId: String = "household-flat",
         timeout: Duration = 10.seconds,
         token: () -> String = { "test-token" },
+        http: OkHttpClient = OkHttpClient(),
     ) = YandexClient(
-        http = OkHttpClient(),
+        http = http,
         token = token,
         householdId = householdId,
         baseUrl = server.url("/"),
