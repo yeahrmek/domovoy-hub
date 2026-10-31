@@ -1,0 +1,149 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-31T19:33:30.114337+00:00",
+  "title": "Design System: Domovoy Hub",
+  "extensions": {
+    "colorMeta": {
+      "primary-light": {
+        "role": "primary",
+        "displayName": "Readable lime green · light"
+      },
+      "primary-dark": {
+        "role": "primary",
+        "displayName": "Lime · dark"
+      },
+      "secondary-light": {
+        "role": "secondary",
+        "displayName": "Supplementary lavender · light"
+      },
+      "secondary-dark": {
+        "role": "secondary",
+        "displayName": "Supplementary lavender · dark"
+      },
+      "tertiary-light": {
+        "role": "tertiary",
+        "displayName": "Logo peach · light"
+      },
+      "tertiary-dark": {
+        "role": "tertiary",
+        "displayName": "Logo peach · dark"
+      },
+      "error-light": {
+        "role": "error",
+        "displayName": "Pink-red device error · light"
+      },
+      "error-dark": {
+        "role": "error",
+        "displayName": "Pink-red device error · dark"
+      },
+      "surface-light": {
+        "role": "neutral",
+        "displayName": "Neutral white and grey surfaces · light",
+        "tonalRamp": [
+          "#F6F6F8",
+          "#F3F4F7",
+          "#F0F1F4",
+          "#E7E9EE",
+          "#DDE0E6"
+        ]
+      },
+      "surface-dark": {
+        "role": "neutral",
+        "displayName": "Graphite surfaces · dark",
+        "tonalRamp": [
+          "#1A1E24",
+          "#1D2229",
+          "#20252D",
+          "#29303A",
+          "#333C48"
+        ]
+      },
+      "primary-fixed-dim": {
+        "role": "primary",
+        "displayName": "Lime · filled controls",
+        "value": "#B3DF5A"
+      },
+      "tertiary-fixed-dim": {
+        "role": "tertiary",
+        "displayName": "Range maximum · peach"
+      },
+      "tertiary-fixed-light": {
+        "role": "tertiary",
+        "displayName": "Range minimum · light peach",
+        "value": "#FFE2D6"
+      },
+      "tertiary-fixed-dark": {
+        "role": "tertiary",
+        "displayName": "Range minimum · light peach on dark",
+        "value": "#FFDCCE"
+      }
+    },
+    "typographyMeta": {
+      "display-small": {
+        "displayName": "Promoted reading",
+        "purpose": "Primary device values and the circular temperature target."
+      },
+      "headline-large": {
+        "displayName": "App brand",
+        "purpose": "Name beside the lime and peach Domovoy mark."
+      },
+      "title-medium": {
+        "displayName": "Device name",
+        "purpose": "Device identity and sheet labels."
+      },
+      "body-medium": {
+        "displayName": "Device context",
+        "purpose": "Room, status and command feedback."
+      },
+      "body-small": {
+        "displayName": "Freshness",
+        "purpose": "Reading and polling ages remain separate."
+      }
+    },
+    "breakpoints": [
+      {
+        "name": "thermostat-horizontal",
+        "value": "560dp"
+      }
+    ]
+  },
+  "narrative": {
+    "northStar": "Orbit controls, neutral White",
+    "overview": "A native Android control panel for short interactions at a hallway wall. The chosen Orbit composition puts a working circular thermostat, curtain controls and light adjustment on Home. The selected White scheme gives it neutral white and grey surfaces, dark readings and lime actions. The range controls use a continuous light-to-rich peach colour scale; the app mark uses the selected lime and peach palette.\n\nThe application follows Android’s light/dark setting: neutral White in light mode and graphite in dark mode, both with lime actions. No separate in-app theme selector is added. The existing Domovoy mark identifies the header and device sheets; its geometry remains intact and its colours follow the lime and peach palette.",
+    "keyCharacteristics": [
+      "Real adjustment on the device card, with full capabilities still available in details.",
+      "Fixed branded navigation above the scrolling Home and room sections.",
+      "Large readings, explicit command feedback and separate reading and polling ages."
+    ],
+    "rules": [
+      {
+        "name": "The Separate Error Rule",
+        "body": "Failures use the separate pink-red error role and explanatory text; peach is an accent, not an error colour. Shared polling failure preserves the last known device state; a failed command stays local to that device.",
+        "section": "colors"
+      },
+      {
+        "name": "The Confirmed Command Rule",
+        "body": "Dragging previews a local draft and sends one command when the gesture finishes. Pending disables controls for that device, while other devices remain usable; group power waits for the affected group.",
+        "section": "components"
+      }
+    ],
+    "dos": [
+      "**Do** use on-surface for promoted numbers and light-to-rich peach gradients for range scales.",
+      "**Do** retain the correct setting name and unit on every range control, including brightness and curtain opening.",
+      "**Do** place working controls on Home when the device advertises the capability and bounds.",
+      "**Do** preserve vendor ranges, precision and units in dials, sliders and end actions.",
+      "**Do** keep reading age distinct from successful service polling.",
+      "**Do** keep wall touch targets at least 64 dp and allow text and rows to grow.",
+      "**Do** use the app mark in the header and device sheets without tinting it."
+    ],
+    "donts": [
+      "**Don't** colour promoted readings lime, lavender or peach.",
+      "**Don't** add plus/minus controls to device cards; precise step controls remain in details.",
+      "**Don't** draw an adjustment control that has no connected command.",
+      "**Don't** present a local draft as a confirmed physical reading.",
+      "**Don't** add an unlock, open or other write action to the Aqara lock.",
+      "**Don't** cover, delay or suppress Domonap's incoming-call screen.",
+      "**Don't** shrink live controls or hide state text to reproduce the shorter browser mock."
+    ]
+  }
+}

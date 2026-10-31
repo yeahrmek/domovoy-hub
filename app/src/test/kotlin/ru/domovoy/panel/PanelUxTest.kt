@@ -36,10 +36,13 @@ class PanelUxTest {
         compose.setContent {
             MaterialTheme(colorScheme = panelLightScheme, typography = panelTypography) {
                 PanelRooms(
-                    acs = AcPanelState(tiles = listOf(Flat.acs.tiles.first()), lastPolledAt = Flat.NOW),
+                    acs = AcPanelState(lastPolledAt = Flat.NOW),
                     curtains = CurtainPanelState(lastPolledAt = Flat.NOW),
                     strips = LightStripPanelState(
-                        tiles = listOf(Flat.strips.tiles.first().copy(name = "Подсветка у окна, над полками и рядом с диваном", room = "Зал")),
+                        tiles = listOf(
+                            Flat.strips.tiles.first().copy(name = "Лента", room = "Зал"),
+                            Flat.strips.tiles.last().copy(name = "Подсветка у окна, над полками и рядом с диваном", room = "Зал"),
+                        ),
                         lastPolledAt = Flat.NOW,
                     ),
                     recuperators = RecuperatorPanelState(lastPolledAt = Flat.NOW),
@@ -51,10 +54,10 @@ class PanelUxTest {
                 )
             }
         }
-        val ac = compose.onNode(hasText("Кондиционер") and hasText("Зал") and hasClickAction()).getUnclippedBoundsInRoot()
+        val short = compose.onNode(hasText("Лента") and hasText("Зал") and hasClickAction()).getUnclippedBoundsInRoot()
         val strip = compose.onNode(hasText("Подсветка у окна, над полками и рядом с диваном") and hasText("Зал") and hasClickAction()).getUnclippedBoundsInRoot()
-        assertTrue(ac.top == strip.top)
-        assertTrue(ac.bottom == strip.bottom)
+        assertTrue(short.top == strip.top)
+        assertTrue(short.bottom == strip.bottom)
     }
 
     @Test

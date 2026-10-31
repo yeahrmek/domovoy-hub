@@ -126,7 +126,7 @@ class LightStripTilesTest {
         poll.refresh()
 
         val tile = poll.strips.state.value.tiles.single { it.id == "light-strip-01" }
-        assertEquals("#FFFFF0 · только просмотр", colorLine(tile))
+        assertEquals("Выбранный цвет · только просмотр", colorLine(tile))
     }
 
     @Test

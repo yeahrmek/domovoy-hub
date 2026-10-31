@@ -24,6 +24,7 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performKeyInput
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.pressKey
 import kotlinx.coroutines.runBlocking
 import org.junit.Rule
@@ -196,7 +197,7 @@ class PanelSheetTest {
         compose.onNodeWithText("Готово").assertDoesNotExist()
         compose.onNodeWithText("Лампа 1").assertIsDisplayed()
 
-        compose.onNodeWithText("Лампа 1", useUnmergedTree = true).performClick()
+        compose.onNodeWithText("Лампа 1", useUnmergedTree = true).performScrollTo().performClick()
 
         compose.onNodeWithText("Готово").assertIsDisplayed()
         compose.onNodeWithText("Питание").assertIsDisplayed()

@@ -72,7 +72,7 @@ internal fun statusLine(
 ).joinToString(" · ")
 
 /** Only readings with values contribute to age; absent values are already shown as unknown. */
-private fun AcTileState.readings(): List<Reading> = listOfNotNull(
+internal fun AcTileState.readings(): List<Reading> = listOfNotNull(
     powerLastUpdated.takeIf { isOn != null },
     temperatureLastUpdated.takeIf { targetTemperature != null },
 )

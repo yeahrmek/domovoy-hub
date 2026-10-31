@@ -8,7 +8,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import ru.domovoy.core.Device
 import ru.domovoy.core.KnownRecuperators
 import ru.domovoy.core.Reading
-import ru.domovoy.integrations.tuya.TuyaClient
+import ru.domovoy.integrations.tuya.TuyaDevices
 import java.time.Instant
 import kotlin.time.Duration.Companion.seconds
 
@@ -89,16 +89,15 @@ data class RecuperatorPanelState(
 /**
  * Holds what the recuperator tiles show.
  *
- * Nothing here schedules: [TuyaPoll] does the five-call refresh and hands the results to [show].
- * A tap re-reads only the device it touched — a refresh is five calls against a metered allowance,
- * and repainting one tile has no business spending all five.
+ * Nothing here schedules: [TuyaPoll] reads the devices and hands the results to [show].
+ * A tap confirms only the device it touched.
  *
  * It starts with the recuperators [remembered] from the last run rather than with nothing. Their
  * tiles carry no values — every age is "never read" — and the first successful refresh replaces
  * them. See [KnownRecuperators] for why this group, alone of the five, needs a memory.
  */
 class RecuperatorTiles(
-    private val client: TuyaClient,
+    private val client: TuyaDevices,
     private val remembered: KnownRecuperators = KnownRecuperators(null),
 ) {
     private val mutableState = MutableStateFlow(RecuperatorPanelState())

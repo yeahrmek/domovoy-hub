@@ -4,11 +4,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import ru.domovoy.core.Reading
 import java.time.Instant
-import kotlin.math.roundToInt
-
-/** Verified colour-setting instances from recorded vendor responses. */
-private const val TEMPERATURE_K = "temperature_k"
-private const val RGB = "rgb"
 
 /** Power, brightness, and read-only colour. A failed poll visibly retains the last readings. */
 @Composable
@@ -75,7 +70,7 @@ internal fun statusLine(
 ).joinToString(" · ")
 
 /** Only readings with values contribute to age; missing values are shown as unknown. */
-private fun LightStripTileState.readings(): List<Reading> = listOfNotNull(
+internal fun LightStripTileState.readings(): List<Reading> = listOfNotNull(
     powerLastUpdated.takeIf { isOn != null },
     brightnessLastUpdated.takeIf { brightnessPercent != null },
     color?.takeIf { it.value != null }?.lastUpdated,
@@ -87,17 +82,5 @@ private fun LightStripTileState.readings(): List<Reading> = listOfNotNull(
  */
 internal fun colorLine(tile: LightStripTileState): String? {
     val color = tile.color ?: return null
-    return "${colorLabel(color.instance, color.value)} · только просмотр"
-}
-
-private fun colorLabel(
-    instance: String?,
-    value: Double?,
-): String {
-    val reported = value ?: return "Нет данных"
-    return when (instance) {
-        TEMPERATURE_K -> "${reported.roundToInt()} K"
-        RGB -> "#%06X".format(reported.roundToInt())
-        else -> "Нет данных"
-    }
+    return "${colorDescription(color)} · только просмотр"
 }

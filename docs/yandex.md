@@ -497,10 +497,9 @@ Built against the fixture; first run against the live API on the tablet on 2026-
 - **Filtering happens in `YandexClient`**, not downstream: 23 of the 41 devices returned belong to
   the other three households and never reach the shared model. `household_id` comes from
   `local.properties` as `yandex.household.id` via a `BuildConfig` constant.
-- **Both timestamps are kept** on the model (`OnOff.lastUpdated`, `OnOff.stateChangedAt`). The tile
-  prints the age of `last_updated` — that is literally "how old is this reading". Which of the two
-  a tile *should* show is still the open question below; keeping both means answering it later
-  costs nothing.
+- **The model keeps `last_updated` only** as `lastUpdated`. The tile prints its age. The response's
+  `state_changed_at` remains in the recorded fixtures and evidence below, but no current UI reads it,
+  so it is not decoded or copied through the model.
 - **`last_updated: 0.0` is `Reading.Never`**, rendered "never read". A `Double` at this magnitude
   resolves only ~0.2 µs, so sub-second parts survive approximately — irrelevant for an age display,
   worth knowing before anyone compares two timestamps for equality.
@@ -535,13 +534,12 @@ plus an `on_off` whose value is `false` and whose **both** timestamps are `0.0`,
 `zigbee_node` whose `state.value` is an *object* (`signal_quality`, `channel`, `is_active`) rather
 than a scalar.
 
-- **The tile shows the `range` timestamps, not the `on_off` ones.** The position is what the tile
-  prints, so its age is the age of the position — and on this device `on_off` has never reported at
-  all, so hanging the age on it would have said "never read" next to a position read minutes ago.
+- **In this recorded response, the position age comes from `range.last_updated`.** The `on_off`
+  timestamp is zero. Current position selection uses whichever of range or on/off has the newer
+  `last_updated`, as described in the voice-command findings below.
 - **`state_changed_at: 0.0` with a real `last_updated`** is the reverse of the bulbs' case: the
-  capability *has* been read, it just has no recorded change. Both are kept, `Reading.Never` covers
-  the `0.0`, and the tile prints the age of `last_updated` — the same choice as the bulbs, and the
-  same open question below.
+  capability *has* been read, it just has no recorded change. The model keeps `last_updated` and
+  the tile prints its age; `state_changed_at` is retained only in the recorded response.
 - **A `range` with no `state` at all reads as unknown, never as 0.** A curtain at 0% is shut; one
   that has never reported is not, and a tile that prints "0% open" for it says the opposite of the
   truth. The recorded response does carry a stateless range — on the TV's `channel` — so the shape
@@ -655,7 +653,8 @@ which tile group the device belongs to. One `/v1.0/user/info` call is the whole 
 `Mode` and `Toggle` now sit alongside `Range`, added the same way: `Device` carries **every** mode
 and **every** toggle the poll returned, keyed by instance, not an AC-shaped field. A `Mode` holds
 `current: String?` and `available: List<String>` — the values the device itself listed — and a
-`Toggle` holds `isOn: Boolean?`. Both carry the same two timestamps as everything else.
+`Toggle` holds `isOn: Boolean?`. Both carry `lastUpdated`, derived from `last_updated`, like the
+other capability models.
 
 `YandexClient.devices()` now returns every kind the panel has a tile for, told apart by `kind`,
 instead of bulbs only. The tile groups filter it. Each group polled separately for a while, which

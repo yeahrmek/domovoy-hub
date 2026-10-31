@@ -17,7 +17,7 @@ import kotlin.time.Duration.Companion.seconds
 @OptIn(ExperimentalCoroutinesApi::class)
 class PanelPollingTest {
     private val interval = 15.seconds
-    private val ringing = CallState.Active(since = Instant.ofEpochSecond(1_786_000_000))
+    private val ringing = CallState.Active
 
     @Test
     fun `polls every interval while no call is up`() = runTest {

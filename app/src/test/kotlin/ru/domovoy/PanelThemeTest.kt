@@ -9,21 +9,7 @@ import kotlin.math.pow
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
-/**
- * **The palette, measured rather than described.**
- *
- * `PanelTheme.kt` has always carried its contrast numbers in a KDoc table, and a KDoc table is a
- * claim nobody re-checks: the roles were retuned three times and the table was retyped by hand each
- * time. This computes them. It is the one thing about the wall's colour that can be asserted on the
- * JVM in milliseconds — [ru.domovoy.panel.PanelScreenshotTest] draws the rest, slowly, as pictures a
- * person has to look at.
- *
- * **What it is protecting.** The panel spends colour on three things and no more: the neutral ramp
- * the cards sit on, one violet accent on the two controls a finger uses, and red for a failure. Two
- * of those are worth an assertion apiece — that the ramp is ordered and that the accent and the
- * words clear their contrast bar on every step of it — because both fail silently in the scheme
- * nobody is looking at. The tablet runs light 07:00–19:00 and dark the rest of the day.
- */
+/** Brand roles stay readable on every wall surface in both themes. */
 class PanelThemeTest {
     /**
      * The four steps a tile's card can sit on, brightest-asserting last. The order is `surface`'s in
@@ -38,26 +24,49 @@ class PanelThemeTest {
     )
 
     @Test
-    fun `the wall is the neutral surfaces and the one violet it was specified with`() {
-        // The four values this change is written in. Pinned because they are the whole brief: a
-        // neutral background, a neutral card, neutral text, and one accent — and because a palette
-        // is the kind of thing a later commit retouches "slightly" in one scheme only.
-        assertEquals(Color(0xFFF5F6F8), panelLightScheme.background)
-        assertEquals(Color(0xFFE5E7EC), panelLightScheme.surfaceContainer)
-        assertEquals(Color(0xFF202228), panelLightScheme.onSurface)
-        assertEquals(Color(0xFF7047EB), panelLightScheme.primary)
+    fun `orbit uses lime actions with peach controls on white and graphite`() {
+        assertEquals(Color(0xFF4C6D13), panelLightScheme.primary)
+        assertEquals(Color(0xFFB3DF5A), panelLightScheme.primaryFixedDim)
+        assertEquals(Color(0xFFB3DF5A), panelDarkScheme.primaryFixedDim)
+        assertEquals(Color(0xFF4E5D98), panelLightScheme.secondary)
+        assertEquals(Color(0xFF9E492E), panelLightScheme.tertiary)
+        assertEquals(Color(0xFF232735), panelLightScheme.onSurface)
+        assertEquals(Color(0xFFFAFAFC), panelLightScheme.background)
+        assertEquals(Color(0xFFF0F1F4), panelLightScheme.surfaceContainer)
+        assertEquals(Color(0xFF14171C), panelDarkScheme.background)
+        assertEquals(Color(0xFF20252D), panelDarkScheme.surfaceContainer)
+        assertEquals(Color(0xFFB3DF5A), panelDarkScheme.primary)
+        assertEquals(Color(0xFFAEBFFF), panelDarkScheme.secondary)
+        assertEquals(Color(0xFFFF865F), panelDarkScheme.tertiary)
+        assertTrue(hueDegreesApart(panelDarkScheme.tertiary, panelDarkScheme.error) > 25.0)
+    }
 
-        assertEquals(Color(0xFF191B23), panelDarkScheme.background)
-        assertEquals(Color(0xFF30333D), panelDarkScheme.surfaceContainer)
-        assertEquals(Color(0xFFF3F4F7), panelDarkScheme.onSurface)
+    @Test
+    fun `brand foregrounds clear 4 point 5 on action and navigation surfaces`() {
+        listOf(panelLightScheme, panelDarkScheme).forEach { scheme ->
+            listOf(
+                "primary" to (scheme.onPrimary to scheme.primary),
+                "primaryFixedDim" to (scheme.onPrimaryFixed to scheme.primaryFixedDim),
+                "primaryContainer" to (scheme.onPrimaryContainer to scheme.primaryContainer),
+                "secondary" to (scheme.onSecondary to scheme.secondary),
+                "secondaryContainer" to (scheme.onSecondaryContainer to scheme.secondaryContainer),
+                "tertiary" to (scheme.onTertiary to scheme.tertiary),
+                "tertiaryContainer" to (scheme.onTertiaryContainer to scheme.tertiaryContainer),
+                "error" to (scheme.onError to scheme.error),
+                "errorContainer" to (scheme.onErrorContainer to scheme.errorContainer),
+            ).forEach { (role, pair) ->
+                assertAtLeast(4.5, contrast(pair.first, pair.second), "content on $role")
+            }
+            tileSteps(scheme).forEach { step ->
+                assertAtLeast(4.5, contrast(scheme.onSurfaceVariant, step), "secondary text on $step")
+                assertAtLeast(3.0, contrast(scheme.outline, step), "control outline on $step")
+            }
+        }
     }
 
     @Test
     fun `the tile ramp is ordered, and its lowest step is the one nearest the background`() {
-        // Which step a tile sits on is how much it is asserting — see `surface`. That only reads as
-        // an ordering if the steps are actually ordered, and "actually" means in luminance and in
-        // both schemes: a ramp retouched in light can invert in dark without anybody seeing it
-        // until 19:00.
+        // State surfaces progress away from the background in both themes.
         listOf(panelLightScheme, panelDarkScheme).forEach { scheme ->
             val steps = tileSteps(scheme).map(::luminance)
             val towardsCards = if (scheme == panelLightScheme) -1 else 1
@@ -67,13 +76,7 @@ class PanelThemeTest {
                     "the tile ramp is not monotonic: $steps",
                 )
             }
-            // **A tile nobody has ever read has to be the quietest card on the wall**, and quietest
-            // means nearest the background — not past it. This assertion is the one the tablet
-            // rewrote: `Lowest` sat on the far side of the background from the cards, which is a
-            // hole while the cards are barely off the wall and is the *largest* separation on the
-            // wall once they are not. Домофон and Пылесос are `Unknown` for ever, because nothing
-            // polls a launcher, so whichever way this is wrong it is wrong permanently and on the
-            // two tiles that deserve it least.
+            // Unknown readings remain visible without becoming the loudest card.
             val background = luminance(scheme.background)
             val distances = tileSteps(scheme).map { kotlin.math.abs(luminance(it) - background) }
             assertEquals(
@@ -91,8 +94,7 @@ class PanelThemeTest {
 
     @Test
     fun `every word on a tile clears 4 point 5 on every step it can be written on`() {
-        // `onSurface` is the whole of the wall's text after the promoted value went neutral: the
-        // 44sp value, the device name and both status lines. It is written on all four steps.
+        // Names, promoted values and status text can appear on every state surface.
         listOf(panelLightScheme, panelDarkScheme).forEach { scheme ->
             tileSteps(scheme).forEach { step ->
                 assertAtLeast(4.5, contrast(scheme.onSurface, step), "onSurface on $step")
@@ -102,12 +104,7 @@ class PanelThemeTest {
 
     @Test
     fun `the accent clears 3 on every step, in both schemes`() {
-        // The accent carries no text — it is the power button's fill, the slider's fill and the
-        // 20 dp lit dot — so the bar is the 3:1 a graphical object needs and not 4.5:1.
-        //
-        // **This is the assertion `#7C4DFF` fails**, which is why dark's `primary` is a lighter tone
-        // of the same violet: against the card at `#30333D` it comes out at 2.6:1, and nearly all of
-        // that is carried by the blue channel the tablet's filter takes away.
+        // Controls and state marks need 3:1 against their adjacent surface.
         listOf(panelLightScheme, panelDarkScheme).forEach { scheme ->
             tileSteps(scheme).forEach { step ->
                 assertAtLeast(3.0, contrast(scheme.primary, step), "primary on $step")
@@ -120,8 +117,7 @@ class PanelThemeTest {
     @Test
     fun `red still reads where the panel spends it`() {
         // The offline glyph sits on the failing step and the group-failure outline is drawn on all
-        // four. It is the only saturated thing on the wall that is not the accent, and it is the one
-        // colour whose meaning cannot be recovered from anywhere else on the card.
+        // four. Their shape and adjacent text also communicate the failure.
         listOf(panelLightScheme, panelDarkScheme).forEach { scheme ->
             tileSteps(scheme).forEach { step ->
                 assertAtLeast(3.0, contrast(scheme.error, step), "error on $step")
@@ -131,17 +127,7 @@ class PanelThemeTest {
 
     @Test
     fun `the accent is nowhere near the error, in hue`() {
-        // **What this whole change is about, and the one assertion the old palette fails.** The
-        // amber that marked a lit lamp sat 29° from the error red — two states a metre apart on a
-        // wall, said in two colours that a warm display filter walks together into a pair of browns.
-        // The violet is 108° away in both schemes, and a later retouch that walks the accent back
-        // towards warm fails here rather than on the wall.
-        //
-        // _Hue and not contrast, and not a distance in RGB either._ Both of dark's are pale, so any
-        // straight-line measure calls a lavender and a pink neighbours; what tells them apart at
-        // four metres is which way round the colour wheel they are. It is a proxy — the filter
-        // rotates hue as well as draining it, and nothing on the JVM models that. The photograph in
-        // docs/ui.md is the measurement; this is the guard rail.
+        // Primary control colour must remain distinct from a failure.
         listOf(panelLightScheme, panelDarkScheme).forEach { scheme ->
             val apart = hueDegreesApart(scheme.primary, scheme.error)
             assertTrue(

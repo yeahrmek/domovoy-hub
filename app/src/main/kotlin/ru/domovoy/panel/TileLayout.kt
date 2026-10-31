@@ -17,6 +17,8 @@ internal const val NARROW_SPAN = 3
 
 /** Formats form separate rows, from detailed controls down to simple launch actions. */
 internal enum class TileFormat(val minimumHeight: Int, val columns: Int) {
+    Featured(304, 1),
+    Wide(216, 1),
     Control(304, 2),
     Reading(240, 3),
     Compact(216, 4),

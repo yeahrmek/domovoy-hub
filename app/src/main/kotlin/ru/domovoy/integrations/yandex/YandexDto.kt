@@ -42,7 +42,6 @@ internal data class CapabilityDto(
     val type: String,
     /** Absent on group capabilities, and `0.0` for a capability that has never reported. */
     @SerialName("last_updated") val lastUpdated: Double = 0.0,
-    @SerialName("state_changed_at") val stateChangedAt: Double = 0.0,
     val parameters: CapabilityParametersDto? = null,
     val state: CapabilityStateDto? = null,
 )
@@ -60,14 +59,7 @@ internal data class CapabilityParametersDto(
     val range: RangeParametersDto? = null,
     /** What a `mode` capability accepts. Empty on every other capability type. */
     val modes: List<ModeParameterDto> = emptyList(),
-    @SerialName("temperature_k") val temperatureK: TemperatureParametersDto? = null,
     @SerialName("color_scene") val colorScene: ColorSceneParametersDto? = null,
-)
-
-@Serializable
-internal data class TemperatureParametersDto(
-    val min: Double,
-    val max: Double,
 )
 
 @Serializable
@@ -108,7 +100,6 @@ internal data class CapabilityStateDto(
 internal data class PropertyDto(
     val type: String,
     @SerialName("last_updated") val lastUpdated: Double = 0.0,
-    @SerialName("state_changed_at") val stateChangedAt: Double = 0.0,
     val parameters: PropertyParametersDto? = null,
     val state: CapabilityStateDto? = null,
 )

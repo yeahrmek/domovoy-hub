@@ -555,7 +555,7 @@ class TileLayoutTest {
 
     @Test
     fun `an AC with a fan mode and a wide powered recuperator get the useful fan shortcut`() {
-        val fan = Mode("auto", listOf("low", "medium", "high", "auto"), Reading.Never, Reading.Never)
+        val fan = Mode("auto", listOf("low", "medium", "high", "auto"), Reading.Never)
         val ac = ac(isOn = true).copy(modes = mapOf("fan_speed" to fan))
         val recuperator = recuperator(temperature = 29.3, humidity = 32.2, isOn = true)
 
@@ -709,7 +709,6 @@ class TileLayoutTest {
         instance = "temperature_k",
         value = 4500.0,
         lastUpdated = Reading.At(now),
-        stateChangedAt = Reading.At(now),
     )
 
     private fun recuperator(

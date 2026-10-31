@@ -9,12 +9,10 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
@@ -27,15 +25,18 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.unit.dp
 import ru.domovoy.R
+import ru.domovoy.core.ColorSetting
 import ru.domovoy.core.Mode
 import ru.domovoy.core.Toggle
 
@@ -195,13 +196,14 @@ internal fun ColorControls(
     onSetRgb: (Int) -> Unit,
     onSetScene: (String) -> Unit,
     enabled: Boolean = true,
+    color: ColorSetting? = null,
 ) {
     ControlSection("Цвет") {
         Row(horizontalArrangement = Arrangement.spacedBy(CONTROL_GAP), verticalAlignment = Alignment.CenterVertically) {
-            RgbSwatch("Красный", Color.Red, enabled = enabled, onClick = { onSetRgb(255 shl 16) })
-            RgbSwatch("Зелёный", Color.Green, enabled = enabled, onClick = { onSetRgb(255 shl 8) })
-            RgbSwatch("Синий", Color.Blue, enabled = enabled, onClick = { onSetRgb(255) })
-            RgbSwatch("Белый", Color.White, enabled = enabled, onClick = { onSetRgb((255 shl 16) or (255 shl 8) or 255) })
+            RgbSwatch("Красный", Color.Red, enabled = enabled, selected = color?.instance == "rgb" && color.value?.toInt() == 0xFF0000, onClick = { onSetRgb(255 shl 16) })
+            RgbSwatch("Зелёный", Color.Green, enabled = enabled, selected = color?.instance == "rgb" && color.value?.toInt() == 0x00FF00, onClick = { onSetRgb(255 shl 8) })
+            RgbSwatch("Синий", Color.Blue, enabled = enabled, selected = color?.instance == "rgb" && color.value?.toInt() == 0x0000FF, onClick = { onSetRgb(255) })
+            RgbSwatch("Белый", Color.White, enabled = enabled, selected = color?.instance == "rgb" && color.value?.toInt() == 0xFFFFFF, onClick = { onSetRgb((255 shl 16) or (255 shl 8) or 255) })
         }
     }
     if (scenes.isNotEmpty()) {
@@ -214,7 +216,7 @@ internal fun ColorControls(
                     CapabilityButton(
                         label = capabilityLabel(scene),
                         glyph = sceneGlyph(scene),
-                        selected = false,
+                        selected = color?.instance == "scene" && color.scene == scene,
                         enabled = enabled,
                         onClick = { onSetScene(scene) },
                     )
@@ -282,16 +284,27 @@ private fun RgbSwatch(
     label: String,
     color: Color,
     enabled: Boolean,
+    selected: Boolean,
     onClick: () -> Unit,
 ) {
     Box(
         modifier =
-        Modifier.size(MIN_TOUCH).clip(CircleShape).background(color)
+        Modifier.size(MIN_TOUCH).alpha(if (enabled) 1f else 0.38f).clip(CircleShape).background(color)
             .border(2.dp, MaterialTheme.colorScheme.outline, CircleShape)
-            .semantics { contentDescription = label }
+            .semantics {
+                contentDescription = label
+                this.selected = selected
+            }
             .clickable(enabled = enabled, role = Role.Button, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        Spacer(modifier = Modifier.width(1.dp))
+        if (selected) {
+            Icon(
+                painter = painterResource(R.drawable.ic_check),
+                contentDescription = null,
+                tint = if (color == Color.White || color == Color.Green) Color.Black else Color.White,
+                modifier = Modifier.size(CONTROL_ICON),
+            )
+        }
     }
 }

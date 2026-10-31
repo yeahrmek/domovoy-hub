@@ -1,52 +1,85 @@
 # Panel UI
 
-## Current panel behavior (2026-10-25)
+## Home and navigation
 
-This section describes the current implementation. The older design record below retains the
-reasoning behind the original mosaic; its fixed-height, quarter-width, English-copy and empty-slot
-rules have been superseded.
+Home uses the chosen Orbit composition on neutral White surfaces, with working controls on device
+cards. The thermostat keeps its draggable target dial without plus/minus buttons; the curtain has a
+slider and close/open actions; supported lights and recuperators have brightness or speed controls. Advanced
+modes, colours and scenes remain in device details. The earlier rule keeping sliders out of Home
+is superseded by this design.
 
-- Overview cards are ordered by format: two-column controls, three-column readings and light
-  summaries, four-column compact devices, then two-column launchers. Devices keep their format
-  when on/off, connectivity or reading freshness changes. Each row grows to its tallest card;
-  touch targets remain 64 dp and text can wrap without clipping names or ages.
-- Formats have minimum heights of 304, 240, 216 and 144 dp respectively. Empty functional slots
-  remain absent; the minimums establish consistent rows rather than one height for every device.
-  Expanded lamps appear directly under their summary row, with their own rows ordered by format.
-- A room suffix is removed from the card title only when it matches that card's room exactly or
-  through a known Russian room phrase. The full vendor name remains in device sheets and state.
-  Read-only colour metadata stays in sheets. A shared polling failure is explained once per
-  section; device-specific and command errors remain visible on their own cards. A shared outage
-  keeps Home focused on favourite rooms instead of copying all affected devices there; the Home
-  notice still covers the whole provider. Individual failures and silently stale polling continue
-  to surface affected devices. Every device remains in its room section.
-- Home cards name their room. Light groups stay separate by room on Home and in room sections;
-  expanding one group does not expand another room's lights. A group says «Свет», the lit/total
-  count, its reading age and a short expand/collapse action.
-- The foreground panel window holds `FLAG_KEEP_SCREEN_ON`; leaving the panel releases that
-  window-level request. The tablet's system sleep timeout stays unchanged.
-- Device sheets fit their content up to 94% of the panel height; longer content scrolls. The
-  background remains mounted, system Back dismisses the sheet, and intercom calls close it.
-- Sliders have a visible Material thumb, a setting label, vendor bounds and a live draft value
-  during dragging. Temperature and percentages retain their units. Sheet step controls offer
-  precise adjustment. After a command completes, an unconfirmed slider draft returns to the
-  reported reading.
-- Commands expose a per-device pending state and local error. Duplicate commands on that device
-  are blocked until the request and confirmation read finish; other devices remain available.
-  Command failures do not mark every device from the same vendor as failed. Displayed values
-  remain actual API readings, not optimistic claims about the physical device.
-- Yandex polling adapts to usage: one minute active, five minutes after two idle minutes, and
-  30 minutes idle between 23:00 and 07:00 in the tablet time zone. A pointer press/key-down and a
-  completed command trigger an immediate read; dragging only extends active use. Background and
-  intercom calls suspend scheduled reads. Consecutive failures increase the wait, resetting after
-  success. Tuya keeps its six-minute daytime minimum and has no forced touch refresh. Poll-health
-  indicators use the planned interval; the 15-second age ticker makes no network requests.
-- Interface labels, capability names, statuses and ages are Russian. Promoted values are not
-  repeated in status text. Launcher tiles show an action or installation hint, never package IDs.
+The fixed header shows the lime and peach app logo, name and local time. Home, Domonap and the room
+picker remain above the scroll. Incoming calls close details and the room picker, then yield to
+Domonap. Light groups expand below their summary row. [DESIGN.md](../DESIGN.md) owns the native
+tokens; [Orbit–Matrix](design/orbit-mint.md) records the Home composition and acceptance limits.
 
-The regression suite covers compact cards/sheets, room-specific Home light groups, pending/disabled
-controls and controller command lifecycles. Screenshot references show JVM rendering at the wall's
-753 × 1204 dp size.
+White is the selected light theme and the runtime default. Promoted numbers, including the
+thermostat target, use on-surface. Mint identifies controls and navigation. All horizontal sliders
+and the full thermostat arc use a continuous light-to-rich peach gradient; device readings stay neutral. Errors use a separate pink-red family.
+The dark scheme is retained, and the earlier Porcelain/Silver palettes remain test-only. There is
+no runtime theme selector. Manrope is bundled locally. The original app logo appears in the header
+and device details without tinting. Reading age remains separate from service-poll age. Pending
+controls and command failures remain visible. Automatic Home reset is disabled during touch
+exploration.
+
+## Current panel behavior (2026-10-31)
+
+This section describes the native implementation. The historical design record below retains the
+reasoning behind the earlier mosaic and its physical checks; it is not evidence that the current
+redesign has been installed or physically validated.
+
+- Home gives the thermostat and curtain full-width cards. Light strips, light-group summaries,
+  dimmable lamps and recuperators use two-column Home cards. Non-dimmable compact lamps retain
+  their compact format. Groups expand their individual lamps directly below the summary row.
+  Room sections retain their capability-based formats; an empty grid slot remains absent.
+- Rows grow to their tallest card, and text can wrap. Cards use a 12 dp radius, 6 dp outer inset
+  and 20 dp content padding. Home is taller than the browser concept because it includes real
+  controls, bounds, ages and feedback. Touch targets remain at least 64 dp.
+- The thermostat uses a 210 dp circular target with vendor bounds and precision. Its card has no
+  plus/minus buttons. Its centre still opens details. On narrow screens, the dial stacks
+  below the identity and status. Without advertised bounds, the card shows a value without
+  inventing adjustment. The full 270-degree arc uses the same light-to-rich peach scale, with a 16 dp
+  round marker for a known target and no marker for an unknown reading.
+- Curtain close/open actions send the vendor minimum and maximum; the labelled slider sits
+  between them. Supported light-strip and individual-lamp cards expose brightness adjustment.
+  A light group has a lit/total count, group power and an expand/collapse action. Colour, scenes
+  and advanced modes stay in details. Recuperator speed controls require an available device.
+- Every horizontal range control has a 16 dp light-to-rich peach gradient rail over an 18 dp outlined
+  bed. Oval is the default knob (48 × 28 dp); Round is the real preview alternative (34 × 34 dp).
+  Both retain a 64 dp touch height. The full gradient is visible without progress fill, ticks or
+  grip marks. Brightness and curtain opening keep their own labels and units. Plus/minus controls
+  are absent on cards and retained in details.
+- Card controls call the existing command paths. Dial and slider gestures preview locally and
+  send once after completion. Duplicate commands are blocked for the pending device; other
+  devices remain usable. Group power waits for pending lamps in that group. Command failures
+  stay local, and an unconfirmed draft returns to the reported value after confirmation ends.
+- A room suffix is removed from a card title only when it matches that card's room. Full vendor
+  names remain in details. Each Home card names its room. Shared polling failures are explained
+  once per section; local failures and silently stale updates remain visible on affected cards.
+  Device reading age remains distinct from successful polling age. Every device remains in its
+  room section, including when a shared outage limits the favourite-room contents of Home.
+- Power uses a 56 dp visible rounded square inside a 64 dp touch target. Mint denotes confirmed
+  on; off and disabled controls remain distinguishable. The Aqara lock has no write action.
+- Device details show the same app mark, verified capabilities and reading ages. They retain the
+  mounted panel beneath a scrim, fit up to 94% of the panel height and scroll when necessary.
+  System Back, outside tap and the explicit dismiss action close them; incoming calls also close
+  them. No panel overlay changes Domonap's incoming-call priority.
+- The panel follows the tablet's system screen timeout and allows the screen to turn off
+  after inactivity.
+- Yandex polling adapts to usage: one minute active, five minutes after two idle minutes and
+  30 minutes idle between 23:00 and 07:00 in the tablet time zone. Tuya uses native LAN polling:
+  15 seconds active, one minute idle and five minutes idle at night. Touch and command completion
+  can request a fresh read; dragging only extends active use. Background and intercom calls
+  suspend scheduled reads. Consecutive failures back off, resetting after success. The 15-second
+  age ticker itself makes no network request.
+- Interface labels, capabilities, statuses and ages are Russian. Launcher tiles show an action
+  or installation hint rather than package IDs. The redesign adds no vendor endpoint or protocol.
+
+Automated coverage includes Home controls, the temperature dial, range handling, pending states,
+command lifecycles, navigation and contrast. [Screenshot references](../app/src/test/screenshots)
+are JVM regression renders, including the wall's 753 × 1204 dp reference size. The redesign has
+not been installed on the physical tablet in this work. The dated check below applies to the
+previous installed UI.
 
 ### Physical tablet check (2026-10-25)
 
@@ -70,6 +103,7 @@ app is signed in. Notification access and the listener service survived the pane
 reports an expired subscription, so recuperator writes were not tested. Distance readability,
 Samsung display filtering as seen by a person, reboot recovery and actual intercom takeover remain
 separate acceptance checks.
+
 
 **Scope:** how the panel is laid out and drawn. Not what it reads — that is one doc per vendor.
 
@@ -886,13 +920,13 @@ existing file **silently writes nothing** and the analysis then measures the pre
 ## Icons
 
 **Current as of N4:** tile identity is the untinted 80 dp realistic PNG art in
-`res/drawable-nodpi/`; the vector set below is the superseded implementation record. Vectors remain
-for control and status symbols — power, curtain target position, and offline wifi — rather than for
-device identity.
+`res/drawable-nodpi/`; the vector set below is the superseded implementation record. The unused
+AC, strip, bulb, intercom and vacuum identity vectors have been removed. Vectors remain for control
+and status symbols — power, curtain target position, fan speed and offline wifi. The unused door-lock
+and humidifier PNGs were also removed; neither has a tile.
 
-Every tile carries one. The panel today has none at all — no `Icon(` anywhere in `ru.domovoy`, and
-`app/src/main/res` holds only `themes.xml` and `strings.xml` — which is why a wall of it reads as
-paragraphs. A tile is recognised across a hallway by its shape and its glyph long before its name is
+The original brief asked for a glyph on every tile. Before that implementation, there was no
+`Icon(` in `ru.domovoy`, and `app/src/main/res` held only `themes.xml` and `strings.xml`. A tile is recognised across a hallway by its shape and its glyph long before its name is
 legible, and on a panel that is looked at on the way past, that is most of the looking.
 
 **As vector drawables in `app/src/main/res/drawable/`, not as a dependency.**
@@ -902,15 +936,15 @@ glyphs exported to vector XML cost nothing at build time and are `res/` files, w
 dependency nor a manifest change. Held: commit 6 added no dependency, and `res/drawable/` is the
 whole of what it added outside `panel/`. It added nine; `ic_bulb_filled.xml` went with the disc.
 
-| Tile | Glyph | File | Chosen over |
+| Tile | Historical glyph | File (removed where noted) | Chosen over |
 | --- | --- | --- | --- |
-| Air conditioner | `ac_unit` | `ic_ac_unit.xml` | `air`, `thermostat`, `hvac` |
+| Air conditioner | `ac_unit` | `ic_ac_unit.xml` (removed) | `air`, `thermostat`, `hvac` |
 | Recuperator | `mode_fan` | `ic_mode_fan.xml` | `swap_vert`, `filter_alt`, `vent` |
-| Light strip | `wb_iridescent` | `ic_wb_iridescent.xml` | `horizontal_rule`, `linear_scale`, `light` |
+| Light strip | `wb_iridescent` | `ic_wb_iridescent.xml` (removed) | `horizontal_rule`, `linear_scale`, `light` |
 | Curtain | `vertical_shades` / `vertical_shades_closed` | `ic_vertical_shades.xml`, `ic_vertical_shades_closed.xml` | `curtains`, `roller_shades`, `blinds`, `shade` |
-| Bulb | Tabler `bulb`, outlined — **not Material Symbols** | `ic_bulb.xml` | `lightbulb`, `wb_incandescent`, `tips_and_updates`, `emoji_objects`, `flare`, `lightbulb_circle` |
-| Домофон | `video_camera_front` | `ic_video_camera_front.xml` | `doorbell`, `ring_volume` |
-| Пылесос | `vacuum` | `ic_vacuum.xml` | `robot_2`, `smart_toy`, `cleaning_services` |
+| Bulb | Tabler `bulb`, outlined — **not Material Symbols** | `ic_bulb.xml` (removed) | `lightbulb`, `wb_incandescent`, `tips_and_updates`, `emoji_objects`, `flare`, `lightbulb_circle` |
+| Домофон | `video_camera_front` | `ic_video_camera_front.xml` (removed) | `doorbell`, `ring_volume` |
+| Пылесос | `vacuum` | `ic_vacuum.xml` (removed) | `robot_2`, `smart_toy`, `cleaning_services` |
 | *Not a tile* — the unreachable mark | `wifi_off` | `ic_wifi_off.xml` | `signal_wifi_off`, `cloud_off`, `sync_problem`, `link_off` |
 
 **The eighth is the only glyph here that is not a device**, and it is drawn at 28 dp rather than 48:
@@ -1189,7 +1223,7 @@ The reference app carries one or two small round buttons on every tile and picks
 type — power and a fan mode on an air conditioner, power and a reset on a lamp, power and an
 overflow on a TV. Here power is now the same round button — a 44 dp disc inside the 64 dp touch
 target — and is not repeated as a second action. `action` in `TileLayout.kt` is the additional
-per-kind control, beside `controls`, `promoted` and `span`, and is a pure function of type and state.
+per-kind control, beside `promoted` and `span`, and is a pure function of type and state.
 
 **One kind has one, and the rest have none.** The curtain gets the end of travel it is not already
 at — Open when it is shut, Close otherwise, including when its position has never been read. It
@@ -1230,7 +1264,7 @@ art itself sits beside a name that says the same thing.
 
 A tap on a tile opens one surface over the wall showing that device whole: `DeviceSheet.kt` draws
 it, `TileSheet.kt` decides what is on it. Everything that decides is a pure function next to
-`anatomy`, `controls` and `action`, for the reason all of those are out there.
+`anatomy` and `action`, for the reason both of those are out there.
 
 **It is not the reference app's split, and the rule is the one thing to read before changing it.** A
 phone app is opened, tapped, read and closed, so its tile can be almost empty; this panel is read
@@ -1248,34 +1282,29 @@ things a 251 dp card genuinely could not hold:
 - **The actions that did not fit.** One 64 dp button is a third-width tile's lot; the sheet is
   753 dp wide.
 
-**What a kind offers is `sheetActions`, and it is a table with a refused row.**
+**What a kind offers is `sheetActions`, narrowed by the capabilities that device advertises.**
 
 | Subject | Actions |
 | --- | --- |
-| air conditioner | power, level |
+| air conditioner | power, level, mode, toggle |
 | light strip | power, level |
 | curtain | level, open, close |
-| bulb | power |
-| recuperator | power |
-| **lock** | **nothing** |
+| bulb | power, level, color |
+| recuperator | power, speed |
 
-Power is `on_off` and the level is `range` — the two requests this panel has actually sent to real
-devices (docs/yandex.md, "Run on the tablet"). Everything else the reference sheet has is left out
-rather than guessed: the `Color` section and `Modes` need a `color_setting` and a `mode` action body
-that are still open questions, `reset` is not a capability any vendor here reported, and the
-recuperators' three speeds are an unverified Tuya command path *and* a metered allowance. The
-strip's colour is on its sheet as a reading and still says "not controllable".
+Power is `on_off` and the level is `range`; mode, toggle, bulb RGB/scenes and Tuya fan speeds
+use the verified capability paths recorded in docs/yandex.md and docs/tuya.md. Reset remains absent
+because no supported device advertises it. The strip's colour remains a reading marked
+"not controllable"; unsupported controls are not inferred from another device.
 
-**The lock's empty row is the load-bearing line.** It reports and does not act — no unlock, no open,
-no door release, and no power switch that could be mistaken for one (CLAUDE.md, docs/aqara.md).
-There is no lock tile in `panel/` because Aqara's project is still in review, so `SheetSubject.Lock`
-exists with nothing constructing it: the rule is written before the tile that would have to obey it,
-and `TileSheetTest` asserts it as its own case rather than as an absence.
+**The lock must remain read-only.** No unlock, open, door release or power switch may be added
+(AGENTS.md, docs/aqara.md). Aqara has no tile or sheet yet, so there is no placeholder
+`SheetSubject.Lock` or test for an otherwise unused enum case.
 
-**Two tiles open no sheet at all**, and `subject` says so out loud rather than by omission. The
-launchers open somebody else's app and have no readable state behind them — Xiaomi will issue no
-credentials and Domonap has no API the panel calls. The lights group's tap was already spoken for:
-it opens the room's lamps in the grid, each of which is a bulb with a sheet of its own.
+**Two tiles open no sheet at all.** The launchers open somebody else's app and have no readable state
+behind them — Xiaomi will issue no credentials and Domonap has no API the panel calls. The lights
+group's tap opens the room's lamps in the grid, each of which is a bulb with its own sheet. These
+handlers do not use `subject`; that function maps the five existing device-sheet types.
 
 **It is drawn inside the panel's own composition**, in a `Box` over the grid, and not in a `Dialog`
 or a Material `ModalBottomSheet`. Two reasons, both practical: a sheet in a window of its own is a
@@ -1332,7 +1361,7 @@ release notes.
 
 TDD, and the test comes first in the same commit.
 
-The unit test dependencies are JUnit5, kotlin.test, Turbine and MockK. Every rule in this doc that
+The unit test dependencies are JUnit5, kotlin.test, Turbine and MockWebServer. Every rule in this doc that
 can be got wrong is written as a pure function over the tile states and tested directly, the way
 `RoomSectionsTest` tests `roomSections`. That is not a workaround; it is the same reason the room
 order is a function and not a layout, and it stays the first choice for anything with an answer to
@@ -1358,13 +1387,11 @@ What gets a test, each asserting the value returned and not which composable was
   and the error. Added in commit 2, which is where "a re-skin has nothing to test" turned out to be
   wrong: both are decisions with a right and a wrong answer, and a decision that only exists inside
   a `@Composable` is a decision no test can reach.
-- The one glyph of the eight that is a decision rather than a picture: the curtain's. 0 is closed, 40
-  and 100 are open, and **null is open** — a shut curtain is a positive claim the panel cannot make.
-  The other seven are a lookup from tile type to drawable and hold nothing a test could catch, the
-  bulb's included since its card's colour carries the state; what is asserted there is only that a
-  lamp and its room's group tile draw the same `ic_bulb`. Both assert
-  `R.drawable.*` ids directly — the generated `R` is on the unit test classpath, so this needs no
-  Compose and no Robolectric.
+- The device-art choices: curtain hardware art is constant across positions; bulbs and strips
+  use their lit PNG only when the state is positively on. A room's lamp group uses the lit bulb art
+  when any member is on. These assert `R.drawable.*` ids directly — the generated `R` is on the
+  unit test classpath, so this needs no Compose and no Robolectric. The curtain's secondary-action
+  glyph instead depicts the target: Open only for a freshly confirmed shut position, Close otherwise.
 
 What no assertion can reach — the spans as drawn, the shapes, the two palettes side by side,
 **whether a glyph draws at all** — is now recorded as images rather than only looked at. A vector

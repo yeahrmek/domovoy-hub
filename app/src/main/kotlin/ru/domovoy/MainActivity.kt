@@ -3,7 +3,7 @@ package ru.domovoy
 import android.content.Context
 import android.os.Bundle
 import android.util.Log
-import android.view.WindowManager
+import android.view.accessibility.AccessibilityManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -12,6 +12,7 @@ import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -20,6 +21,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
@@ -39,8 +41,10 @@ import okhttp3.OkHttpClient
 import ru.domovoy.core.KnownRecuperators
 import ru.domovoy.core.TokenStore
 import ru.domovoy.integrations.domonap.domonapCalls
-import ru.domovoy.integrations.tuya.TuyaClient
-import ru.domovoy.integrations.tuya.TuyaCredentials
+import ru.domovoy.integrations.tuya.TuyaLanClient
+import ru.domovoy.integrations.tuya.TuyaLanDevice
+import ru.domovoy.integrations.tuya.TuyaLanNetwork
+import ru.domovoy.integrations.tuya.tuyaLanDevices
 import ru.domovoy.integrations.yandex.YandexClient
 import ru.domovoy.panel.AdaptivePolling
 import ru.domovoy.panel.PanelRooms
@@ -55,26 +59,16 @@ import java.time.Instant
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 
-/** Advances reading ages independently of adaptive network polling. */
+/** Advances displayed reading ages independently of network polling. */
 private val AGE_TICK = 15.seconds
 
-/**
- * The recuperators are polled far more slowly, and on their own timer: a Tuya refresh is five calls
- * — the inventory plus one per device, because the batch shadow route is not authorised — against
- * an allowance denominated in money. ~54,000 calls a month is a refresh every ~4 minutes around
- * the clock, so 6 leaves room for the token refreshes and for taps, each of which costs a command
- * and a re-read. See docs/tuya.md.
- */
-private val TUYA_POLL_INTERVAL = 6.minutes
+/** LAN polls do not consume Tuya Cloud allowance. */
+private val TUYA_POLL_INTERVAL = 15.seconds
 
-/**
- * How long the panel stays on the tab it was left on. A wall panel is walked up to by someone who
- * did not leave it there, so after this much quiet it goes back to Главная. Two minutes is a guess
- * and is a single constant; see docs/ui.md, "Open".
- */
+/** Return to Главная after two minutes without touch input. */
 private val IDLE_RESET = 2.minutes
 
-/** One store for the panel, not one per vendor: every vendor's credentials land in this file. */
+/** All vendor credentials share one encrypted store. */
 private const val SECRETS_FILE = "domovoy-secrets"
 
 class MainActivity : ComponentActivity() {
@@ -90,77 +84,61 @@ class MainActivity : ComponentActivity() {
         super.onStop()
     }
 
+    private val interactions = MutableSharedFlow<Unit>(extraBufferCapacity = 1, onBufferOverflow = DROP_OLDEST)
+
+    override fun onUserInteraction() {
+        super.onUserInteraction()
+        interactions.tryEmit(Unit)
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus) interactions.tryEmit(Unit)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         val secrets = secrets(applicationContext)
         setContent {
-            // The panel's own palette, and the system's own answer to which of the two. The tablet
-            // switches itself at 19:00 and back at 07:00, so this is the wall going dark for the
-            // night rather than a setting anybody touches. No dynamic colour: see [PanelTheme].
-            //
-            // And the panel's own type scale, in the same call, because a `MaterialTheme` given only
-            // a scheme runs on Material's baseline typography — a scale drawn for a phone held 30 cm
-            // from the face, which is what put every status line on this wall at 12sp. See
-            // [panelTypography], which also records what it assumes about reading distance.
             MaterialTheme(
                 colorScheme = if (isSystemInDarkTheme()) panelDarkScheme else panelLightScheme,
                 typography = panelTypography,
             ) {
                 Surface {
-                    Panel(secrets, foreground)
+                    Panel(secrets, interactions, foreground)
                 }
             }
         }
     }
 }
 
-/** How each vendor's client reads its credentials, both out of the one encrypted store. */
+/** Credential readers and the cached recuperator inventory. */
 private class PanelSecrets(
     val yandexToken: () -> String,
-    val tuya: () -> TuyaCredentials,
-    /**
-     * Who the recuperators were on the last run. Out of the same store, and for the same reason it
-     * is encrypted: device ids identify the flat. See [KnownRecuperators].
-     */
+    val tuya: () -> List<TuyaLanDevice>,
+    /** Device ids are apartment-identifying, so the inventory is encrypted too. */
     val recuperators: KnownRecuperators,
 )
 
-/**
- * Opens the encrypted store and answers with the functions the clients read their credentials
- * through.
- *
- * On a fresh install the store is empty, so the values that came from `local.properties` through
- * `BuildConfig` seed it once — that is the only way a credential gets onto the tablet today. From
- * then on the store is the source of truth and the build-time values are ignored, so anything
- * written there later is not undone by the stale copy in the APK.
- */
+/** Seeds an empty encrypted store from BuildConfig once; subsequent launches use stored values. */
 private fun secrets(context: Context): PanelSecrets {
     val prefs =
         runCatching { encryptedPrefs(context) }.getOrElse { failure ->
-            // A keystore the tablet lost — a restored backup, a wiped key — must not take the
-            // panel down on a wall no-one is watching. Every tile group says this instead, and the
-            // panel comes up remembering nothing rather than not coming up.
+            // Lost keystore: keep the panel running and expose the failure through each vendor.
             val reason = { error("secure storage unavailable: ${failure.message}") }
             return PanelSecrets(yandexToken = reason, tuya = reason, recuperators = KnownRecuperators(null))
         }
     val store = TokenStore(prefs)
     store.seedYandexToken(BuildConfig.YANDEX_OAUTH_TOKEN)
-    store.seedTuyaCredentials(
-        clientId = BuildConfig.TUYA_CLIENT_ID,
-        clientSecret = BuildConfig.TUYA_CLIENT_SECRET,
-        uid = BuildConfig.TUYA_UID,
-    )
+    store.seedTuyaLanDevices(BuildConfig.TUYA_LOCAL_DEVICES)
     return PanelSecrets(
         yandexToken = store::yandexToken,
-        tuya = { TuyaCredentials(store.tuyaClientId(), store.tuyaClientSecret(), store.tuyaUid()) },
+        tuya = { tuyaLanDevices(store.tuyaLanDevices()) },
         recuperators = KnownRecuperators(prefs),
     )
 }
 
-// Jetpack Security Crypto is deprecated upstream and 1.1.0 is its last release; the choice to
-// use it anyway is recorded in gradle/libs.versions.toml and docs/yandex.md, so the nine
-// warnings it emits here are noise rather than news.
+// Required by AGENTS.md; keep credentials encrypted until the storage decision changes.
 @Suppress("DEPRECATION")
 private fun encryptedPrefs(context: Context) = EncryptedSharedPreferences.create(
     context,
@@ -171,9 +149,9 @@ private fun encryptedPrefs(context: Context) = EncryptedSharedPreferences.create
 )
 
 @Composable
-private fun Panel(secrets: PanelSecrets, foreground: StateFlow<Boolean>) {
-    // One OkHttp client for both vendors: the connection pool and dispatcher are the point of
-    // sharing it, and neither client knows about the other.
+private fun Panel(secrets: PanelSecrets, touches: MutableSharedFlow<Unit>, foreground: StateFlow<Boolean>) {
+    val context = LocalContext.current
+    // Vendor clients share the connection pool, but have independent call timeouts.
     val http = remember { OkHttpClient() }
     val client =
         remember(http) {
@@ -184,25 +162,25 @@ private fun Panel(secrets: PanelSecrets, foreground: StateFlow<Boolean>) {
             )
         }
     val poll = remember(client) { YandexPoll(client) }
+    val tuyaNetwork = remember(context) { TuyaLanNetwork(context.applicationContext) }
     val tuyaPoll =
-        remember(http) {
+        remember(tuyaNetwork) {
             TuyaPoll(
-                client = TuyaClient(http = http, credentials = secrets.tuya),
-                // Tuya's API names no room, so this is where the flat's own answer comes in. It is
-                // not a credential and does not go through the encrypted store: it is only in
-                // local.properties because device ids are apartment-identifying. Unset is a
-                // working panel — the recuperators simply show up unplaced.
+                client = TuyaLanClient(configuration = secrets.tuya, connect = tuyaNetwork::connect, discover = tuyaNetwork::discover),
                 rooms = recuperatorRooms(BuildConfig.TUYA_ROOMS),
-                // A Tuya refresh is five calls every 6 minutes, so a tablet that rebooted into a
-                // Wi-Fi that was not up yet would stand there with one line of error where five
-                // tiles belong. It puts up who it read last time instead, values blank.
                 known = secrets.recuperators,
             )
         }
     val tuyaPolling = remember(tuyaPoll) {
-        AdaptivePolling(activeInterval = TUYA_POLL_INTERVAL, idleInterval = TUYA_POLL_INTERVAL) {
+        AdaptivePolling(activeInterval = TUYA_POLL_INTERVAL, idleInterval = 1.minutes, nightInterval = 5.minutes) {
             tuyaPoll.refresh()
             tuyaPoll.recuperators.state.value.error == null
+        }
+    }
+    LaunchedEffect(poll, tuyaPolling, touches) {
+        touches.collect {
+            poll.polling.touch(refresh = false)
+            tuyaPolling.touch(refresh = false)
         }
     }
     val yandexInterval by poll.polling.interval.collectAsState()
@@ -221,62 +199,50 @@ private fun Panel(secrets: PanelSecrets, foreground: StateFlow<Boolean>) {
     var now by remember { mutableStateOf(Instant.now()) }
     val scope = rememberCoroutineScope()
 
-    // Where the wall is scrolled to, and every touch that says somebody is still standing there.
-    // The flow is what the idle reset watches; DROP_OLDEST because a touch arriving while one is
-    // still queued says nothing new — both mean a hand is on the panel — and the pointer handler
-    // must not suspend to say it.
-    //
-    // The rooms are one scroll rather than a strip of tabs, so going back to Главная is going back
-    // to the top: the state is held here because the reset drives it from outside the composable.
     val scroll = rememberLazyGridState()
-    // Which device somebody has open in front of the wall, if any. Held here for the same reason
-    // the scroll position is: two things outside the panel close it, and neither of them can reach
-    // state that lives inside a composable.
     val openSheet = remember { mutableStateOf<String?>(null) }
-    val touches = remember { MutableSharedFlow<Unit>(extraBufferCapacity = 1, onBufferOverflow = DROP_OLDEST) }
-    LaunchedEffect(poll, tuyaPolling, touches) {
-        touches.collect {
-            poll.polling.touch(refresh = false)
-            tuyaPolling.touch(refresh = false)
+    val roomPickerOpen = remember { mutableStateOf(false) }
+    val accessibility = remember(context) { requireNotNull(context.getSystemService(AccessibilityManager::class.java)) }
+    var touchExploration by remember(accessibility) { mutableStateOf(accessibility.isTouchExplorationEnabled) }
+    DisposableEffect(accessibility) {
+        val listener = AccessibilityManager.TouchExplorationStateChangeListener { enabled -> touchExploration = enabled }
+        accessibility.addTouchExplorationStateChangeListener(listener)
+        onDispose { accessibility.removeTouchExplorationStateChangeListener(listener) }
+    }
+    LaunchedEffect(touchExploration) {
+        if (!touchExploration) {
+            resetAfterIdle(touches, IDLE_RESET) {
+                scope.launch {
+                    roomPickerOpen.value = false
+                    returnToHome(scroll, openSheet)
+                }
+            }
         }
     }
+
     LaunchedEffect(Unit) {
-        resetAfterIdle(touches, IDLE_RESET) { scope.launch { returnToHome(scroll, openSheet) } }
+        closeOnCall(domonapCalls.state) {
+            openSheet.value = null
+            roomPickerOpen.value = false
+        }
     }
 
-    // The other one: an intercom call. Nothing here cancels, delays or covers Domonap's own screen —
-    // it only lets go of the panel's, so that when the call is over the wall is a wall again and not
-    // the sheet whoever answered the door had left open. See [closeOnCall].
-    LaunchedEffect(Unit) {
-        closeOnCall(domonapCalls.state) { openSheet.value = null }
-    }
-
-    // The launcher tiles hold no vendor state, so there is nothing here to poll — but whether an
-    // app is installed *can* change under the panel, and a tablet that has to be restarted before
-    // a freshly installed Mi Home stops reading "not installed" is a wall that lies. Keyed on
-    // `now`, so the check is redone on the same tick that ages every other tile: two
-    // `getLaunchIntentForPackage` calls a quarter-minute, against nobody's allowance.
-    val context = LocalContext.current
+    var launcherErrors by remember { mutableStateOf(emptyMap<String, String>()) }
+    // Package installation can change while the panel stays open.
     val launchers =
         remember(now) {
             launcherTiles { packageName -> context.packageManager.getLaunchIntentForPackage(packageName) != null }
         }
 
-    // One `/v1.0/user/info` call per interval feeds every group; each still holds its own
-    // tiles, its own ages and its own error.
     LaunchedEffect(poll, foreground) {
         poll.polling.run(foreground, domonapCalls.state)
     }
 
-    // Its own loop, at its own interval: Tuya is metered and Yandex is not, and one timer for
-    // both would mean either paying for Yandex's cadence or waiting for Tuya's.
     LaunchedEffect(tuyaPolling, foreground) {
         tuyaPolling.run(foreground, domonapCalls.state)
     }
 
-    // The age on every tile has to keep climbing between polls, not freeze at the value the last
-    // read produced — and it has to keep climbing through an intercom call too, when polling is
-    // paused. A tile coming back from a call saying "just now" would be a lie.
+    // Read ages keep advancing while polling is paused for an intercom call.
     LaunchedEffect(Unit) {
         while (true) {
             now = Instant.now()
@@ -293,64 +259,100 @@ private fun Panel(secrets: PanelSecrets, foreground: StateFlow<Boolean>) {
         discovered = discoveredState,
         launchers = launchers,
         now = now,
-        // Both intervals, because staleness is judged against the poll that produced the reading:
-        // 15 s for the Yandex groups and 6 minutes for the recuperators. One number for both would
-        // either call every recuperator stale or never call a bulb stale.
         yandexInterval = yandexInterval,
         tuyaInterval = tuyaInterval,
-        // Every touch on the panel, seen on the way down and not consumed: this watches the
-        // gestures, it does not take them. A tap that reached a switch must still flip it. Over the
-        // whole screen rather than the tiles, so a touch on the empty half of a short room still
-        // says somebody is standing there.
         modifier =
-        Modifier.fillMaxSize().onPreviewKeyEvent {
-            touches.tryEmit(Unit)
-            poll.polling.touch(refresh = it.type == KeyEventType.KeyDown)
-            false
-        }.pointerInput(Unit) {
-            awaitPointerEventScope {
-                while (true) {
-                    val event = awaitPointerEvent(PointerEventPass.Initial)
-                    touches.tryEmit(Unit)
-                    poll.polling.touch(refresh = event.type == PointerEventType.Press)
-                }
+        Modifier.fillMaxSize()
+            .onPreviewKeyEvent {
+                touches.tryEmit(Unit)
+                poll.polling.touch(refresh = it.type == KeyEventType.KeyDown)
+                false
             }
-        },
+            .onFocusChanged { if (it.hasFocus) touches.tryEmit(Unit) }
+            .pointerInput(Unit) {
+                awaitPointerEventScope {
+                    while (true) {
+                        val event = awaitPointerEvent(PointerEventPass.Initial)
+                        touches.tryEmit(Unit)
+                        poll.polling.touch(refresh = event.type == PointerEventType.Press)
+                    }
+                }
+            },
         scroll = scroll,
         openSheet = openSheet,
-        onToggleAc = { id -> scope.launch { acs.toggle(id) } },
-        onSetTemperature = { id, celsius -> scope.launch { acs.setTemperature(id, celsius) } },
-        onSetAcMode = { id, instance, value -> scope.launch { acs.setMode(id, instance, value) } },
-        onSetAcToggle = { id, instance, on -> scope.launch { acs.setToggle(id, instance, on) } },
-        onSetOpen = { id, percent -> scope.launch { curtains.setOpen(id, percent) } },
-        onToggleStrip = { id -> scope.launch { strips.toggle(id) } },
-        onSetBrightness = { id, percent -> scope.launch { strips.setBrightness(id, percent) } },
-        onToggleRecuperator = { id -> scope.launch { recuperators.toggle(id) } },
-        onSetRecuperatorSpeed = { id, speed -> scope.launch { recuperators.setSpeed(id, speed) } },
-        onToggleBulb = { id -> scope.launch { tiles.toggle(id) } },
-        onSetBulbBrightness = { id, percent -> scope.launch { tiles.setBrightness(id, percent) } },
-        onSetBulbScene = { id, scene -> scope.launch { tiles.setScene(id, scene) } },
-        onSetBulbRgb = { id, rgb -> scope.launch { tiles.setRgb(id, rgb) } },
-        onOpenApp = { packageName -> open(context, packageName) },
+        roomPickerOpen = roomPickerOpen,
+        launcherErrors = launcherErrors,
+        onToggleAc = { id ->
+            touches.tryEmit(Unit)
+            scope.launch { acs.toggle(id) }
+        },
+        onSetTemperature = { id, celsius ->
+            touches.tryEmit(Unit)
+            scope.launch { acs.setTemperature(id, celsius) }
+        },
+        onSetAcMode = { id, instance, value ->
+            touches.tryEmit(Unit)
+            scope.launch { acs.setMode(id, instance, value) }
+        },
+        onSetAcToggle = { id, instance, on ->
+            touches.tryEmit(Unit)
+            scope.launch { acs.setToggle(id, instance, on) }
+        },
+        onSetOpen = { id, percent ->
+            touches.tryEmit(Unit)
+            scope.launch { curtains.setOpen(id, percent) }
+        },
+        onToggleStrip = { id ->
+            touches.tryEmit(Unit)
+            scope.launch { strips.toggle(id) }
+        },
+        onSetBrightness = { id, percent ->
+            touches.tryEmit(Unit)
+            scope.launch { strips.setBrightness(id, percent) }
+        },
+        onToggleRecuperator = { id ->
+            touches.tryEmit(Unit)
+            scope.launch { recuperators.toggle(id) }
+        },
+        onSetRecuperatorSpeed = { id, speed ->
+            touches.tryEmit(Unit)
+            scope.launch { recuperators.setSpeed(id, speed) }
+        },
+        onToggleBulb = { id ->
+            touches.tryEmit(Unit)
+            scope.launch { tiles.toggle(id) }
+        },
+        onSetBulbBrightness = { id, percent ->
+            touches.tryEmit(Unit)
+            scope.launch { tiles.setBrightness(id, percent) }
+        },
+        onSetBulbScene = { id, scene ->
+            touches.tryEmit(Unit)
+            scope.launch { tiles.setScene(id, scene) }
+        },
+        onSetBulbRgb = { id, rgb ->
+            touches.tryEmit(Unit)
+            scope.launch { tiles.setRgb(id, rgb) }
+        },
+        onOpenApp = { packageName ->
+            touches.tryEmit(Unit)
+            val failure = openVendorApp(context, packageName)
+            launcherErrors = if (failure == null) launcherErrors - packageName else launcherErrors + (packageName to failure)
+        },
     )
 }
 
-/**
- * Opens another app's launcher activity. The intent is resolved again at the tap rather than kept
- * from the tile: the app can be uninstalled between the two, and a stale intent would throw.
- *
- * Nothing here can take the panel down. An app that disappeared resolves to null and the tap does
- * nothing — the tile will say "not installed" on the next tick — and anything the framework throws
- * on the way out is logged rather than raised: a wall panel that dies because somebody tapped a
- * shortcut is worse than one that fails to open it.
- */
-private fun open(
+/** Opens the vendor app; an absent package or launch failure must not crash the panel. */
+internal fun openVendorApp(
     context: Context,
     packageName: String,
-) {
-    // getLaunchIntentForPackage already sets FLAG_ACTIVITY_NEW_TASK, so the app opens as its own
-    // task and the panel is what the back gesture returns to.
-    val intent = context.packageManager.getLaunchIntentForPackage(packageName) ?: return
-    runCatching { context.startActivity(intent) }
-        .onFailure { failure -> Log.w("DomovoyHub", "could not open $packageName", failure) }
+): String? {
+    val intent = context.packageManager.getLaunchIntentForPackage(packageName) ?: return "Приложение недоступно"
+    return runCatching { context.startActivity(intent) }.fold(
+        onSuccess = { null },
+        onFailure = { failure ->
+            Log.w("DomovoyHub", "could not open $packageName", failure)
+            "Не удалось открыть приложение"
+        },
+    )
 }

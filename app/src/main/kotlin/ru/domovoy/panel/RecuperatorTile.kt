@@ -102,7 +102,7 @@ internal fun statusLine(
  * brings no age with it; three booleans that all came back false are a reading like any other and
  * bring theirs.
  */
-private fun RecuperatorTileState.readings(): List<Reading> = listOfNotNull(
+internal fun RecuperatorTileState.readings(): List<Reading> = listOfNotNull(
     powerLastUpdated.takeIf { isOn != null },
     speedLastUpdated.takeIf { it != Reading.Never || speeds.isNotEmpty() },
     temperatureLastUpdated.takeIf { temperature != null },

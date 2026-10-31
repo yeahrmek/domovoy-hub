@@ -2,6 +2,7 @@ package ru.domovoy.panel
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.focusable
@@ -16,8 +17,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
@@ -34,19 +37,22 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.dialog
 import androidx.compose.ui.semantics.isTraversalGroup
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.paneTitle
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import ru.domovoy.core.ColorSetting
 
 /** Dim the background while keeping the panel visible underneath. */
 private const val SCRIM_ALPHA = 0.6f
 
 /** Rounded top corners distinguish the sheet from tiles. */
-private val SHEET_CORNER = 32.dp
+private val SHEET_CORNER = 20.dp
 
 /** Sheet content padding. */
 private val SHEET_PADDING = 24.dp
@@ -109,6 +115,7 @@ internal fun DeviceSheet(
                 Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(SHEET_PADDING),
                 verticalArrangement = Arrangement.spacedBy(SHEET_GAP),
             ) {
+                PanelBrand(compact = true)
                 SheetHeading(sheet, onDismiss)
                 sheet.notUpdating?.let { reason ->
                     Text(
@@ -124,7 +131,9 @@ internal fun DeviceSheet(
                         modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
                     )
                 }
-                sheet.readings.forEach { reading -> SheetReadingRow(reading) }
+                sheet.readings.forEach { reading ->
+                    SheetReadingRow(reading, sheet.color.takeIf { reading.label == "Цвет" })
+                }
                 if (pending) {
                     Text(
                         "Ждём подтверждения…",
@@ -175,7 +184,7 @@ private fun SheetHeading(
 
 /** One reading with its label, value and age. */
 @Composable
-private fun SheetReadingRow(reading: SheetReading) {
+private fun SheetReadingRow(reading: SheetReading, color: ColorSetting? = null) {
     Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Text(
             text = reading.label,
@@ -183,6 +192,14 @@ private fun SheetReadingRow(reading: SheetReading) {
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.width(LABEL_WIDTH),
         )
+        if (color?.instance == "rgb" && color.value != null) {
+            Box(
+                Modifier.size(28.dp).background(Color(0xFF000000 or color.value.toLong()), CircleShape)
+                    .border(1.dp, MaterialTheme.colorScheme.outline, CircleShape)
+                    .semantics { contentDescription = "Образец цвета" },
+            )
+            Spacer(Modifier.width(12.dp))
+        }
         Text(text = reading.value, style = MaterialTheme.typography.headlineSmall)
         Spacer(modifier = Modifier.weight(1f))
         Text(
@@ -260,7 +277,7 @@ private fun SheetControls(
     if (SheetAction.Mode in sheet.actions) ModeControls(sheet.modes, onSetMode, enabled)
     if (SheetAction.Toggle in sheet.actions) ToggleControls(sheet.toggles, onSetToggle, enabled)
     if (SheetAction.Color in sheet.actions) {
-        ColorControls(sheet.color?.scenes.orEmpty(), onSetRgb = onSetRgb, onSetScene = onSetScene, enabled = enabled)
+        ColorControls(sheet.color?.scenes.orEmpty(), onSetRgb = onSetRgb, onSetScene = onSetScene, enabled = enabled, color = sheet.color)
     }
     if (SheetAction.Speed in sheet.actions) {
         FanSpeedControls(

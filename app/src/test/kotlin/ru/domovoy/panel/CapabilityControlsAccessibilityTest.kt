@@ -36,7 +36,7 @@ class CapabilityControlsAccessibilityTest {
         compose.setContent {
             MaterialTheme {
                 ModeControls(
-                    modes = mapOf("thermostat" to Mode(current.value, listOf("cool", "heat"), Reading.Never, Reading.Never)),
+                    modes = mapOf("thermostat" to Mode(current.value, listOf("cool", "heat"), Reading.Never)),
                     onSetMode = { instance, value -> sent = instance to value },
                 )
             }
@@ -58,7 +58,7 @@ class CapabilityControlsAccessibilityTest {
         compose.setContent {
             MaterialTheme {
                 ToggleControls(
-                    toggles = mapOf("ionization" to Toggle(state.value, Reading.Never, Reading.Never)),
+                    toggles = mapOf("ionization" to Toggle(state.value, Reading.Never)),
                     onSetToggle = { _, on -> sent = on },
                 )
             }

@@ -13,7 +13,7 @@ import kotlin.time.Duration.Companion.milliseconds
  * Eight is a guess and is written down as one. The number that matters is how long a device can be
  * quiet before somebody would want to know, and nobody has measured that on this wall — see
  * docs/ui.md, "Open". What is *not* a guess is that it is a multiple rather than a duration:
- * a flat threshold short enough to catch a dead Yandex poll (every 15 s) marks the recuperators
+ * a flat threshold short enough to catch an active Yandex poll marks the recuperators
  * (Tuya, every 6 minutes) permanently, and the panel would hang a warning on five tiles that are
  * working exactly as designed.
  */
@@ -21,7 +21,7 @@ private const val INTERVALS_BEFORE_STALE = 8
 
 /**
  * Whether a group has stopped being read: no refresh has succeeded within eight of its own poll
- * intervals — 2 minutes for the Yandex groups, 48 minutes for the recuperators.
+ * intervals. Adaptive Yandex and Tuya schedules supply their current planned cadence.
  *
  * **Stale is about the poll, not about the value.** What goes in is when the group's refresh last
  * got through, stamped by [YandexPoll] or [TuyaPoll]. It is deliberately not the vendor's
@@ -75,9 +75,8 @@ internal fun notUpdating(
  * worth saying.
  *
  * **An hour is a guess and is written down as one**, the same way [INTERVALS_BEFORE_STALE] is. It is
- * the line between a value that is what the flat is doing and one that is history: Yandex is read
- * every 15 s and Tuya every 6 minutes, so a reading younger than an hour has been confirmed by
- * dozens of polls, and "3 min ago" beside it is a line nobody standing in the hallway acts on. Past
+ * the line between a value that is what the flat is doing and one that is history: Both vendors are polled on adaptive schedules, so an unchanged recent reading may already
+ * have been confirmed by several polls, and "3 min ago" beside it is a line nobody standing in the hallway acts on. Past
  * it the tile speaks, in hours and then in days — which is why [ageLine] has no wording below an
  * hour to give.
  *
