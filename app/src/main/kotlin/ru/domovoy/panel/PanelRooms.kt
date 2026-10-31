@@ -64,6 +64,7 @@ fun PanelRooms(
     /** Tuya has its own slower polling interval because calls consume a monthly allowance. */
     tuyaInterval: Duration,
     modifier: Modifier = Modifier,
+    discovered: DiscoveredPanelState = DiscoveredPanelState(),
     /** Hoisted so idle reset can return the panel to Главная. */
     scroll: LazyGridState = rememberLazyGridState(),
     /** Open device id survives polling updates. Idle reset and intercom calls close the sheet externally. */
@@ -84,7 +85,7 @@ fun PanelRooms(
     onOpenApp: (String) -> Unit = {},
 ) {
     val sections =
-        roomSections(acs.tiles, curtains.tiles, strips.tiles, recuperators.tiles, bulbs.tiles, launchers)
+        roomSections(acs.tiles, curtains.tiles, strips.tiles, recuperators.tiles, bulbs.tiles, launchers, discovered.tiles)
     val errors =
         GroupErrors(
             acs = acs.error,
@@ -92,6 +93,7 @@ fun PanelRooms(
             strips = strips.error,
             recuperators = recuperators.error,
             bulbs = bulbs.error,
+            discovered = discovered.error,
         )
     // Keep polling ages separate so a stopped group cannot borrow another group’s freshness.
     val polls =
@@ -101,6 +103,7 @@ fun PanelRooms(
             strips = strips.lastPolledAt,
             recuperators = recuperators.lastPolledAt,
             bulbs = bulbs.lastPolledAt,
+            discovered = discovered.lastPolledAt,
         )
     val headings = panelHeadings(sections, errors, polls, now, yandexInterval, tuyaInterval)
     // Return to the top when polled devices first arrive after boot; later device-count changes preserve scroll.
@@ -118,7 +121,8 @@ fun PanelRooms(
             curtains.tiles.any { it.id == id } ||
             strips.tiles.any { it.id == id } ||
             recuperators.tiles.any { it.id == id } ||
-            bulbs.tiles.any { it.id == id }
+            bulbs.tiles.any { it.id == id } ||
+            discovered.tiles.any { it.id == id }
     } == true
     // Keep the mosaic mounted beneath the sheet.
     Box(modifier = modifier) {
@@ -130,7 +134,7 @@ fun PanelRooms(
         ) {
             // Groups that fail before loading any tiles need a full-width message above the rooms.
             items(
-                groupFailures(acs, curtains, strips, recuperators, bulbs),
+                groupFailures(acs, curtains, strips, recuperators, bulbs, discovered),
                 key = { "failure:$it" },
                 span = { GridItemSpan(maxLineSpan) },
             ) { failure ->
@@ -148,7 +152,7 @@ fun PanelRooms(
                     SectionHeading(title = room, marked = heading.marked)
                 }
                 val noticeSection = if (heading.title == "Главная") {
-                    RoomSection(null, acs.tiles, curtains.tiles, strips.tiles, recuperators.tiles, bulbs.tiles)
+                    RoomSection(null, acs.tiles, curtains.tiles, strips.tiles, recuperators.tiles, bulbs.tiles, discovered = discovered.tiles)
                 } else {
                     section
                 }
@@ -276,6 +280,22 @@ fun PanelRooms(
                             )
                         }
                     }
+                    section.discovered.forEach { tile ->
+                        add(
+                            PanelTile("$room/discovered:${tile.id}", TileFormat.Reading) { modifier ->
+                                DiscoveredDeviceTile(
+                                    tile = tile,
+                                    now = now,
+                                    modifier = modifier,
+                                    error = discovered.error ?: "Обновления не поступают".takeIf {
+                                        notUpdating(null, discovered.lastPolledAt, now, yandexInterval)
+                                    },
+                                    showRoom = showRoom,
+                                    onOpen = { openSheet.value = tile.id },
+                                )
+                            },
+                        )
+                    }
                     section.launchers.forEach { tile ->
                         add(
                             PanelTile("$room/launcher:${tile.packageName}", TileFormat.Launcher) { modifier ->
@@ -294,6 +314,11 @@ fun PanelRooms(
             strips = strips,
             recuperators = recuperators,
             bulbs = bulbs,
+            discovered = discovered.copy(
+                error = discovered.error ?: "Обновления не поступают".takeIf {
+                    notUpdating(null, discovered.lastPolledAt, now, yandexInterval)
+                },
+            ),
             now = now,
             onToggleAc = onToggleAc,
             onSetTemperature = onSetTemperature,
@@ -351,6 +376,7 @@ private fun OpenSheet(
     strips: LightStripPanelState,
     recuperators: RecuperatorPanelState,
     bulbs: BulbPanelState,
+    discovered: DiscoveredPanelState,
     now: Instant,
     onToggleAc: (String) -> Unit,
     onSetTemperature: (String, Double) -> Unit,
@@ -373,7 +399,9 @@ private fun OpenSheet(
     val strip = strips.tiles.firstOrNull { it.id == id }
     val recuperator = recuperators.tiles.firstOrNull { it.id == id }
     val bulb = bulbs.tiles.firstOrNull { it.id == id }
+    val other = discovered.tiles.firstOrNull { it.id == id }
     when {
+        other != null -> DeviceSheet(sheet = sheet(other, now, discovered.error), onDismiss = dismiss)
         ac != null ->
             DeviceSheet(
                 sheet = sheet(ac, now, acs.error),

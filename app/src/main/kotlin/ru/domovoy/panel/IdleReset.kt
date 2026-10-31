@@ -18,7 +18,7 @@ import kotlin.time.Duration
  * is where the last person got to is showing the wrong room to everyone after them.
  *
  * The clock is here, in a suspend function over a flow, rather than inside a composable — the same
- * choice [pollPausingForCalls] makes and for the same reason: a clock that cannot be advanced in a
+ * choice [AdaptivePolling] makes and for the same reason: a clock that cannot be advanced in a
  * test is a clock nobody checks.
  *
  * The wait starts when this does, not at the first touch, so a panel nobody has touched since it

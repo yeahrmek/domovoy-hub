@@ -1,9 +1,9 @@
 # Yandex Smart Home
 
-**Scope:** air conditioner, curtains, bulbs — full integration, and the reference one for the rest
-of the panel. The smart speaker is not a tile: it appears in the API, but the IoT API cannot make
-it speak or play. (It can, it turns out, set the light ring — see "What every type of device can be
-driven with", which counts what each of the thirteen types in this account actually exposes.)
+**Scope:** every device in the configured household is discovered automatically. Lights, strips,
+curtains and air conditioners have dedicated controls; other types have read-only cards and sheets.
+The automatic-discovery section below describes current behavior; the older measurements and
+integration notes retain their original observations.
 
 Read from the public docs on 2026-08-15, and **`/v1.0/user/info` called for real on 2026-08-15**
 from a laptop on the flat's Wi-Fi — 41 devices came back. What that call actually returned is under
@@ -12,6 +12,65 @@ from a laptop on the flat's Wi-Fi — 41 devices came back. What that call actua
 for real too**, from the panel on the tablet on 2026-08-15 — see "Run on the tablet". No response
 body was captured from that call, so there is no fixture for it and the open questions about what
 the response *means* are still open.
+
+## Automatic inventory discovery (2026-10-31)
+
+Every successful shared `/v1.0/user/info` poll replaces the inventory of the configured household. New devices and rooms appear without rebuilding or restarting; removed devices disappear
+only after a successful read. Other households remain excluded. A failed poll retains the previous
+inventory, reading ages and successful-poll timestamp, with a visible failure.
+
+The live read on 2026-10-31 returned 35 devices in the configured household; 24 had dedicated tiles.
+The client now retains every type. Lights, strips, curtains and air conditioners keep their verified
+controls; all other types receive read-only cards and detail sheets. This includes previously hidden
+speakers, switches, the vacuum and humidifier, plus the climate sensor, door lock and three intercom
+relays. Mi Home and Domonap launchers remain available for their native app features.
+
+New types do not automatically gain write actions. In particular the door lock remains read-only,
+and intercom relay `on_off` is never offered as a power button or door-release action. A `door=closed`
+property reports the door contact, not proof that the lock is locked. No vendor write was used to
+verify discovery, and the Domonap incoming-call path is unchanged.
+
+The additional recorded fixture `app/src/test/resources/yandex/discovered_devices.json` contains
+five devices from that read: one climate sensor, one door lock and three `openable` intercom devices.
+All device, household and room identifiers and device names are replaced; only known on/off
+capabilities and float/event properties are retained. Observed properties include temperature,
+humidity, battery level, signal level, door/open, button and serviceability; missing states remain
+unknown. Numeric units and each property's `last_updated` are retained. Other capabilities such as
+lock/event-history are not interpreted. Detail sheets display individual ages; cards use the oldest
+of their displayed readings. Unknown types with no readable state still have a named card.
+
+## Adaptive polling (2026-10-31)
+
+The shared inventory/state read runs once a minute during use and once every five minutes after
+two minutes without interaction. A new pointer press or key-down requests an immediate read;
+pointer movement, focus and accessibility interactions extend the active period without issuing
+one request per event. Touches during a read share its result. Successful device commands retain
+an immediate confirmation read; it starts after the command even if an older timer read is still
+in flight, and its completion resets the timer deadline.
+
+From 23:00 to 07:00 in the tablet's local time zone, an idle panel reads once every 30 minutes.
+Touching it restores the normal active cadence. The scheduler rechecks day/night and idle boundaries
+at least once a minute without making an HTTP request for that check. The first foreground read
+and each return from the background or intercom call are immediate, including at night.
+
+A failed read doubles the current mode's interval on each consecutive failure, capped at 30 minutes
+during day/active use and two hours during idle night hours. An explicit press or command confirmation
+can bypass the retry wait. A successful read resets the failure count. Cancellation for backgrounding
+or a call is not a vendor failure. No polling occurs while the activity is stopped or an intercom
+call is active; in-flight reads are cancelled, including Yandex command-confirmation reads. Existing
+values and their ages remain visible after failures. The UI receives the current planned interval
+so intentional idle/night/backoff delays are not misreported as a silently stopped poll.
+
+Tuya uses the same lifecycle/night scheduler, with its daytime active/idle interval kept at six
+minutes to preserve the metered allowance. Touches never force a Tuya inventory read; existing
+per-device command confirmations remain in place. At night the idle interval is 30 minutes, and
+inventory failures back off with the same limits. Individual recuperator failures remain local
+and do not mark the shared inventory read as failed. The separate 15-second UI clock only advances
+reading ages; it does not call vendor APIs.
+
+No live vendor actions or tablet installation were used to validate this scheduler. Unit tests use
+virtual time for day/night transitions, touch/idle behavior, errors, foreground/call cancellation,
+read coalescing and post-command deadlines. Existing vendor HTTP tests retain recorded fixtures.
 
 ## Verified in the docs
 

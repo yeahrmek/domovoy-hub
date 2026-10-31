@@ -1,5 +1,7 @@
 package ru.domovoy.panel
 
+import ru.domovoy.core.Device
+
 /**
  * The order the panel shows the rooms in, and the only place that order is decided.
  *
@@ -64,6 +66,7 @@ data class RoomSection(
     val recuperators: List<RecuperatorTileState> = emptyList(),
     val bulbs: List<BulbTileState> = emptyList(),
     val launchers: List<LauncherTileState> = emptyList(),
+    val discovered: List<Device> = emptyList(),
 )
 
 /**
@@ -82,9 +85,7 @@ data class RoomSection(
  * until its dock was recorded, and that is what the section is for: an unplaced tile is one waiting
  * for an answer, not one that has been given the answer "nowhere".
  *
- * Every tile group is a parameter here, launchers included and none of them defaulted. A tile group
- * that could be left out by forgetting to pass it is exactly how a section of the wall goes missing
- * without anybody being told.
+ * Every tile group is a parameter here, including launchers and the discovered-device group.
  */
 fun roomSections(
     acs: List<AcTileState>,
@@ -93,6 +94,7 @@ fun roomSections(
     recuperators: List<RecuperatorTileState>,
     bulbs: List<BulbTileState>,
     launchers: List<LauncherTileState>,
+    discovered: List<Device> = emptyList(),
 ): List<RoomSection> {
     val rooms =
         buildList {
@@ -102,6 +104,7 @@ fun roomSections(
             addAll(recuperators.map { it.room })
             addAll(bulbs.map { it.room })
             addAll(launchers.map { it.room })
+            addAll(discovered.map { it.room })
         }.distinct()
             .sortedWith(compareBy<String?> { rank(it) }.thenBy { it.orEmpty() })
     return rooms.map { room ->
@@ -113,6 +116,7 @@ fun roomSections(
             recuperators = recuperators.filter { it.room == room },
             bulbs = bulbs.filter { it.room == room },
             launchers = launchers.filter { it.room == room },
+            discovered = discovered.filter { it.room == room },
         )
     }
 }
@@ -125,7 +129,7 @@ fun roomSections(
  * count for both, so a group added later cannot be counted by one of them and not the other.
  */
 internal fun RoomSection.tileCount(): Int = acs.size + curtains.size + strips.size + recuperators.size +
-    bulbs.size + launchers.size
+    bulbs.size + launchers.size + discovered.size
 
 // Named rooms in the order above, then the ones the order does not name, then the unplaced —
 // which is not a room and so cannot be anywhere but last.
@@ -152,12 +156,14 @@ internal fun groupFailures(
     strips: LightStripPanelState,
     recuperators: RecuperatorPanelState,
     bulbs: BulbPanelState,
+    discovered: DiscoveredPanelState = DiscoveredPanelState(),
 ): List<String> = listOfNotNull(
     failure("Кондиционеры", acs.tiles.isEmpty(), acs.error),
     failure("Шторы", curtains.tiles.isEmpty(), curtains.error),
     failure("Подсветка", strips.tiles.isEmpty(), strips.error),
     failure("Бризеры", recuperators.tiles.isEmpty(), recuperators.error),
     failure("Лампы", bulbs.tiles.isEmpty(), bulbs.error),
+    failure("Устройства Яндекса", discovered.tiles.isEmpty(), discovered.error),
 )
 
 private fun failure(
@@ -173,6 +179,7 @@ internal fun sectionFailures(section: RoomSection, errors: GroupErrors): List<St
     errors.strips?.takeIf { section.strips.isNotEmpty() }?.let { "Подсветка" to it },
     errors.recuperators?.takeIf { section.recuperators.isNotEmpty() }?.let { "Бризеры" to it },
     errors.bulbs?.takeIf { section.bulbs.isNotEmpty() }?.let { "Свет" to it },
+    errors.discovered?.takeIf { section.discovered.isNotEmpty() }?.let { "Устройства Яндекса" to it },
 ).groupBy({ it.second }, { it.first }).map { (reason, groups) ->
     "${groups.joinToString(", ")}: нет обновления — $reason"
 }
