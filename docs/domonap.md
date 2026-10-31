@@ -278,9 +278,10 @@ notification, or to wait for the call to register. Both are guesses until watche
 The `fullscreenIntent`/`android.answerIntent` shared `PendingIntentRecord` (`d42d046`) is *not*
 implicated: the call went `LOCAL`-disconnected, never `SET_ACTIVE`, so nothing answered it.
 
-**Where this leaves the panel:** the listener is read-only again, exactly as before. `DomonapCalls`
-still works out when a call screen *would* go up — once per call, on the post that carries the
-intent, ringing channel only, all of it recorded above and unit-tested — and nothing acts on it.
+**Where this leaves the panel:** the listener is read-only. `DomonapCalls` tracks notification keys
+on the incoming and ongoing call channels and publishes only `Idle` or `Active`. It does not inspect
+the full-screen intent, retain a call-start time or return a screen-launch decision. Polling pauses
+while any tracked call key remains; no code launches or dismisses Domonap's screen.
 A panel that shows nothing while the intercom rings is a poor wall panel; one that hangs up on
 whoever is at the door is a broken intercom, and that trade is not close.
 
@@ -498,9 +499,10 @@ banner over the foreground app, with the full-screen intent present on the notif
 Whether it takes over when the tablet is locked is still unverified. See
 [a real incoming call](#recorded-on-the-tablet--a-real-incoming-call-2026-08-16).
 
-Our side is a **notification listener**. With notification access granted, the panel sees Domonap's
-incoming-call notification and can use it to yield the screen, dim, log the event, and restore the
-panel afterwards. Plus a launcher tile for opening the app on purpose.
+Our side is a **notification listener**. With notification access granted, it tracks Domonap's
+incoming and ongoing notification keys. The panel pauses polling and closes an open device sheet
+while a call is active; removing the final tracked key resumes polling. It does not launch an intent
+or alter audio. A launcher tile opens the app on purpose.
 
 What the extras actually carry, now that they are recorded: the **door** (building, entrance, floor,
 flat range) in `android.title`, a constant `"Входящий вызов"` in `android.text`, and an

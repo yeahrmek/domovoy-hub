@@ -14,7 +14,6 @@ serialization = "1.11.0"
 
 junit = "6.1.3"
 turbine = "1.2.1"
-mockk = "1.14.11"
 robolectric = "4.16.1"
 roborazzi = "1.73.0"
 
@@ -22,21 +21,16 @@ roborazzi = "1.73.0"
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "androidxCore" }
 androidx-lifecycle-runtime-ktx = { module = "androidx.lifecycle:lifecycle-runtime-ktx", version.ref = "androidxLifecycle" }
 androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "androidxActivity" }
-# EncryptedSharedPreferences — the token store AGENTS.md asks for. Jetpack Security Crypto is
-# deprecated upstream: 1.1.0 is the last release and gets no further updates. Kept because it is
-# still the shortest path to a keystore-backed store; the alternative is hand-rolled AES-GCM.
+# Required by AGENTS.md for keystore-backed credential storage; deprecated upstream.
 androidx-security-crypto = { module = "androidx.security:security-crypto", version.ref = "androidxSecurity" }
 
 compose-bom = { module = "androidx.compose:compose-bom", version.ref = "composeBom" }
 compose-ui = { module = "androidx.compose.ui:ui" }
 compose-ui-graphics = { module = "androidx.compose.ui:ui-graphics" }
 compose-ui-tooling = { module = "androidx.compose.ui:ui-tooling" }
-compose-ui-tooling-preview = { module = "androidx.compose.ui:ui-tooling-preview" }
 compose-ui-test-manifest = { module = "androidx.compose.ui:ui-test-manifest" }
 compose-material3 = { module = "androidx.compose.material3:material3" }
-# The screenshot tests' way in: `createComposeRule()` is what puts a composable on a screen off the
-# tablet. Roborazzi declares no Compose dependency of its own — its POM is kotlin-stdlib and itself
-# — so this is the artifact that actually supplies the rule, and it is BOM-managed like the rest.
+# Compose UI rules used by Robolectric tests, managed by the Compose BOM.
 compose-ui-test-junit4 = { module = "androidx.compose.ui:ui-test-junit4" }
 
 kotlinx-coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "coroutines" }
@@ -44,20 +38,15 @@ kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-t
 kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "serialization" }
 
 okhttp = { module = "com.squareup.okhttp3:okhttp", version.ref = "okhttp" }
-# mockwebserver3 — the okhttp 5 package. Lets a test assert the request the client really sent
-# instead of verifying a mock, and serve the recorded fixture over a loopback socket.
+# Serve recorded responses over loopback and assert real HTTP requests.
 okhttp-mockwebserver = { module = "com.squareup.okhttp3:mockwebserver3", version.ref = "okhttp" }
 
 junit-jupiter = { module = "org.junit.jupiter:junit-jupiter", version.ref = "junit" }
 junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher", version.ref = "junit" }
 kotlin-test-junit5 = { module = "org.jetbrains.kotlin:kotlin-test-junit5", version.ref = "kotlin" }
 turbine = { module = "app.cash.turbine:turbine", version.ref = "turbine" }
-mockk = { module = "io.mockk:mockk", version.ref = "mockk" }
 
-# The screenshot tests, and the only JUnit4 in the repo. Robolectric's runner and Compose's test
-# rule are both JUnit4, and there is no JUnit5 port of either — so the vintage engine runs them on
-# the same platform as everything else rather than a second test task nobody remembers to run.
-# See docs/ui.md, "Screenshots".
+# Robolectric and Compose rules require JUnit4; vintage runs them alongside JUnit5.
 robolectric = { module = "org.robolectric:robolectric", version.ref = "robolectric" }
 roborazzi = { module = "io.github.takahirom.roborazzi:roborazzi", version.ref = "roborazzi" }
 roborazzi-compose = { module = "io.github.takahirom.roborazzi:roborazzi-compose", version.ref = "roborazzi" }
@@ -65,11 +54,8 @@ junit-vintage-engine = { module = "org.junit.vintage:junit-vintage-engine", vers
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
-kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
 ktlint = { id = "org.jlleitschuh.gradle.ktlint", version.ref = "ktlint" }
-# Gives the module `recordRoborazziDebug` and `verifyRoborazziDebug`. Without it the same tests
-# still run under `test`, but every one of them writes its reference image on every run — which is
-# a test that can never fail. The plugin is what makes record and verify two different commands.
+# Separate explicit baseline recording from screenshot verification.
 roborazzi = { id = "io.github.takahirom.roborazzi", version.ref = "roborazzi" }

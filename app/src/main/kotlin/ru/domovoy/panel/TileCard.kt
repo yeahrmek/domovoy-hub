@@ -44,16 +44,16 @@ import androidx.compose.ui.unit.dp
 import ru.domovoy.R
 
 /** One corner radius for every tile width. */
-private val TILE_CORNER = 22.dp
+private val TILE_CORNER = 12.dp
 
 /** Wall controls use a 64 dp minimum for standing, arm’s-length interaction. */
 internal val MIN_TOUCH = 64.dp
 
 /** Each tile supplies half the gutter, including at the outer grid edge. */
-private val TILE_PADDING = 4.dp
+private val TILE_PADDING = 6.dp
 
 /** Inside the card, on all four sides. One padding, on every tile, whatever its span. */
-private val TILE_CONTENT_PADDING = 12.dp
+private val TILE_CONTENT_PADDING = 20.dp
 
 /** Main controls remain easy to reach while simple cards omit absent content. */
 private val ART_ROW = MIN_TOUCH
@@ -203,7 +203,7 @@ private val ACTION_BUTTON_SIZE = 40.dp
 private val ACTION_GLYPH_SIZE = 24.dp
 
 /** The visible power disc inside its larger wall-sized touch target. */
-private val POWER_BUTTON_SIZE = 44.dp
+private val POWER_BUTTON_SIZE = 56.dp
 
 /** The power symbol inside that disc. */
 private val POWER_GLYPH_SIZE = 28.dp
@@ -222,7 +222,7 @@ internal fun TilePowerButton(
     val label = stringResource(R.string.device_power, listOfNotNull(deviceName, room).joinToString(", "))
     val accented = TileMark.Power in marks(mood)
     val container =
-        if (accented) tileAccent() else MaterialTheme.colorScheme.surfaceContainerHighest
+        if (accented) MaterialTheme.colorScheme.primaryFixedDim else MaterialTheme.colorScheme.surfaceContainerHighest
     val icon = if (accented) tileOnAccent() else MaterialTheme.colorScheme.outline
     Box(
         modifier = modifier
@@ -237,14 +237,14 @@ internal fun TilePowerButton(
         contentAlignment = Alignment.Center,
     ) {
         Box(
-            modifier = Modifier.size(POWER_BUTTON_SIZE).clip(CircleShape).background(container),
+            modifier = Modifier.size(POWER_BUTTON_SIZE).clip(RoundedCornerShape(10.dp)).background(container.copy(alpha = if (enabled) 1f else 0.38f)),
             contentAlignment = Alignment.Center,
         ) {
             Icon(
                 painter = painterResource(R.drawable.ic_power_settings_new),
                 contentDescription = null,
                 modifier = Modifier.size(POWER_GLYPH_SIZE),
-                tint = icon,
+                tint = icon.copy(alpha = if (enabled) 1f else 0.38f),
             )
         }
     }
@@ -318,13 +318,13 @@ internal fun tileColors(mood: TileMood): CardColors = CardDefaults.cardColors(
     contentColor = MaterialTheme.colorScheme.onSurface,
 )
 
-/** One accent for on marks, power controls, and sliders on neutral surfaces. */
+/** A readable brand tone for state marks and inline feedback. */
 @Composable
 internal fun tileAccent(): Color = MaterialTheme.colorScheme.primary
 
-/** The theme’s matching content colour for controls filled with [tileAccent]. */
+/** Dark glyphs remain readable on the lime button fill. */
 @Composable
-private fun tileOnAccent(): Color = MaterialTheme.colorScheme.onPrimary
+private fun tileOnAccent(): Color = MaterialTheme.colorScheme.onPrimaryFixed
 
 /** Reserve at least 64 dp for tile controls. */
 internal fun Modifier.touchable(): Modifier = sizeIn(minWidth = MIN_TOUCH, minHeight = MIN_TOUCH)

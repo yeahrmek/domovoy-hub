@@ -9,11 +9,15 @@ import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import com.github.takahirom.roborazzi.captureRoboImage
 import org.junit.Rule
@@ -86,10 +90,137 @@ class PanelScreenshotTest {
     }
 
     @Test
+    fun `home with clear blue accent candidate`() {
+        capture(
+            "panel-home-clear-blue",
+            panelLightScheme.copy(
+                primary = Color(0xFF285FA5),
+                onPrimary = Color.White,
+                primaryContainer = Color(0xFFDFECFF),
+                onPrimaryContainer = Color(0xFF16365F),
+                surfaceTint = Color(0xFF285FA5),
+                primaryFixed = Color(0xFFDFECFF),
+                primaryFixedDim = Color(0xFF7AABED),
+                onPrimaryFixed = Color(0xFF16365F),
+                onPrimaryFixedVariant = Color(0xFF284C78),
+            ),
+        ) { Panel() }
+    }
+
+    @Test
+    fun `home with petrol accent candidate`() {
+        captureAccentCandidate("petrol", Color(0xFF286F78), Color(0xFFDFEDEF))
+    }
+
+    @Test
+    fun `home with berry accent candidate`() {
+        captureAccentCandidate("berry", Color(0xFF805475), Color(0xFFF0E3ED))
+    }
+
+    @Test
+    fun `home with cobalt accent candidate`() {
+        captureAccentCandidate("cobalt", Color(0xFF244DE8), Color(0xFFE2E9FF))
+    }
+
+    @Test
+    fun `home with violet accent candidate`() {
+        captureAccentCandidate("violet", Color(0xFF7135B1), Color(0xFFF0E4FC))
+    }
+
+    @Test
+    fun `home with cherry accent candidate`() {
+        captureAccentCandidate("cherry", Color(0xFF9E275E), Color(0xFFF8E1EC))
+    }
+
+    @Test
+    fun `home with softened cobalt accent candidate`() {
+        captureAccentCandidate("soft-cobalt", Color(0xFF526FC5), Color(0xFFE5EBFC))
+    }
+
+    @Test
+    fun `home with lime accent candidate`() {
+        capture("panel-home-lime", panelLightScheme) { Panel() }
+    }
+
+    @Test
+    fun `home with bright pink accent candidate`() {
+        captureAccentCandidate("bright-pink", Color(0xFFA62061), Color(0xFFFFE3EF), Color(0xFFF567A5), Color(0xFF512039))
+    }
+
+    @Test
+    fun `home with soft sky accent candidate`() {
+        captureAccentCandidate("soft-sky", Color(0xFF2A648E), Color(0xFFE1F1FB), Color(0xFF8CC9EE), Color(0xFF123D5C))
+    }
+
+    @Test
+    fun `dark home with lime accent candidate`() {
+        capture("panel-home-lime-dark", panelDarkScheme) { Panel() }
+    }
+
+    @Test
+    fun `dark home with soft sky accent candidate`() {
+        capture(
+            "panel-home-soft-sky-dark",
+            panelDarkScheme.copy(
+                primary = Color(0xFF8CC9EE), onPrimary = Color(0xFF123D5C),
+                primaryContainer = Color(0xFF21425A), onPrimaryContainer = Color(0xFFD8EEFC),
+                surfaceTint = Color(0xFF8CC9EE),
+                primaryFixed = Color(0xFF8CC9EE), primaryFixedDim = Color(0xFF8CC9EE),
+                onPrimaryFixed = Color(0xFF123D5C), onPrimaryFixedVariant = Color(0xFF123D5C),
+                background = Color(0xFF101923), surface = Color(0xFF101923),
+                onBackground = Color(0xFFECF3FC), onSurface = Color(0xFFECF3FC),
+                onSurfaceVariant = Color(0xFFADBCCD),
+                surfaceDim = Color(0xFF101923), surfaceBright = Color(0xFF354E65),
+                surfaceContainerLowest = Color(0xFF16212D), surfaceContainerLow = Color(0xFF192633),
+                surfaceContainer = Color(0xFF1B2A38), surfaceContainerHigh = Color(0xFF243547),
+                surfaceContainerHighest = Color(0xFF2C4155), surfaceVariant = Color(0xFF2C4155),
+                outline = Color(0xFF91A5BA), outlineVariant = Color(0xFF3E5267),
+            ),
+        ) { Panel() }
+    }
+
+    private fun captureAccentCandidate(name: String, accent: Color, container: Color, fill: Color = accent, onFill: Color = Color.White) {
+        capture(
+            "panel-home-$name",
+            panelLightScheme.copy(
+                primary = accent,
+                onPrimary = Color.White,
+                primaryContainer = container,
+                onPrimaryContainer = accent,
+                surfaceTint = accent,
+                primaryFixed = fill,
+                primaryFixedDim = fill,
+                onPrimaryFixed = onFill,
+                onPrimaryFixedVariant = onFill,
+            ),
+        ) { Panel() }
+    }
+
+    @Test
     fun `the panel on Главная, dark`() {
         // The wall is on this scheme from 19:00 to 07:00 — half of every day, and the half nobody
         // is watching when it switches. It gets the same picture taken of it as light does.
         capture("panel-home-dark", panelDarkScheme) { Panel() }
+    }
+
+    @Test
+    fun `home with larger system text`() {
+        capture("panel-home-large-text", panelLightScheme) {
+            CompositionLocalProvider(LocalDensity provides Density(LocalDensity.current.density, fontScale = 1.3f)) {
+                Panel()
+            }
+        }
+    }
+
+    @Test
+    @Config(qualifiers = "w1204dp-h753dp-land-340dpi")
+    fun `home in landscape`() {
+        capture("panel-home-landscape", panelLightScheme) { Panel() }
+    }
+
+    @Test
+    fun `the room picker`() {
+        capture("panel-rooms", panelLightScheme) { Panel(roomsOpen = true) }
     }
 
     // The colour matrix has a taller canvas so every mood and failure outline stays visible.
@@ -222,6 +353,7 @@ class PanelScreenshotTest {
     private fun Panel(
         /** Which device's sheet is open over the wall, or null for the wall on its own. */
         open: String? = null,
+        roomsOpen: Boolean = false,
     ) {
         PanelRooms(
             acs = Flat.acs,
@@ -234,6 +366,7 @@ class PanelScreenshotTest {
             yandexInterval = Flat.YANDEX_INTERVAL,
             tuyaInterval = Flat.TUYA_INTERVAL,
             openSheet = remember { mutableStateOf(open) },
+            roomPickerOpen = remember { mutableStateOf(roomsOpen) },
         )
     }
 

@@ -1,16 +1,11 @@
 package ru.domovoy.panel
 
 import ru.domovoy.core.KnownRecuperators
-import ru.domovoy.integrations.tuya.TuyaClient
+import ru.domovoy.integrations.tuya.TuyaDevices
 import java.time.Instant
 
 /**
- * The panel's one read of the flat's recuperators, and the most expensive thing it does.
- *
- * Unlike the Yandex poll, this is not one call: the inventory is one, and then real state costs a
- * call *per recuperator* because the batch shadow route answers `40001900 No space permission`. So
- * a refresh is five calls today, against an allowance denominated in money — which is why whoever
- * owns the timer polls this in minutes, not seconds. See docs/tuya.md.
+ * Reads the configured recuperators through the selected Tuya transport.
  *
  * A single device's read failing is not the group failing: the other four are handed on as normal
  * and the failure lands on that one tile.
@@ -18,7 +13,7 @@ import java.time.Instant
  * Nothing here schedules; [refresh] is called by whatever owns the timer. See [AdaptivePolling].
  */
 class TuyaPoll(
-    private val client: TuyaClient,
+    private val client: TuyaDevices,
     /**
      * Which room each recuperator is in, by device id, as [recuperatorRooms] read it out of
      * `local.properties`. Empty by default, and empty is a working panel: what is not in here
@@ -53,9 +48,8 @@ class TuyaPoll(
                 // the inventory, so both the read below and the fallback to the inventory carry it
                 // — and so a tap, which re-reads from this same device, keeps it too.
                 val inventory = devices.map { device -> device.copy(room = rooms[device.id] ?: device.room) }
-                // Sequential rather than concurrent: five calls a few minutes apart are not worth
-                // opening five sockets at once on a tablet that is mostly idle, and it keeps the
-                // order of what the panel spends predictable.
+                // Each client read has its own deadline and failure; one unavailable unit does
+                // not prevent the remaining units from updating.
                 val read = inventory.map { device -> device to client.read(device) }
                 recuperators.show(
                     // A device that failed to read falls back to what the inventory said about it,

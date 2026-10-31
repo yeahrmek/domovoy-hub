@@ -1,13 +1,15 @@
 package ru.domovoy.panel
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -24,6 +26,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -44,6 +50,7 @@ internal fun LevelControl(
     enabled: Boolean = true,
     label: String = "Уровень",
     unit: String = "%",
+    thumbShape: LevelThumbShape = LevelThumbShape.Oval,
 ) {
     val reported = (value ?: bounds.min).toFloat()
     var dragged by remember(id, bounds) { mutableFloatStateOf(reported) }
@@ -71,6 +78,7 @@ internal fun LevelControl(
             },
             modifier = sliderModifier.semantics { contentDescription = label },
             enabled = enabled,
+            thumbShape = thumbShape,
         )
     }
     Column(modifier = modifier) {
@@ -121,17 +129,10 @@ private fun StepButton(
     }
 }
 
-/** The visible track is 8 dp; its touch area is 64 dp. */
-private val TRACK_HEIGHT = 8.dp
+/** Both conventional knob shapes share the same continuous horizontal colour scale. */
+internal enum class LevelThumbShape { Round, Oval }
 
-/** The unfilled track is a low-emphasis neutral composited over the tile’s current surface. */
-private const val REST_OF_TRACK_ALPHA = 0.24f
-
-/**
- * A slim track and Material thumb inside a 64 dp touch area.
- * Material [Slider] retains native drag behaviour, value semantics, and accessibility.
- */
-// The slot API and coerced fraction require a local experimental opt-in.
+/** The rail is a light-to-rich peach scale; the high-contrast knob indicates the selected value. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun SlimSlider(
@@ -141,9 +142,13 @@ internal fun SlimSlider(
     valueRange: ClosedFloatingPointRange<Float>,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
+    thumbShape: LevelThumbShape = LevelThumbShape.Oval,
 ) {
-    val filled = tileAccent()
-    val rest = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = REST_OF_TRACK_ALPHA)
+    val gradient = Brush.horizontalGradient(listOf(MaterialTheme.colorScheme.tertiaryFixed, MaterialTheme.colorScheme.tertiaryFixedDim))
+    val outline = MaterialTheme.colorScheme.onSurfaceVariant
+    val paper = MaterialTheme.colorScheme.surfaceBright
+    val railOutline = MaterialTheme.colorScheme.outlineVariant
+    val opacity = if (enabled) 1f else 0.38f
     Slider(
         value = value,
         onValueChange = onValueChange,
@@ -151,22 +156,21 @@ internal fun SlimSlider(
         valueRange = valueRange,
         modifier = modifier.height(MIN_TOUCH),
         enabled = enabled,
-        track = { state ->
+        thumb = {
+            val width = if (thumbShape == LevelThumbShape.Round) 34.dp else 48.dp
+            val height = if (thumbShape == LevelThumbShape.Round) 34.dp else 28.dp
+            val shape = RoundedCornerShape(50)
             Box(
-                modifier = Modifier.fillMaxWidth().height(MIN_TOUCH),
-                contentAlignment = Alignment.CenterStart,
-            ) {
-                Box(
-                    modifier =
-                    Modifier.fillMaxWidth().height(TRACK_HEIGHT).clip(CircleShape).background(rest),
-                ) {
-                    // Material clamps the displayed fraction even when a vendor reading exceeds its bounds.
-                    Box(
-                        modifier =
-                        Modifier.fillMaxWidth(state.coercedValueAsFraction).fillMaxHeight()
-                            .background(filled),
-                    )
-                }
+                Modifier.size(width, height).clip(shape).background(paper.copy(alpha = opacity))
+                    .border(1.5.dp, outline.copy(alpha = opacity), shape),
+            )
+        },
+        track = {
+            Canvas(Modifier.fillMaxWidth().height(MIN_TOUCH)) {
+                val trackHeight = 16.dp.toPx()
+                val y = (size.height - trackHeight) / 2
+                drawRoundRect(railOutline.copy(alpha = opacity), topLeft = Offset(0f, y - 1.dp.toPx()), size = Size(size.width, trackHeight + 2.dp.toPx()), cornerRadius = CornerRadius(9.dp.toPx()))
+                drawRoundRect(brush = gradient, topLeft = Offset(0f, y), size = Size(size.width, trackHeight), cornerRadius = CornerRadius(8.dp.toPx()), alpha = opacity)
             }
         },
     )

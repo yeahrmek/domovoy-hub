@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="56dp"
+    android:height="56dp"
+    android:viewportWidth="400"
+    android:viewportHeight="400">
+
+    <!-- The app mark from docs/design/brand/domovoy.svg, without adaptive-icon insets. -->
+    <group android:translateX="-56" android:translateY="-56">
+        <path android:pathData="M98 440C83.64 440 72 428.36 72 414V236C72 222 78 210 89 200L230 83Q256 61 282 83L423 200Q435 210 438 222L366 273L256 180L156 264V414Q156 440 130 440Z">
+            <aapt:attr name="android:fillColor">
+                <gradient
+                    android:type="linear"
+                    android:startX="105"
+                    android:startY="400"
+                    android:endX="410"
+                    android:endY="205">
+                    <item android:color="#4C6D13" android:offset="0" />
+                    <item android:color="#86B43E" android:offset="0.48" />
+                    <item android:color="#B3DF5A" android:offset="1" />
+                </gradient>
+            </aapt:attr>
+        </path>
+        <path android:pathData="M444 254C444 241 436 237 426 244L370 285V354Q370 364 360 364H202Q178 364 178 388V414Q178 440 204 440H414Q444 440 444 410Z">
+            <aapt:attr name="android:fillColor">
+                <gradient
+                    android:type="linear"
+                    android:startX="195"
+                    android:startY="418"
+                    android:endX="420"
+                    android:endY="270">
+                    <item android:color="#FFE2D6" android:offset="0" />
+                    <item android:color="#FFB293" android:offset="0.52" />
+                    <item android:color="#FF865F" android:offset="1" />
+                </gradient>
+            </aapt:attr>
+        </path>
+        <path
+            android:fillColor="#283D12"
+            android:pathData="M240 302A12 19 0 1 1 216 302A12 19 0 1 1 240 302ZM306 302A12 19 0 1 1 282 302A12 19 0 1 1 306 302Z" />
+    </group>
+</vector>

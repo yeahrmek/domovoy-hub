@@ -6,26 +6,14 @@ private const val YANDEX_OAUTH_TOKEN = "yandex.oauth.token"
 private const val TUYA_CLIENT_ID = "tuya.client.id"
 private const val TUYA_CLIENT_SECRET = "tuya.client.secret"
 private const val TUYA_UID = "tuya.uid"
+private const val TUYA_LOCAL_DEVICES = "tuya.local.devices"
 
-/**
- * Where the panel keeps vendor credentials at runtime. On the tablet the [prefs] handed in are
- * `EncryptedSharedPreferences`; nothing here knows that, which is what lets it be tested off a
- * device.
- *
- * A token in `BuildConfig` is baked into the APK, so an expired one costs a rebuild and a walk to
- * the wall. Reading it from here instead means anything that can write to the store — the OAuth
- * refresh flow, when it exists — fixes the panel in place.
- */
+/** Vendor credentials in encrypted on-device preferences, read again on each request. */
 class TokenStore(private val prefs: SharedPreferences) {
-    /** The stored Yandex token, or `""` when nothing usable is stored. Never null, never blank. */
+    /** The stored Yandex token, or `""` when nothing usable is stored. Never null. */
     fun yandexToken(): String = prefs.getString(YANDEX_OAUTH_TOKEN, null).orEmpty().trim()
 
-    /**
-     * First-run seeding from `local.properties` via `BuildConfig`: writes [token] only when the
-     * store holds none, and answers whether it wrote. Deliberately not an overwrite — once the
-     * store holds a fresher token, the value baked into the APK is the stale one, and a launch
-     * after a reinstall must not put it back.
-     */
+    /** Seeds an empty store from BuildConfig without overwriting fresher runtime credentials. */
     fun seedYandexToken(token: String): Boolean {
         val seed = token.trim()
         if (seed.isEmpty() || yandexToken().isNotEmpty()) return false
@@ -33,25 +21,22 @@ class TokenStore(private val prefs: SharedPreferences) {
         return true
     }
 
-    /**
-     * The Tuya cloud project's credentials, and the uid of the Smart Life account linked to it.
-     * `""` for anything not stored; the client refuses to send a request rather than signing one
-     * with a blank secret, which would come back `1004 sign invalid` and blame the signature.
-     *
-     * Three strings rather than the client's own credentials type: `core` does not depend on
-     * `integrations`, and this is the shape a `SharedPreferences` holds anyway.
-     */
+    /** Tuya project credentials and linked Smart Life uid; empty when absent. */
     fun tuyaClientId(): String = read(TUYA_CLIENT_ID)
 
     fun tuyaClientSecret(): String = read(TUYA_CLIENT_SECRET)
 
     fun tuyaUid(): String = read(TUYA_UID)
 
-    /**
-     * First-run seeding from `local.properties`, on the same terms as [seedYandexToken]: each value
-     * is written only when the store holds none, so a credential rotated into the store is not
-     * undone by the stale one still baked into the APK.
-     */
+    /** Local device identifiers, addresses and keys share the encrypted credential store. */
+    fun tuyaLanDevices(): String = read(TUYA_LOCAL_DEVICES)
+
+    /** An APK seed never overwrites keys or connection details already stored on the tablet. */
+    fun seedTuyaLanDevices(devicesJson: String) {
+        seed(TUYA_LOCAL_DEVICES, devicesJson)
+    }
+
+    /** Seeds missing fields without overwriting existing credentials. */
     fun seedTuyaCredentials(
         clientId: String,
         clientSecret: String,

@@ -1,5 +1,6 @@
 package ru.domovoy.integrations.tuya
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.sync.Mutex
@@ -27,7 +28,6 @@ import ru.domovoy.core.Reading
 import ru.domovoy.core.Toggle
 import java.io.IOException
 import java.time.Instant
-import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
@@ -45,27 +45,15 @@ private const val SWITCH = "switch"
 private const val TYPE_BOOL = "bool"
 private const val TYPE_VALUE = "value"
 
-/**
- * `huimi` and `temper` are tenths: the thing model says `scale: 1`, so 322 is 32.2 %RH and 293 is
- * 29.3 °C. Held here rather than re-read per poll — the model is a property of the product, and a
- * refresh already costs five calls against a metered allowance. TuyaClientTest asserts the
- * recorded model still says this.
- */
+/** Verified sensor scale for `huimi` and `temper`: 322 means 32.2. See docs/tuya.md. */
 private const val VALUE_SCALE = 10.0
 
 private val SPEEDS = setOf("speed_one", "speed_two", "speed_three")
 
-/**
- * Taken off the expiry so a token is replaced before it lapses rather than in the middle of a
- * call — a poll that fails on a token that expired in flight is a tile saying "not updating" for
- * a reason the panel could have avoided.
- */
+/** Refresh tokens before expiry to allow for requests in flight. */
 private const val TOKEN_MARGIN_SECONDS = 60L
 
-/**
- * Names both what is missing and the one way a credential gets in today. Said in `Log` rather than
- * on the tile, for [ru.domovoy.integrations.yandex.NO_TOKEN]'s reason and with its consequences.
- */
+/** Missing-credential details go to the log; tiles display a short failure label. */
 internal const val NO_CREDENTIALS =
     "no Tuya credentials stored — set tuya.client.id, tuya.client.secret and tuya.uid in local.properties and reinstall"
 
@@ -80,7 +68,7 @@ data class TuyaCredentials(
     val uid: String,
 )
 
-/** Tuya business errors preserve their code for user-facing failure labels. */
+/** Tuya business errors arrive as HTTP 200; preserve the code for presentation decisions. */
 class TuyaApiException(
     val code: Long?,
     call: String,
@@ -88,27 +76,9 @@ class TuyaApiException(
 ) : IllegalStateException("$call failed: code=$code msg=$apiMessage")
 
 /**
- * Reads the flat's recuperators, and switches one on or off.
- *
- * Two things shape this and neither is a preference:
- *
- * **A refresh is five calls.** `/v1.0/users/{uid}/devices` is one call for the inventory, but the
- * `status` it carries is filtered to Tuya's standard instruction set and holds only `switch` — the
- * real 13 datapoints come from `/v2.0/cloud/thing/{id}/shadow/properties`, one call per
- * recuperator, because the batch route answers `40001900 No space permission`. So the panel polls
- * slowly; see docs/tuya.md for what the allowance actually buys.
- *
- * **The token is cached.** It costs a call like anything else, and the account hands out the one it
- * already issued — `expire_time` is the seconds *left* on it, not a fresh 7200 — so it is held
- * until that runs out rather than fetched per request.
- *
- * [credentials] is asked for per call rather than held, for the reason the Yandex client reads its
- * token per call: the panel runs for weeks on a wall, and credentials written to the store while it
- * runs have to be used by the next poll. It may throw — a store that will not open does — and that
- * lands on the tile like any other failure, because every entry point below runs inside
- * `runCatching`.
- *
- * Shares nothing with `integrations/yandex/` by design, per AGENTS.md.
+ * Reads and controls recuperators independently of the Yandex integration.
+ * A refresh costs one inventory request plus one shadow request per device; poll slowly.
+ * Credentials are read per call; access tokens are cached for their remaining lifetime.
  */
 class TuyaClient(
     http: OkHttpClient,
@@ -116,7 +86,7 @@ class TuyaClient(
     private val baseUrl: HttpUrl = TUYA_BASE_URL,
     timeout: Duration = 10.seconds,
     private val now: () -> Instant = Instant::now,
-) {
+) : TuyaDevices {
     // Every request goes through this one, so every request carries a call timeout — no tile can
     // be left with a spinner that spins forever. newBuilder() shares the connection pool.
     private val http = http.newBuilder().callTimeout(timeout.toJavaDuration()).build()
@@ -130,7 +100,7 @@ class TuyaClient(
      * The inventory: which recuperators exist, what they are called, and whether Tuya says they
      * are reachable. Deliberately carries no state — see [read].
      */
-    suspend fun devices(): Result<List<Device>> = runCatching {
+    override suspend fun devices(): Result<List<Device>> = runCatching {
         val credentials = credentials().checked()
         val body =
             request(
@@ -142,13 +112,13 @@ class TuyaClient(
         resultOf<List<TuyaDeviceDto>>(body, "GET /v1.0/users/{uid}/devices")
             .filter { it.category == RECUPERATOR_CATEGORY }
             .map { it.toDevice() }
-    }
+    }.onFailure { if (it is CancellationException) throw it }
 
     /**
      * The real state of one recuperator, on top of what [devices] already said about it. One call,
      * and the only place the panel's values come from.
      */
-    suspend fun read(device: Device): Result<Device> = runCatching {
+    override suspend fun read(device: Device): Result<Device> = runCatching {
         val credentials = credentials().checked()
         val call = "GET /v2.0/cloud/thing/{id}/shadow/properties"
         val body =
@@ -159,31 +129,25 @@ class TuyaClient(
                 accessToken = accessToken(credentials),
             )
         resultOf<TuyaShadowPropertiesDto>(body, call).properties.applyTo(device)
-    }
+    }.onFailure { if (it is CancellationException) throw it }
 
     /**
-     * Switches one recuperator on or off.
-     *
-     * The thing-model issue route and this body shape were verified on the physical device on
-     * 2026-08-30. The v1.0 command route is not an option: the standard instruction set for this
-     * product is `switch` alone. See docs/tuya.md.
-     *
-     * A success here means the host took the request, nothing more, so the caller re-reads rather
-     * than painting the new value from this result — the same rule the Yandex toggle follows.
+     * Uses the issue route verified on a physical device; standard commands expose only power.
+     * Success means accepted by Tuya. Callers re-read until the shadow reflects the command.
      */
-    suspend fun setOn(
+    override suspend fun setOn(
         deviceId: String,
         on: Boolean,
     ): Result<Unit> = issue(deviceId, mapOf(SWITCH to on))
 
     /** Selects one of the three speed datapoints verified on the physical recuperator. */
-    suspend fun setSpeed(
+    override suspend fun setSpeed(
         deviceId: String,
         code: String,
     ): Result<Unit> = runCatching {
         require(code in SPEEDS) { "unsupported recuperator speed: $code" }
         issue(deviceId, mapOf(code to true)).getOrThrow()
-    }
+    }.onFailure { if (it is CancellationException) throw it }
 
     private suspend fun issue(
         deviceId: String,
@@ -200,7 +164,7 @@ class TuyaClient(
                 accessToken = accessToken(credentials),
             )
         checkSuccess(body, "POST /v2.0/cloud/thing/{id}/shadow/properties/issue")
-    }
+    }.onFailure { if (it is CancellationException) throw it }
 
     // Held until it lapses rather than fetched per call. The lock is not for correctness of the
     // token — a second one would work — but for the allowance.
@@ -267,13 +231,7 @@ class TuyaClient(
                 .apply { if (body != null) post(body.toRequestBody(JSON_MEDIA_TYPE)) }
                 .build()
 
-        http.newCall(request).await().use { response ->
-            val payload = response.body.string()
-            if (!response.isSuccessful) {
-                error("$method ${url.encodedPath} failed: HTTP ${response.code} ${payload.take(200)}")
-            }
-            payload
-        }
+        http.newCall(request).awaitBody()
     }
 
     private fun TuyaCredentials.checked(): TuyaCredentials {
@@ -300,24 +258,17 @@ private fun TuyaDeviceDto.toDevice(): Device = Device(
     online = online,
 )
 
-/**
- * The 13 datapoints, laid over what the inventory already said about the device.
- *
- * Every capability below carries the same instant in both of the model's timestamps, and that is
- * the honest reading rather than a shortcut: Tuya reports one `time` per datapoint and does not say
- * whether it is when the value was last read or when it last changed. Splitting them would invent
- * a distinction the vendor does not make. See docs/tuya.md.
- */
+/** Maps the verified shadow datapoints, retaining their per-property timestamps. */
 private fun List<TuyaPropertyDto>.applyTo(device: Device): Device = device.copy(
     onOff =
     firstOrNull { it.code == SWITCH }?.let { property ->
         property.boolean()?.let {
-            OnOff(isOn = it, lastUpdated = property.reading(), stateChangedAt = property.reading())
+            OnOff(isOn = it, lastUpdated = property.reading())
         }
     },
     toggles =
     filter { it.type == TYPE_BOOL && it.code != SWITCH }.associate {
-        it.code to Toggle(isOn = it.boolean(), lastUpdated = it.reading(), stateChangedAt = it.reading())
+        it.code to Toggle(isOn = it.boolean(), lastUpdated = it.reading())
     },
     ranges =
     filter { it.type == TYPE_VALUE }.associate {
@@ -329,7 +280,6 @@ private fun List<TuyaPropertyDto>.applyTo(device: Device): Device = device.copy(
                 bounds = null,
                 unit = null,
                 lastUpdated = it.reading(),
-                stateChangedAt = it.reading(),
             )
     },
 )
@@ -358,11 +308,10 @@ private fun checkSuccess(
     if (!response.success) throw response.failure(call)
 }
 
-// The code is the useful half — 1004 is the signature, 1108 a wrong method, 40001900 a project
-// that is not authorised for the route — and the message alone does not say which.
 private fun TuyaResponseDto<*>.failure(call: String): TuyaApiException = TuyaApiException(code, call, msg)
 
-private suspend fun Call.await(): Response = suspendCancellableCoroutine { continuation ->
+/** Keeps HTTP cancellation connected until the entire response body is consumed. */
+private suspend fun Call.awaitBody(): String = suspendCancellableCoroutine { continuation ->
     continuation.invokeOnCancellation { cancel() }
     enqueue(
         object : Callback {
@@ -370,7 +319,17 @@ private suspend fun Call.await(): Response = suspendCancellableCoroutine { conti
                 call: Call,
                 response: Response,
             ) {
-                continuation.resume(response)
+                val result = runCatching {
+                    response.use {
+                        val body = it.body.string()
+                        if (!it.isSuccessful) {
+                            val request = call.request()
+                            error("${request.method} ${request.url.encodedPath} failed: HTTP ${it.code} ${body.take(200)}")
+                        }
+                        body
+                    }
+                }
+                continuation.resumeWith(result)
             }
 
             override fun onFailure(

@@ -136,7 +136,7 @@ class BulbTiles(
     ) {
         if (id in mutableState.value.pending) return
         val tile = mutableState.value.tiles.firstOrNull { it.id == id } ?: return
-        if (tile.color?.instance != RGB) {
+        if (tile.color?.instance != RGB && tile.color?.instance != SCENE) {
             mutableState.value = mutableState.value.copy(
                 commandErrors = mutableState.value.commandErrors + (id to "Цвет не регулируется"),
             )

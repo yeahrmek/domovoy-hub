@@ -48,9 +48,9 @@ class DiscoveredDevicesUiTest {
             onOff = null,
             vendorType = "devices.types.sensor.climate",
             properties = mapOf(
-                "temperature" to FloatProperty(value = 23.5, unit = "unit.temperature.celsius", lastUpdated = reading, stateChangedAt = reading),
-                "humidity" to FloatProperty(value = 40.9, unit = "unit.percent", lastUpdated = reading, stateChangedAt = reading),
-                "battery_level" to FloatProperty(value = 100.0, unit = "unit.percent", lastUpdated = reading, stateChangedAt = reading),
+                "temperature" to FloatProperty(23.5, reading, "unit.temperature.celsius"),
+                "humidity" to FloatProperty(40.9, reading, "unit.percent"),
+                "battery_level" to FloatProperty(100.0, reading, "unit.percent"),
             ),
         ),
         Device(
@@ -61,7 +61,7 @@ class DiscoveredDevicesUiTest {
             onOff = null,
             vendorType = "devices.types.openable.door_lock",
             events = mapOf("door" to EventProperty("closed", reading)),
-            properties = mapOf("battery_level" to FloatProperty(value = 89.0, unit = "unit.percent", lastUpdated = reading, stateChangedAt = reading)),
+            properties = mapOf("battery_level" to FloatProperty(89.0, reading, "unit.percent")),
         ),
         Device(
             id = "intercom",

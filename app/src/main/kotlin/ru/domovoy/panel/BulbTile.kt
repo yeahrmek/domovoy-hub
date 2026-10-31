@@ -97,7 +97,7 @@ internal fun statusLine(
     ageLine(oldest(tile.readings()), now),
 ).joinToString(" · ")
 
-private fun BulbTileState.readings(): List<Reading> = listOfNotNull(
+internal fun BulbTileState.readings(): List<Reading> = listOfNotNull(
     lastUpdated.takeIf { isOn != null },
     brightnessLastUpdated.takeIf { brightnessPercent != null },
     color?.takeIf { it.value != null }?.lastUpdated,

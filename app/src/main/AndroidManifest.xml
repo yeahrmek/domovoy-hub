@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- Vendor APIs are all HTTP. The wake lock still lands with the feature that needs it;
-         the notification listener below needs no permission of its own, only the user-granted
-         notification-access toggle. -->
+    <!-- Vendor HTTP and authenticated Tuya LAN sockets. -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Select Wi-Fi explicitly for Tuya LAN while a VPN is active. -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
     <!-- The two apps the launcher tiles open. Targeting API 30+ means a package we have not
          named here is invisible to us: getLaunchIntentForPackage returns null for it, and the
@@ -19,6 +19,7 @@
 
     <application
         android:allowBackup="false"
+        android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:supportsRtl="true"
         android:theme="@style/Theme.DomovoyHub">

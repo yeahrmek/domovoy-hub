@@ -2,55 +2,30 @@ package ru.domovoy.core
 
 import kotlin.math.roundToLong
 
-/**
- * A device as the panel sees it, whichever vendor it came from.
- */
+/** Vendor-independent device state used by the panel. */
 data class Device(
     val id: String,
     val name: String,
-    /** Which tile group the device belongs to; the panel has no tile for anything else. */
     val kind: DeviceKind,
-    /** Room name, not id; null when the vendor puts the device in no room. */
+    /** Room name; null when unplaced. */
     val room: String?,
-    /** Null when the device has no on/off capability at all. */
     val onOff: OnOff?,
-    /**
-     * Every numeric capability the device reported, keyed by instance — `open` on the curtain,
-     * `brightness` on a bulb, `temperature` on the air conditioner. A map rather than a field per
-     * device: one device carries several, and one poll is the whole house.
-     */
+    /** Numeric capabilities keyed by vendor instance, such as brightness or temperature. */
     val ranges: Map<String, Range> = emptyMap(),
-    /**
-     * Every one-of-several capability the device reported, keyed by instance — `thermostat`,
-     * `fan_speed` and `swing` on the air conditioner. Keyed the same way and for the same reason
-     * as [ranges].
-     */
     val modes: Map<String, Mode> = emptyMap(),
-    /** Every on/off capability that is not *the* on/off — `ionization`, `keep_warm`, `backlight`. */
+    /** Secondary booleans such as ionization; main power belongs in [onOff]. */
     val toggles: Map<String, Toggle> = emptyMap(),
-    /**
-     * The one `color_setting` a device carries, if it carries one. A single field rather than a map
-     * because — unlike a range or a mode — no device in the recorded response has two of them.
-     */
     val color: ColorSetting? = null,
-    /** Read-only numeric properties such as the room temperature measured by an air conditioner. */
+    /** Read-only numeric measurements, separate from writable ranges. */
     val properties: Map<String, FloatProperty> = emptyMap(),
-    /**
-     * Whether the vendor says the device is reachable — and null when the vendor does not say at
-     * all, which is not the same as "offline".
-     *
-     * Yandex is the null case: `/v1.0/user/info` carries no such field for any of the 41 devices it
-     * returned, so from a poll the panel can only say how old a reading is. Tuya does report it,
-     * per device, and reports it independently of whether the call succeeded — 11 of the account's
-     * 20 devices came back `false` over a perfectly good HTTP 200. See docs/tuya.md.
-     */
+    /** Null means the vendor did not report reachability, rather than offline. */
     val online: Boolean? = null,
-    /** Original type for discovered devices without dedicated controls. */
+    /** Original type for newly discovered devices without dedicated controls. */
     val vendorType: String? = null,
     val events: Map<String, EventProperty> = emptyMap(),
 )
 
-/** Dedicated controls plus read-only cards for other discovered device types. */
+/** Dedicated controls plus a read-only card for other discovered devices. */
 enum class DeviceKind {
     Bulb,
     LightStrip,
@@ -60,94 +35,49 @@ enum class DeviceKind {
     Other,
 }
 
-/**
- * An on/off capability, with both timestamps the vendor reports for it: [lastUpdated] is when the
- * value was last read, [stateChangedAt] when it last actually changed. Both are kept — which of
- * the two a tile should show is still an open question in docs/yandex.md.
- */
 data class OnOff(
     val isOn: Boolean,
     val lastUpdated: Reading,
-    val stateChangedAt: Reading,
 )
 
-/**
- * A numeric capability the panel can read and set: how far open the curtain is, how bright a bulb
- * is. Carries the same two timestamps as [OnOff], for the same reason.
- */
 data class Range(
-    /**
-     * Null when the capability reported no value at all. That is *unknown*, not the bottom of the
-     * range: a curtain at 0% is shut, and one that never reported is not.
-     */
+    /** Null means unknown, not the bottom of the range. */
     val value: Double?,
-    /** Null when the vendor named no bounds — the recorded response does that on a TV channel. */
     val bounds: Bounds?,
-    /** As the vendor spells it, `unit.percent` or `unit.temperature.celsius`; null when blank. */
+    /** Vendor unit, such as `unit.percent`; null when absent. */
     val unit: String?,
     val lastUpdated: Reading,
-    val stateChangedAt: Reading,
 )
 
-/**
- * A capability that is one of a listed set of values: which way the air conditioner is swinging,
- * how hard it is blowing. Carries the same two timestamps as [OnOff], for the same reason.
- */
 data class Mode(
-    /**
-     * Null when the capability reported no value at all. That is *unknown*, and emphatically not
-     * the first of [available]: the recorded response lists every mode ac-01 accepts while saying
-     * nothing about which one is running, and "fan_only" printed on the wall would be an invention.
-     */
+    /** Null means unknown; never substitute the first available option. */
     val current: String?,
-    /** The values the device said it accepts, in the order it listed them; never hardcoded. */
+    /** Values advertised by the device, in vendor order. */
     val available: List<String>,
     val lastUpdated: Reading,
-    val stateChangedAt: Reading,
 )
 
-/**
- * A boolean capability that is not the device's main power: ionization, keep-warm, the backlight.
- * Carries the same two timestamps as [OnOff], for the same reason.
- */
 data class Toggle(
-    /** Null when the capability reported no value at all — unknown, not off. */
     val isOn: Boolean?,
     val lastUpdated: Reading,
-    val stateChangedAt: Reading,
 )
 
-/**
- * The colour a light reports, plus the bounds and scene ids needed to build only controls the
- * device actually supports. RGB and scenes are driven for the one verified capable bulb; Kelvin
- * remains read-only until a live device reflects a write. See docs/yandex.md.
- *
- * Carries the same two timestamps as [OnOff] — a colour the panel prints has to be able to say how
- * old it is, like every other value on a tile.
- */
+/** Reported light colour. Kelvin remains read-only until a physical write is verified. */
 data class ColorSetting(
-    /**
-     * `temperature_k` or `rgb`, whichever the light last reported — the two the recorded response
-     * carries. Null when the capability reported nothing at all: a `color_setting` names its
-     * instance only inside `state`, so unlike a [Range] it has no parameters to fall back on.
-     */
+    /** `temperature_k`, `rgb` or a scene; null when no state was reported. */
     val instance: String?,
-    /** Kelvin for `temperature_k`, a packed `0xRRGGBB` for `rgb`; null when unknown, not black. */
+    /** Kelvin or packed 0xRRGGBB; null means unknown rather than black. */
     val value: Double?,
-    /** Kelvin bounds when this light supports white-temperature control. */
-    val temperatureBounds: Bounds? = null,
-    /** Scene ids exactly as the device advertised them, in vendor order. */
     val scenes: List<String> = emptyList(),
     val lastUpdated: Reading,
-    val stateChangedAt: Reading,
+    /** Reported scene id; numeric colour values remain separate. */
+    val scene: String? = null,
 )
 
-/** A numeric value the vendor reports but does not expose as a writable range. */
 data class FloatProperty(
     val value: Double?,
-    val unit: String?,
     val lastUpdated: Reading,
-    val stateChangedAt: Reading,
+    val unit: String? = null,
 )
 
 data class EventProperty(
@@ -155,18 +85,12 @@ data class EventProperty(
     val lastUpdated: Reading,
 )
 
-/** What a [Range] will accept, as the vendor reports it. */
+/** Bounds advertised by a writable range. */
 data class Bounds(
     val min: Double,
     val max: Double,
-    /** The step between two values the device accepts; `1` on every range recorded so far. */
     val precision: Double,
 ) {
-    /**
-     * The nearest value this range will accept. A slider can hand over anything, and Yandex can
-     * only reject what is off the grid — which reaches the wall as a tile saying "not updating"
-     * for a reason that was ours, not the vendor's.
-     */
     fun snap(value: Double): Double {
         val clamped = value.coerceIn(min, max)
         if (precision <= 0.0) return clamped

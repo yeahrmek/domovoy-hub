@@ -201,7 +201,7 @@ class AdaptivePollingTest {
         foreground.value = true
         runCurrent()
         assertEquals(1, reads)
-        calls.value = CallState.Active(since = day)
+        calls.value = CallState.Active
         runCurrent()
         polling.touch()
         polling.refresh(force = true)
@@ -311,7 +311,7 @@ class AdaptivePollingTest {
         }
         backgroundScope.launch { polling.run(MutableStateFlow(true), calls) }
         runCurrent()
-        calls.value = CallState.Active(since = day)
+        calls.value = CallState.Active
         runCurrent()
         assertEquals(1, cancelled)
         advanceTimeBy(1.seconds)
@@ -342,7 +342,7 @@ class AdaptivePollingTest {
         runCurrent()
         assertEquals(2, reads)
         polling.touch()
-        calls.value = CallState.Active(since = day)
+        calls.value = CallState.Active
         runCurrent()
         assertEquals(2, reads)
     }

@@ -1,8 +1,9 @@
 # Smart Life (Tuya)
 
-**Scope:** the recuperators, and nothing else. Few devices, and nobody watches a ventilation
-setpoint change live — so a slow poll is honest here rather than a compromise, which is what makes
-the metered allowance below survivable.
+**Scope:** the recuperators, and nothing else. The panel uses native Tuya LAN protocol 3.4 over
+Wi-Fi, with local keys in encrypted storage. Cloud API and allowance notes below describe the
+earlier cloud implementation; its recorded fixtures remain useful references. See the local
+verification and panel transport sections at the end for the current implementation.
 
 Read from the public docs on 2026-08-15. **First real reads made the same day; first reversible
 writes made 2026-08-30** — the account is linked and answering; see "Recorded responses" and
@@ -133,10 +134,10 @@ Enabled per project under the Message Service tab; test and production subscript
   Wi-Fi is the wrong shape. Same conclusion as Aqara: **poll**, and poll slowly. Now measured: real
   state costs 1 call *per recuperator*, so a refresh is 5, and the trial allowance buys a poll
   roughly every 5–8 minutes. A tap costs a command plus a re-read on top.
-- **Local path exists but is unofficial.** LocalTuya-style control over the LAN uses a per-device
-  "local key" fetched from the cloud and an undocumented binary protocol. It is real and widely
-  used, it survives an internet outage, and it is exactly the kind of thing AGENTS.md means by
-  "an endpoint nobody has verified". Not for the first cut.
+- **Local reads and power/speed writes are verified.** See the local verification sections below.
+  LAN access uses a per-device local key and the unofficial Tuya binary protocol. All four
+  currently reachable units return all 13 datapoints after the report check below.
+  The panel uses the native LAN client.
 - The signing scheme is the fiddliest of the five — sorted query strings, body digests, uppercase
   hex. Expect to spend the first session getting `1004 sign invalid` and nothing else.
 
@@ -375,8 +376,8 @@ temperature, humidity, three fan speeds and three modes for a device the API cal
   it is one timestamp, not two: whether it means "last reported" or "last changed" is not stated
   anywhere, and the response gives nothing to tell them apart. On the recorded read the humidity
   was 26 s old while the switch had not moved in 3 days, on a device that was online throughout.
-  The panel therefore carries the same instant in both fields of its model rather than inventing a
-  distinction the vendor does not make.
+  The panel stores that instant once, in the capability's `lastUpdated`, without inventing a
+  separate change timestamp.
 
 ### Batch reads — the awkward part
 
@@ -450,3 +451,172 @@ shadow reflects the write; see "What the panel does with this".
 | --- | --- | --- |
 | 1108 | uri path invalid | wrong **method** — POST on the token endpoint |
 | 2009 | clientId is invalid | reached the right route; `client_id` header not recognised |
+
+## Local read verification — 2026-10-31
+
+The cloud inventory currently returns `28841002: IoT Core service subscription has expired`.
+Without renewing that subscription, Smart Life User Code + QR authorization through
+`tuya-device-sharing-sdk` supplied local keys for all five recuperators. Local UDP discovery on the
+tablet identified four recuperators announcing protocol **3.4**. No keys, device IDs or addresses
+are reproduced here; connection details are in the gitignored `.toolchain/tuya-local/` directory.
+
+One recuperator returned this decrypted LAN response using TinyTuya 1.20.0:
+
+```json
+{"dps":{"108":207,"109":221}}
+```
+
+The recorded thing model maps DP 108 to `huimi` and DP 109 to `temper`, both with scale 1:
+20.7 and 22.1 respectively. Repeated reads returned fresh values (humidity also read 20.6).
+Their physical units retain the caveat documented above.
+
+The test used USB forwarding to a temporary TCP relay on the tablet, whose device socket was
+explicitly bound to the Wi-Fi `Network`. VPN settings were unchanged. Direct Mac sockets failed
+with `EHOSTUNREACH`/`EACCES`, including with an explicit Wi-Fi interface binding; their cause was
+not established. Keys came from Smart Life once; the successful state reads used device LAN TCP,
+not cloud state. Internet-independent key retrieval was not tested.
+
+Only handshake, status queries and `UPDATEDPS` report-refresh requests were sent; no power, speed
+or mode values were written. Status queries and an explicit report refresh returned only the two
+climate datapoints. Subsequent power/speed/mode reads, writes and panel deployment are documented
+below. No Android application code or installed APK changed during this initial read-only probe.
+
+References: [Tuya Local authorization](https://github.com/make-all/tuya-local#configuration),
+[TinyTuya](https://github.com/jasonacox/tinytuya).
+
+## Reading power, speed and modes over LAN — 2026-10-31
+
+All five saved product IDs match the public KCvents VT501-W configuration. Four units were
+discovered locally. Separate connections to each of the four units below returned all 13
+datapoints using the normal protocol 3.4 handshake followed by `DP_QUERY_NEW` (command 16), with
+payload `{}`. No cloud authorization or cloud state request is involved in these reads.
+
+| Unit | Power | Speed | Airflow | Query completeness |
+| --- | --- | --- | --- | --- |
+| Hall | Off | All three flags false | All three flags false | 13/13 |
+| Study | On | Low | Inflow | 13/13 |
+| Children's room | Off | All three flags false | All three flags false | 13/13 |
+| Danina's room | Off | All three flags false | All three flags false | 13/13 after report check |
+| Bedroom | Not tested | Not tested | Not tested | Not discovered in this check |
+
+Redacted complete response from the study (sensor values are a snapshot):
+
+```json
+{"dps":{"1":true,"101":true,"102":false,"103":false,"104":false,"105":false,"106":false,"107":false,"108":200,"109":245,"111":true,"112":false,"113":false}}
+```
+
+Verified mapping from the previously recorded thing model:
+
+- `1`: power; `101`/`102`/`103`: low/medium/high speed.
+- `104`: sleep mode; `105`/`106`/`107`: humidity presets.
+- `111`/`112`/`113`: inflow/exhaust/auto airflow modes.
+- `108`/`109`: humidity/temperature, scale 1.
+
+Danina's unit returned a **matching command-16 query reply** containing only DP 108/109, followed
+by incremental command-8 climate reports. Its decrypted query payload was 32 bytes versus 160
+bytes for complete replies. This is not a client dropping Boolean values or confusing an
+unsolicited sensor report with the query reply. Identity/time fields, explicit null-valued DP
+selectors, legacy query command 10, refresh command 18 (all DPs, power alone, speeds alone, modes
+alone, empty list), bounded passive receives and heartbeats did not produce the missing Boolean
+DPs. An empty-object refresh returned `query dp failed`. Opening and closing its Smart Life tile
+without changing controls did not populate the missing values.
+
+The user then switched power on and back off using the manufacturer's controls while the
+diagnostic connection only queried/listened. The unit immediately sent command-8 reports for
+power, all speed flags, sleep/humidity flags and airflow flags. A subsequent command-16 query
+returned all 13 DPs. It reported on + low speed + inflow, then off with the active flags cleared.
+A new connection after this test also returned all 13 DPs. Thus those values are available over
+LAN; the initial device query contained only the values the module had reported at that point.
+The initial omission is consistent with an incomplete module cache, but why it started that way
+and whether it recurs after a physical restart remain unverified. Do not initialize missing
+Boolean values to `false`, infer them from the other units, or treat command acceptance as a
+state report. Do not automatically toggle power to populate missing state.
+
+For the Android migration: serialize queries per device and merge incremental reports per DP
+without clearing values not mentioned in an update. TinyTuya 1.20.0 can return the first nonempty
+unsolicited packet from `status()`; a sensor report alone must not complete a status request.
+These units use an independent reply counter even on protocol 3.4: an actual request with sequence
+3 received challenge/reply counters 18717/18718. The sequence field is not a request ID on this
+firmware. A fresh authenticated connection with one outstanding query, command 16 and advancing
+peer counters identifies its reply; peers that echo request IDs are supported too. Use an absolute
+deadline even when sensor reports continue arriving. Keep missing state explicitly unknown.
+
+This establishes reading power, speed and mode from the four available units without an IoT
+Core subscription. The fifth unit was not discovered. Local power/speed writes are documented
+below; recovery after an appliance restart and operation with the internet disconnected remain
+separate checks.
+No application code, permissions, VPN settings or installed APK were changed for this check.
+
+References: [matching device configuration](https://github.com/make-all/tuya-local/blob/main/custom_components/tuya_local/devices/kcvents_vt501_fan.yaml),
+[matching device report](https://github.com/make-all/tuya-local/issues/1349),
+[TinyTuya protocol](https://github.com/jasonacox/tinytuya/blob/master/PROTOCOL.md).
+
+## Local power and speed commands — 2026-10-31
+
+An authorized reversible check on the hall recuperator started from power off with all 11 Boolean
+DPs false. Protocol 3.4 control command 13 used this shape, with the current Unix time:
+
+```json
+{"protocol":5,"t":1793454000,"data":{"dps":{"1":true}}}
+```
+
+Power on, medium (`102: true`), high (`103: true`), low (`101: true`), then power off were sent
+once each. Every step was confirmed from device state rather than from command acceptance. Each
+speed selection made the other two speed flags false. The final read matched all 11 original
+Boolean values: power, speeds, sleep, humidity presets and airflow flags were false. Temperature
+and humidity naturally change and are not restoration targets. No mode or humidity-preset writes
+were attempted.
+
+## Panel transport
+
+`MainActivity` selects `TuyaLanClient`; runtime reads and commands use LAN TCP only, with no cloud
+fallback. `TuyaDevices` is the small shared contract for the two existing vendor transports, so
+the panel keeps its per-device errors, cached identity and command-confirmation behavior. The
+cloud client and its recorded-response tests remain separate from the selected runtime transport.
+
+- Native AES/HMAC framing, authenticated nonce negotiation and bounded frames use existing Java
+  cryptography; no dependency or service was added.
+- `tuya.local.devices` is a JSON array in gitignored `local.properties`, seeded into the existing
+  encrypted preferences. Records have `id`, `name`, `localKey`, and optional `host`/`port`. No real
+  identifiers, addresses or keys belong in source control. Build seeds are extractable from a local
+  APK, like the existing Yandex seed; do not publish this apartment-specific APK.
+- Sockets select the actual Wi-Fi `Network`, excluding VPN transports. The user approved adding
+  `ACCESS_NETWORK_STATE`. When a non-bypassable VPN denies explicit binding with `EPERM`, ordinary
+  sockets follow Android's existing routes instead. The tablet's selective VPN routing permits
+  the LAN connection this way. No VPN exclusion or setting change was needed.
+- Address hints are refreshed from bounded local advertisements at startup, after read errors
+  and periodically, so DHCP changes do not require a new APK. Discovery only supplies address
+  guidance; the TCP session authenticates the per-device key before reading or sending controls.
+- Queries are serialized per device, distinguish echo-style request IDs from this model's
+  independent peer counter, and have an absolute deadline. Incremental reports update only
+  mentioned datapoints and retain other values/ages.
+  Cancelling a poll closes its socket, including when an intercom call interrupts the panel.
+- Before a command, the client reads the actual device. Power must have reported in that current
+  query/session; old cached power is not enough. Already selected power/speed is not written again.
+  A write is sent once, with no automatic retry after an uncertain transport failure. The existing
+  panel then confirms the requested state by reading, never by trusting an echoed acknowledgement.
+- LAN cadence is 15 seconds during interaction, 1 minute idle and 5 minutes at night, with the
+  existing lifecycle/intercom pause and failure backoff. Each failing device keeps its own tile
+  error; an unavailable fifth unit does not prevent the other four from updating.
+
+Physical restart recovery and operation with the internet disconnected are still separate checks.
+
+## Installed tablet verification — 2026-10-31
+
+The native-client APK was installed on the connected tablet after the full unit suite,
+`ktlintCheck`, Android lint and `assembleDebug` passed. The previous APK is backed up locally in
+the gitignored `.toolchain/tuya-local/` directory.
+
+In the installed panel, the hall unit was switched on, medium speed was selected and confirmed,
+then power was restored to off. Accessibility snapshots showed the actual reported state and
+selected controls at every step, with all speed flags clear after restoration. A separate LAN
+read afterwards confirmed all 11 original Boolean flags were false.
+
+Room cards showed fresh power, speed, temperature and humidity for the hall, study, children's
+room and Danina's room. The study remained on/low/inflow throughout the hall-unit check. The
+bedroom unit remained undiscovered and showed its own visible failure.
+
+The tablet VPN stayed enabled with its original settings. Its restriction on explicit socket
+binding is handled by following normal system routes; the independent reply counter is handled
+by the client. No VPN exclusion was applied. Appliance restart recovery, intercom calls during a
+LAN command, and operation with internet disconnected were not physically exercised here.
