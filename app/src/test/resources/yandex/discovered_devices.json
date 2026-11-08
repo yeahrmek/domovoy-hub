@@ -1,0 +1,313 @@
+{
+  "status": "ok",
+  "rooms": [
+    {
+      "id": "room-discovered",
+      "name": "Коридор"
+    }
+  ],
+  "devices": [
+    {
+      "id": "discovered-1",
+      "name": "Датчик климата",
+      "type": "devices.types.sensor.climate",
+      "household_id": "household-flat",
+      "room": "room-discovered",
+      "capabilities": [],
+      "properties": [
+        {
+          "type": "devices.properties.float",
+          "last_updated": 0.0,
+          "parameters": {
+            "instance": "battery_level",
+            "unit": "unit.percent"
+          },
+          "state": {
+            "instance": "battery_level",
+            "value": 100
+          }
+        },
+        {
+          "type": "devices.properties.float",
+          "last_updated": 1793089769.302412,
+          "parameters": {
+            "instance": "temperature",
+            "unit": "unit.temperature.celsius",
+            "range": {
+              "min": -273.15,
+              "max": 327.67,
+              "precision": 0.01
+            }
+          },
+          "state": {
+            "instance": "temperature",
+            "value": 23.49
+          }
+        },
+        {
+          "type": "devices.properties.float",
+          "last_updated": 1793451635.6705,
+          "parameters": {
+            "instance": "humidity",
+            "unit": "unit.percent",
+            "range": {
+              "min": 0,
+              "max": 100,
+              "precision": 0.01
+            }
+          },
+          "state": {
+            "instance": "humidity",
+            "value": 40.91
+          }
+        },
+        {
+          "type": "devices.properties.float",
+          "last_updated": 0.0,
+          "parameters": {
+            "instance": "signal_level",
+            "unit": "unit.percent"
+          },
+          "state": null
+        }
+      ]
+    },
+    {
+      "id": "discovered-2",
+      "name": "Домофон",
+      "type": "devices.types.openable",
+      "household_id": "household-flat",
+      "room": "room-discovered",
+      "capabilities": [
+        {
+          "type": "devices.capabilities.on_off",
+          "last_updated": 1790002416.886,
+          "parameters": {
+            "split": false
+          },
+          "state": {
+            "instance": "on",
+            "value": false
+          }
+        }
+      ],
+      "properties": [
+        {
+          "type": "devices.properties.event",
+          "last_updated": 1790002416.886,
+          "parameters": {
+            "instance": "open",
+            "events": [
+              {
+                "value": "opened"
+              },
+              {
+                "value": "closed"
+              }
+            ]
+          },
+          "state": {
+            "instance": "open",
+            "value": "closed"
+          }
+        },
+        {
+          "type": "devices.properties.event",
+          "last_updated": 1792596375.009,
+          "parameters": {
+            "instance": "button",
+            "events": [
+              {
+                "value": "click"
+              }
+            ]
+          },
+          "state": {
+            "instance": "button",
+            "value": "click"
+          }
+        }
+      ]
+    },
+    {
+      "id": "discovered-3",
+      "name": "Умный замок",
+      "type": "devices.types.openable.door_lock",
+      "household_id": "household-flat",
+      "room": "room-discovered",
+      "capabilities": [],
+      "properties": [
+        {
+          "type": "devices.properties.event",
+          "last_updated": 1793010476.66,
+          "parameters": {
+            "instance": "door",
+            "events": [
+              {
+                "value": "opened"
+              },
+              {
+                "value": "closed"
+              },
+              {
+                "value": "ajar"
+              },
+              {
+                "value": "locked"
+              }
+            ]
+          },
+          "state": {
+            "instance": "door",
+            "value": "closed"
+          }
+        },
+        {
+          "type": "devices.properties.event",
+          "last_updated": 0.0,
+          "parameters": {
+            "instance": "serviceability",
+            "events": [
+              {
+                "value": "ok"
+              },
+              {
+                "value": "damaged"
+              },
+              {
+                "value": "mechanical_interference"
+              },
+              {
+                "value": "abnormal_tongue"
+              }
+            ]
+          },
+          "state": null
+        },
+        {
+          "type": "devices.properties.float",
+          "last_updated": 1793017883.514,
+          "parameters": {
+            "instance": "battery_level",
+            "unit": "unit.percent"
+          },
+          "state": {
+            "instance": "battery_level",
+            "value": 89
+          }
+        }
+      ]
+    },
+    {
+      "id": "discovered-4",
+      "name": "Домофон",
+      "type": "devices.types.openable",
+      "household_id": "household-flat",
+      "room": "room-discovered",
+      "capabilities": [
+        {
+          "type": "devices.capabilities.on_off",
+          "last_updated": 1790001605.991676,
+          "parameters": {
+            "split": false
+          },
+          "state": {
+            "instance": "on",
+            "value": false
+          }
+        }
+      ],
+      "properties": [
+        {
+          "type": "devices.properties.event",
+          "last_updated": 1790001605.991676,
+          "parameters": {
+            "instance": "open",
+            "events": [
+              {
+                "value": "opened"
+              },
+              {
+                "value": "closed"
+              }
+            ]
+          },
+          "state": {
+            "instance": "open",
+            "value": "closed"
+          }
+        },
+        {
+          "type": "devices.properties.event",
+          "last_updated": 0.0,
+          "parameters": {
+            "instance": "button",
+            "events": [
+              {
+                "value": "click"
+              }
+            ]
+          },
+          "state": null
+        }
+      ]
+    },
+    {
+      "id": "discovered-5",
+      "name": "Домофон",
+      "type": "devices.types.openable",
+      "household_id": "household-flat",
+      "room": "room-discovered",
+      "capabilities": [
+        {
+          "type": "devices.capabilities.on_off",
+          "last_updated": 1790002388.278,
+          "parameters": {
+            "split": false
+          },
+          "state": {
+            "instance": "on",
+            "value": false
+          }
+        }
+      ],
+      "properties": [
+        {
+          "type": "devices.properties.event",
+          "last_updated": 1790002388.278,
+          "parameters": {
+            "instance": "open",
+            "events": [
+              {
+                "value": "opened"
+              },
+              {
+                "value": "closed"
+              }
+            ]
+          },
+          "state": {
+            "instance": "open",
+            "value": "closed"
+          }
+        },
+        {
+          "type": "devices.properties.event",
+          "last_updated": 1793434266.386,
+          "parameters": {
+            "instance": "button",
+            "events": [
+              {
+                "value": "click"
+              }
+            ]
+          },
+          "state": {
+            "instance": "button",
+            "value": "click"
+          }
+        }
+      ]
+    }
+  ]
+}

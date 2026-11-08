@@ -116,7 +116,6 @@ internal object Flat {
                     instance = "temperature_k",
                     value = 4500.0,
                     lastUpdated = ago(240),
-                    stateChangedAt = ago(240),
                 ),
             ),
             LightStripTileState(
@@ -175,7 +174,6 @@ internal object Flat {
                     instance = "temperature_k",
                     value = 4200.0,
                     lastUpdated = ago(90),
-                    stateChangedAt = ago(90),
                 ),
             ),
             bulb(id = "light-03", name = "Лампа 3", room = "Коридор", isOn = false),
@@ -191,7 +189,6 @@ internal object Flat {
                     value = 0xFFAA66.toDouble(),
                     scenes = listOf("candle", "movie", "rest", "sunrise"),
                     lastUpdated = ago(90),
-                    stateChangedAt = ago(90),
                 ),
             ),
             bulb(id = "light-06", name = "Торшер", room = "Зал", isOn = false),
@@ -266,11 +263,11 @@ internal object Flat {
     private fun mode(
         current: String,
         vararg values: String,
-    ) = Mode(current, values.toList(), ago(90), ago(90))
+    ) = Mode(current, values.toList(), ago(90))
 
     private fun acToggles(ionization: Boolean) = mapOf(
-        "ionization" to Toggle(ionization, ago(90), ago(90)),
-        "keep_warm" to Toggle(false, ago(90), ago(90)),
-        "backlight" to Toggle(true, ago(90), ago(90)),
+        "ionization" to Toggle(ionization, ago(90)),
+        "keep_warm" to Toggle(false, ago(90)),
+        "backlight" to Toggle(true, ago(90)),
     )
 }

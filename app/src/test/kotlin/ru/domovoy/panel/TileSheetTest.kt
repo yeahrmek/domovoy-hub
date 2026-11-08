@@ -56,8 +56,8 @@ class TileSheetTest {
 
     @Test
     fun `an AC sheet carries only modes and toggles advertised by that unit`() {
-        val fan = Mode("auto", listOf("low", "medium", "high", "auto"), Reading.Never, Reading.Never)
-        val ion = Toggle(false, Reading.Never, Reading.Never)
+        val fan = Mode("auto", listOf("low", "medium", "high", "auto"), Reading.Never)
+        val ion = Toggle(false, Reading.Never)
         val capable = ac.copy(modes = mapOf("fan_speed" to fan), toggles = mapOf("ionization" to ion))
 
         val sheet = sheet(capable, now, error = null)
@@ -76,7 +76,6 @@ class TileSheetTest {
                 value = 0xFFAA00.toDouble(),
                 scenes = listOf("candle", "movie"),
                 lastUpdated = Reading.Never,
-                stateChangedAt = Reading.Never,
             )
         val capable =
             bulb.copy(

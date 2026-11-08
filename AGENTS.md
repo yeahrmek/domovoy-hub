@@ -1,177 +1,108 @@
-# AGENTS.md
+# Domovoy Hub
 
-**Domovoy Hub** — Android wall-panel for a hallway tablet, one always-on screen for the flat.
-Not every vendor is an HTTP integration, and that is deliberate:
+Android wall-panel: one always-on screen for the flat, on a wall-mounted, always-powered hallway tablet, on the same Wi-Fi, touched a few times a day. Assume Wi-Fi drops, expired tokens and unattended reboots.
 
-- **Yandex** — air conditioner, curtains, bulbs. Full integration; the reference one.
-- **Aqara** — door lock. Full integration, **read-only**: state, battery, events.
-- **Tuya** — recuperators. Full integration on a metered monthly allowance; poll slowly.
-- **Xiaomi** — vacuum, humidifier. No credentials to be had; the panel hosts Xiaomi's own widget.
-- **Domonap** — intercom. Launcher tile; the incoming call is detected from its notification.
+| Vendor | Integration |
+| --- | --- |
+| Yandex | Air conditioner, curtains, bulbs; full integration, the reference one. |
+| Aqara | Door lock; full **read-only** integration: state, battery, events. |
+| Tuya | Recuperators; native LAN 3.4 over Wi-Fi, encrypted local keys; no cloud subscription. |
+| Xiaomi | Vacuum, humidifier; no credentials available, host Xiaomi's own widget. |
+| Domonap | Intercom; launcher tile, incoming call detected from its notification. |
 
-Nothing pushes state to the tablet: every tile is polled. One vendor failing — hung Tuya call,
-expired Yandex token, unreachable Aqara hub — degrades that tile only. The rest keeps working.
+Not every vendor is an HTTP integration; this is deliberate. Every tile is polled; nothing pushes state to the tablet. A hung Tuya call, expired Yandex token or unreachable Aqara hub degrades only its tile; the rest keeps working.
 
-Domonap's call is the one thing that interrupts: it goes on top of whatever is on screen — who is
-calling, video, accept and decline — at maximum volume. That screen is Domonap's own; our job is
-to yield to it instantly and come back afterwards. See `docs/domonap.md`.
-
-Target device: wall-mounted tablet, always powered, same Wi-Fi, touched a few times
-a day. Assume Wi-Fi drops, tokens expire and the tablet reboots unattended.
+Domonap calls interrupt instantly, above whatever is on screen, showing caller, video, accept/decline, at maximum volume. Yield to Domonap's own screen and return afterwards; see `docs/domonap.md`. Never cover, delay or suppress it.
 
 ## Commands
 
-**There is no JDK, Android SDK or `adb` on the system PATH, and there is not meant to be.**
-`/usr/bin/java` is the macOS stub — it answers "Unable to locate a Java Runtime". Everything the
-build needs lives in the repo-local toolchain under `.toolchain/` (gitignored), and
-`scripts/env.sh` is what puts it on PATH. Source it in the *same* command as gradle; the shell
-does not persist between calls. Do not go looking for a system JDK — there isn't one.
+No JDK, Android SDK or `adb` is on system PATH, deliberately. `/usr/bin/java` is the macOS stub ("Unable to locate a Java Runtime"); do not look for a system JDK. Use the gitignored repo-local `.toolchain/` through `scripts/env.sh`, sourced in the **same command** as Gradle because shells do not persist between calls.
+
+If `.toolchain/` is missing, `scripts/toolchain.sh` downloads Temurin 21 and Android SDK into the repo, installing nothing system-wide. Gradle and `adb` bind local sockets and fail in the command sandbox: run them with the sandbox disabled.
 
 ```bash
-source scripts/env.sh && ./gradlew test
-```
-
-Recreate `.toolchain/` with `scripts/toolchain.sh` if it is missing — it downloads Temurin 21 and
-the Android SDK into the repo and installs nothing system-wide. Gradle and `adb` both fail inside
-the command sandbox (they bind local sockets), so run them with the sandbox disabled.
-
-```bash
-source scripts/env.sh && ./gradlew test                  # unit tests — after every change, must be green
+source scripts/env.sh && ./gradlew test                  # unit tests: green after every change and before reporting done
 source scripts/env.sh && ./gradlew ktlintCheck           # formatting
 source scripts/env.sh && ./gradlew lint                  # Android lint
 source scripts/env.sh && ./gradlew assembleDebug         # build APK
-source scripts/env.sh && ./gradlew installDebug          # install on the connected tablet (adb)
-source scripts/env.sh && ./gradlew connectedAndroidTest  # instrumented tests, needs a device
+source scripts/env.sh && ./gradlew installDebug          # install on connected tablet (adb)
+source scripts/env.sh && ./gradlew connectedAndroidTest  # instrumented tests; needs a device
 ```
 
-Never report a task as done on the strength of "it compiles". `./gradlew test` must pass.
+Compilation alone is not completion: `./gradlew test` must pass.
 
-## Stack
+## Stack and structure
 
 <!-- TODO: confirm before the first real commit -->
 
-- Kotlin 2.x, Jetpack Compose (Material 3), single `:app` module
-- minSdk 26, targetSdk 36
-- Coroutines + Flow; Retrofit + OkHttp + kotlinx-serialization for vendor HTTP
-- Tests: JUnit5, kotlin.test, Turbine (flows), MockK; Robolectric only when a framework class is unavoidable
-- Gradle Kotlin DSL, versions in `gradle/libs.versions.toml`
-
-## Structure
+- Kotlin 2.x, Jetpack Compose (Material 3), single `:app`; minSdk 26, targetSdk 36.
+- Coroutines + Flow; Retrofit + OkHttp + kotlinx-serialization for vendor HTTP.
+- JUnit5, kotlin.test, Turbine (flows), MockK; Robolectric only when a framework class is unavoidable.
+- Gradle Kotlin DSL; versions in `gradle/libs.versions.toml`.
 
 ```
 app/src/main/kotlin/ru/domovoy/
-  integrations/   one package per vendor: yandex/ aqara/ tuya/ domonap/
-  panel/          Compose UI: tiles, hosted widget, launcher tiles, yielding to the call
+  integrations/   vendor packages: yandex/ aqara/ tuya/ domonap/
+  panel/          Compose tiles, hosted widget, launcher tiles, yielding to calls
   core/           shared device model, storage, scheduling
-app/src/test/     unit tests, mirroring the main tree
-app/src/test/resources/  recorded vendor JSON used as fixtures
-docs/             one note per integration; what the API actually does
+app/src/test/     unit tests mirroring the main tree
+app/src/test/resources/  recorded vendor JSON fixtures
+docs/             one API-behaviour note per integration
 ```
 
-## Testing — TDD
+## Testing and architecture
 
-- Write the failing test first, then the code that makes it pass. Same commit.
-- A bug fix starts with a test that reproduces the bug.
-- Assert on observable behaviour — returned values, emitted UI state — not on which
-  collaborator methods were called. A pure refactor must not break a test.
-- Nothing in `src/test/` touches the network. Vendor responses come from recorded
-  JSON in `src/test/resources/`.
+- TDD: failing test first, then passing code, in the same commit. Bug fixes start with a reproducer.
+- Assert observable behaviour (returned values, emitted UI state), not collaborator calls; pure refactors must not break tests. `src/test/` never touches the network: use recorded JSON from `src/test/resources/`.
+- Never delete, skip, `@Ignore` or weaken a test to make the build green; fix the code.
+- Default Android repository + use case + mapper + interface-per-feature layering is unwanted. No single-implementation interface, base class, wrapper or factory; add abstraction when the second caller actually exists.
+- Vendor clients in `integrations/` are independent: map to the shared device model, share nothing else, no common base class. Formatting and naming belong to ktlint.
 
 ```kotlin
-// ✅ asserts what the panel ends up doing
+// Good: observable outcome
 @Test
 fun `door release retries once when the first request times out`() = runTest {
     api.enqueue(Timeout, Success)
     assertEquals(DoorState.Opened, intercom.releaseDoor())
 }
-
-// ❌ asserts how it was implemented — breaks on any refactor
+// Bad: implementation details, fragile under refactoring
 @Test
 fun testDoorRelease() = runTest {
     intercom.releaseDoor()
     verify(exactly = 2) { api.release(any()) }
 }
-```
-
-## Architecture rules
-
-The default Android layering — repository + use case + mapper + an interface per
-feature — is explicitly not wanted here. Instead:
-
-- No interface, base class, wrapper or factory with a single implementation.
-  Add the abstraction when the second caller actually exists.
-- Vendor clients under `integrations/` stay independent of each other: they map into
-  the shared device model and share nothing else. No common base class.
-
-Formatting and naming are ktlint's job and are not documented here.
-
-```kotlin
-// ✅ Good — the path from call to HTTP is one file deep
+// Good: call-to-HTTP path one file deep
 class AqaraClient(private val api: AqaraApi, private val tokens: TokenStore) {
     suspend fun devices(): Result<List<Device>> = runCatching { api.devices().map(::toDevice) }
 }
-
-// ❌ Bad — four layers, one implementation each
+// Bad: four layers, one implementation each
 interface DeviceProvider
 abstract class BaseVendorProvider : DeviceProvider
 class AqaraProviderFactory(private val cfg: ProviderConfig)
 class AqaraProviderImpl : BaseVendorProvider()
 ```
 
-## Git workflow
+## Workflow and boundaries
 
-- Branches: `feat/domonap-fullscreen`, `fix/tuya-timeout`
-- Conventional commits: `feat(aqara): ...`, `fix(domonap): ...`, `test(yandex): ...`
-- One concern per commit, one vendor per PR. `test` and `ktlintCheck` green before push.
-
-## Boundaries
-
-✅ **Always**
-- run `./gradlew test` before reporting a task finished
-- give every network call an explicit timeout and every failure a visible state in the
-  UI — no spinner that can spin forever
-- record what a vendor API actually returned in `docs/<vendor>.md`
-- show how old a tile's state is; a tile that cannot say when it was last read is a bug
-- keep the incoming-call takeover intact — on top, video, accept/decline, maximum volume
-
-⚠️ **Ask first**
-- adding a dependency, a DI framework, or a new module
-- changing `AndroidManifest.xml`, permissions, foreground services, minSdk or signing config
-- introducing a new architectural pattern
-
-🚫 **Never**
-- commit tokens, account logins, device IDs, local IPs or intercom/apartment identifiers —
-  use `local.properties` and `EncryptedSharedPreferences`; fixtures use fake values
-- give the lock tile an unlock, open or any other write action — it reports, it does not act
-- cover, delay or suppress the Domonap call screen
-- delete, skip, `@Ignore` or weaken a test to make the build green — fix the code instead
-- write code against a vendor endpoint nobody has verified — say what is unknown instead
-- reformat, rename or "tidy" files unrelated to the current task
+- Branches: `feat/domonap-fullscreen`, `fix/tuya-timeout`. Conventional commits: `feat(aqara): ...`, `fix(domonap): ...`, `test(yandex): ...`. One concern per commit, one vendor per PR; `test` and `ktlintCheck` green before push.
+- Every network call needs an explicit timeout; every failure needs visible UI state, never an endless spinner. Show each tile's state age: inability to say when it was last read is a bug.
+- Record actual vendor API responses in `docs/<vendor>.md`. Never code against unverified endpoints; state what is unknown.
+- Ask first before adding dependencies, a DI framework or module; changing `AndroidManifest.xml`, permissions, foreground services, minSdk or signing config; introducing an architectural pattern.
+- Never commit tokens, account logins, device IDs, local IPs or intercom/apartment identifiers. Use `local.properties` and `EncryptedSharedPreferences`; use fake fixture values.
+- Never give the lock tile unlock, open or any write action: it only reports.
+- Never reformat, rename or tidy files unrelated to the task.
 
 ## Known unknowns
 
-Domonap has no public API. `docs/domonap.md` records what a third-party integration suggests
-its backend does — none of it verified, and nothing in the panel calls it. The call path rests
-on Domonap posting a notification we can see; confirm that on the tablet before building on it.
-Do not invent endpoints.
+Domonap has no public API. `docs/domonap.md` records unverified third-party suggestions about its backend; the panel calls none of them. The call path relies on a detectable Domonap notification: confirm it on the tablet before building on it. Do not invent endpoints.
 
-Also open, each tracked in its `docs/<vendor>.md`: whether Aqara's API exposes anything beyond
-state for this lock model, what one panel refresh costs against Tuya's monthly allowance, and
-whether Domonap's landscape call screen can be letterboxed on a vertically mounted tablet.
+Also tracked in `docs/<vendor>.md`: whether Aqara exposes anything beyond state for this lock model; Tuya state recovery after a physical restart; whether Domonap's landscape call screen can be letterboxed on a vertical tablet.
 
 Not affiliated with Yandex, Aqara, Tuya, Xiaomi or Domonap.
 
-## Glossary
+## Glossary and maintenance
 
-- **Panel** — the always-on Compose UI on the wall tablet
-- **Tile** — one card on the panel: a device, scene or sensor
-- **Hosted widget** — another app's AppWidget embedded in a tile; state we can show but not read
-- **Launcher tile** — a tile that only opens the vendor app
-- **Intercom / домофон** — the building door-entry system, reached via Domonap
-- **Door release** — the "open the door" action during an active intercom call
-
-## Maintaining this file
-
-Keep it under ~150 lines. Add a rule when an agent actually makes a mistake twice;
-delete rules that never fire. Vague advice the agent would follow anyway is noise
-that crowds out the project-specific facts it cannot infer.
+- **Panel**: always-on Compose UI on the wall tablet. **Tile**: a device, scene or sensor card.
+- **Hosted widget**: another app's AppWidget in a tile; state can be shown but not read. **Launcher tile**: only opens the vendor app.
+- **Intercom / домофон**: building door-entry system via Domonap. **Door release**: "open the door" during an active intercom call.
+- Keep this file under ~150 lines. Add a rule after an agent makes the same mistake twice; delete rules that never fire. Omit vague advice agents would follow anyway; retain project-specific facts they cannot infer.

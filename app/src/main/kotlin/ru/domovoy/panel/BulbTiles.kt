@@ -11,6 +11,7 @@ import ru.domovoy.core.Device
 import ru.domovoy.core.DeviceKind
 import ru.domovoy.core.Reading
 import ru.domovoy.integrations.tuya.TuyaApiException
+import ru.domovoy.integrations.tuya.TuyaLanDeviceNotFoundException
 import ru.domovoy.integrations.yandex.YandexClient
 import java.io.InterruptedIOException
 import java.net.ConnectException
@@ -136,7 +137,7 @@ class BulbTiles(
     ) {
         if (id in mutableState.value.pending) return
         val tile = mutableState.value.tiles.firstOrNull { it.id == id } ?: return
-        if (tile.color?.instance != RGB) {
+        if (tile.color?.instance != RGB && tile.color?.instance != SCENE) {
             mutableState.value = mutableState.value.copy(
                 commandErrors = mutableState.value.commandErrors + (id to "Цвет не регулируется"),
             )
@@ -190,6 +191,7 @@ private fun Device.toTile(): BulbTileState {
 
 /** Short UI labels selected by exception type and structured vendor code; raw details stay in Log. */
 internal fun reason(failure: Throwable): String = when (failure) {
+    is TuyaLanDeviceNotFoundException -> "Бризер не найден в локальной сети"
     // 28841002 is the observed IoT Core subscription-expired error; never match vendor prose.
     is TuyaApiException -> if (failure.code == 28841002L) "Подписка истекла" else "Сервис недоступен"
     is UnknownHostException, is NoRouteToHostException -> "Нет связи с сервисом"

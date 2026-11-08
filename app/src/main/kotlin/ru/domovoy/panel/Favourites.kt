@@ -45,5 +45,6 @@ fun favourites(
         },
         bulbs = pick({ it.bulbs }, errors.bulbs == null && isStale(polls.bulbs, now, yandex)),
         launchers = sections.flatMap { it.launchers },
+        discovered = pick({ it.discovered }, errors.discovered == null && isStale(polls.discovered, now, yandex)),
     )
 }

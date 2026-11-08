@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.sizeIn
@@ -39,21 +38,22 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import ru.domovoy.R
 
 /** One corner radius for every tile width. */
-private val TILE_CORNER = 22.dp
+private val TILE_CORNER = 12.dp
 
 /** Wall controls use a 64 dp minimum for standing, arm’s-length interaction. */
 internal val MIN_TOUCH = 64.dp
 
 /** Each tile supplies half the gutter, including at the outer grid edge. */
-private val TILE_PADDING = 4.dp
+private val TILE_PADDING = 6.dp
 
 /** Inside the card, on all four sides. One padding, on every tile, whatever its span. */
-private val TILE_CONTENT_PADDING = 12.dp
+private val TILE_CONTENT_PADDING = 20.dp
 
 /** Main controls remain easy to reach while simple cards omit absent content. */
 private val ART_ROW = MIN_TOUCH
@@ -80,9 +80,16 @@ internal fun TileCard(
     onAction: () -> Unit = {},
 ) {
     val shape = RoundedCornerShape(TILE_CORNER)
-    val outer = modifier.fillMaxWidth().padding(TILE_PADDING).heightIn(min = format.minimumHeight.dp)
+    val failing = paint.groupFailing || paint.mood == TileMood.Failing
+    val outer = modifier.fillMaxWidth().padding(TILE_PADDING).semantics {
+        if (failing) {
+            stateDescription = anatomy.detail ?: anatomy.status.ifBlank { "Нет обновлений" }
+        } else if (cardText(anatomy.status) != anatomy.status) {
+            stateDescription = anatomy.status
+        }
+    }
     val colors = tileColors(paint.mood)
-    val border = groupFailureBorder(paint)
+    val border = groupFailureBorder(paint) ?: BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
     if (onClick == null) {
         Card(modifier = outer, shape = shape, colors = colors, border = border) {
             TileBody(anatomy, paint, showRoom, pending, hasLevel, format, toggle, level, onAction)
@@ -129,12 +136,24 @@ private fun TileBody(
         }
         PromotedValue(anatomy.promoted ?: "—".takeIf { format == TileFormat.Reading || format == TileFormat.Control })
         if (hasLevel) level()
-        StatusText(if (pending) "Ждём подтверждения…" else anatomy.status, announce = pending)
-        anatomy.detail?.let { StatusText(it, announce = paint.groupFailing || paint.mood == TileMood.Failing) }
+        val failing = paint.groupFailing || paint.mood == TileMood.Failing
+        val status = if (pending) {
+            "Ждём подтверждения…"
+        } else if (failing) {
+            ""
+        } else {
+            cardText(anatomy.status)
+        }
+        if (status.isNotBlank() && !(status == "—" && anatomy.promoted == null)) StatusText(status, announce = pending)
+        if (failing) {
+            if (anatomy.promoted != null || format !in listOf(TileFormat.Reading, TileFormat.Control)) StatusText("—", announce = true)
+        } else {
+            anatomy.detail?.let { StatusText(cardText(it)) }
+        }
     }
 }
 
-/** Status and age can wrap together; technical details stay in the sheet. */
+/** Status and command feedback can wrap; reading times stay in the sheet. */
 @Composable
 private fun StatusText(text: String, announce: Boolean = false) {
     Text(
@@ -203,7 +222,7 @@ private val ACTION_BUTTON_SIZE = 40.dp
 private val ACTION_GLYPH_SIZE = 24.dp
 
 /** The visible power disc inside its larger wall-sized touch target. */
-private val POWER_BUTTON_SIZE = 44.dp
+private val POWER_BUTTON_SIZE = 56.dp
 
 /** The power symbol inside that disc. */
 private val POWER_GLYPH_SIZE = 28.dp
@@ -222,7 +241,7 @@ internal fun TilePowerButton(
     val label = stringResource(R.string.device_power, listOfNotNull(deviceName, room).joinToString(", "))
     val accented = TileMark.Power in marks(mood)
     val container =
-        if (accented) tileAccent() else MaterialTheme.colorScheme.surfaceContainerHighest
+        if (accented) MaterialTheme.colorScheme.primaryFixedDim else MaterialTheme.colorScheme.surfaceContainerHighest
     val icon = if (accented) tileOnAccent() else MaterialTheme.colorScheme.outline
     Box(
         modifier = modifier
@@ -237,14 +256,14 @@ internal fun TilePowerButton(
         contentAlignment = Alignment.Center,
     ) {
         Box(
-            modifier = Modifier.size(POWER_BUTTON_SIZE).clip(CircleShape).background(container),
+            modifier = Modifier.size(POWER_BUTTON_SIZE).clip(RoundedCornerShape(10.dp)).background(container.copy(alpha = if (enabled) 1f else 0.38f)),
             contentAlignment = Alignment.Center,
         ) {
             Icon(
                 painter = painterResource(R.drawable.ic_power_settings_new),
                 contentDescription = null,
                 modifier = Modifier.size(POWER_GLYPH_SIZE),
-                tint = icon,
+                tint = icon.copy(alpha = if (enabled) 1f else 0.38f),
             )
         }
     }
@@ -287,10 +306,12 @@ internal fun PromotedValue(
 ) {
     if (value != null) {
         Text(
-            text = value,
+            text = cardText(value),
             style = MaterialTheme.typography.displaySmall,
             color = color,
-            modifier = modifier,
+            modifier = modifier.semantics {
+                if (cardText(value) != value) stateDescription = value
+            },
         )
     }
 }
@@ -300,7 +321,7 @@ private val GROUP_FAILURE_OUTLINE = 3.dp
 
 /** Group failures add a border while retaining the tile’s device state. */
 @Composable
-private fun groupFailureBorder(paint: TilePaint): BorderStroke? = if (paint.groupFailing) {
+private fun groupFailureBorder(paint: TilePaint): BorderStroke? = if (paint.groupFailing || paint.mood == TileMood.Failing) {
     BorderStroke(GROUP_FAILURE_OUTLINE, MaterialTheme.colorScheme.error)
 } else {
     null
@@ -318,13 +339,21 @@ internal fun tileColors(mood: TileMood): CardColors = CardDefaults.cardColors(
     contentColor = MaterialTheme.colorScheme.onSurface,
 )
 
-/** One accent for on marks, power controls, and sliders on neutral surfaces. */
+/** A readable brand tone for state marks and inline feedback. */
 @Composable
 internal fun tileAccent(): Color = MaterialTheme.colorScheme.primary
 
-/** The theme’s matching content colour for controls filled with [tileAccent]. */
+/** Dark glyphs remain readable on the lime button fill. */
 @Composable
-private fun tileOnAccent(): Color = MaterialTheme.colorScheme.onPrimary
+private fun tileOnAccent(): Color = MaterialTheme.colorScheme.onPrimaryFixed
 
 /** Reserve at least 64 dp for tile controls. */
 internal fun Modifier.touchable(): Modifier = sizeIn(minWidth = MIN_TOUCH, minHeight = MIN_TOUCH)
+
+/** Compact card copy; full readings and failure reasons remain available in details. */
+internal fun cardText(text: String): String = text
+    .replace("Нет данных", "—")
+    .replace("Нет показаний", "—")
+    .replace("Температура неизвестна", "—")
+    .replace("Не удалось выполнить запрос", "—")
+    .replace("— · —", "—")

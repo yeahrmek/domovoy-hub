@@ -1,5 +1,6 @@
 package ru.domovoy.integrations.yandex
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
@@ -20,6 +21,7 @@ import ru.domovoy.core.Bounds
 import ru.domovoy.core.ColorSetting
 import ru.domovoy.core.Device
 import ru.domovoy.core.DeviceKind
+import ru.domovoy.core.EventProperty
 import ru.domovoy.core.FloatProperty
 import ru.domovoy.core.Mode
 import ru.domovoy.core.OnOff
@@ -27,18 +29,13 @@ import ru.domovoy.core.Range
 import ru.domovoy.core.Reading
 import ru.domovoy.core.Toggle
 import java.io.IOException
-import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlin.math.floor
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.toJavaDuration
 
-/**
- * The device types the panel has a tile for, matched exactly. `devices.types.light.strip` is its
- * own type rather than a sub-type Yandex would fold into `devices.types.light`, so it needs its own
- * entry here — without one the flat's two GLEDOPTO strips render as nothing at all.
- */
+/** Exact vendor types supported by panel tiles; light strips are a separate type. */
 private val KINDS =
     mapOf(
         "devices.types.light" to DeviceKind.Bulb,
@@ -56,16 +53,7 @@ private const val FLOAT_PROPERTY = "devices.properties.float"
 
 val YANDEX_BASE_URL: HttpUrl = "https://api.iot.yandex.net/".toHttpUrl()
 
-/**
- * Names both what is wrong and the one way a token gets in today. Sending an empty `Bearer` instead
- * would come back `403` and the panel would blame the OAuth scopes — see docs/yandex.md.
- *
- * **It was said on the tile and is now said in `Log`.** Every throwable that reaches a tile goes
- * through `reason` first, which has four words in it and none of them is a sentence — see
- * `docs/ui.md`, "Why a poll failed". Seventy-six characters were never going to fit a 188 dp card
- * whatever the rule was; where they *do* fit is the 753 dp group failure line at the top of Главная,
- * and giving them that line is `docs/design/panel-redesign.md` item 8.
- */
+/** Missing-credential details go to the log; tiles display a short failure label. */
 internal const val NO_TOKEN = "no Yandex token stored — set yandex.oauth.token in local.properties and reinstall"
 
 private val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
@@ -73,16 +61,8 @@ private val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
 private val json = Json { ignoreUnknownKeys = true }
 
 /**
- * Reads and drives the devices of one Yandex household that the panel has a tile for.
- *
- * The account behind the recorded response holds four households — the flat, two other homes and
- * a dacha. [householdId] is the only thing that says which of them the panel hangs in, so every
- * device from the other three is dropped here rather than anywhere downstream.
- *
- * [token] is asked for once per request rather than held: the panel runs for weeks on a wall, and
- * a token written to the store while it runs has to be used by the next poll, not after a restart.
- * It may fail — a store that will not open throws out of it — and that failure lands on the tile
- * like any other, because the call sites below already run inside `runCatching`.
+ * Discovers every device in one household. Other households are discarded.
+ * Credentials are read per request so updates take effect without restarting the panel.
  */
 class YandexClient(
     http: OkHttpClient,
@@ -98,7 +78,7 @@ class YandexClient(
 
     /**
      * One `/v1.0/user/info` call is the whole house, so this is the panel's poll. Returns the
-     * devices of [householdId] the panel has a tile for — every kind together, told apart by
+     * devices of [householdId] — every kind together, told apart by
      * [Device.kind]; failures come back as a failed [Result] for the caller to show.
      */
     suspend fun devices(): Result<List<Device>> = runCatching {
@@ -110,24 +90,16 @@ class YandexClient(
         val roomNames = info.rooms.associate { it.id to it.name }
         info.devices
             .filter { it.householdId == householdId }
-            .mapNotNull { device -> KINDS[device.type]?.let { device.toDevice(it, roomNames) } }
-    }
+            .map { device -> device.toDevice(KINDS[device.type] ?: DeviceKind.Other, roomNames) }
+    }.onFailure { if (it is CancellationException) throw it }
 
-    /**
-     * Turns one device on or off. Success means Yandex accepted the request — the docs do not say
-     * whether `DONE` waits for the device to physically change, so the caller re-reads rather than
-     * painting the new value from this result alone.
-     */
+    /** Success means accepted by Yandex; callers re-read to confirm device state. */
     suspend fun setOn(
         deviceId: String,
         on: Boolean,
     ): Result<Unit> = action(deviceId, ON_OFF, ActionStateDto("on", JsonPrimitive(on)))
 
-    /**
-     * Drives one numeric capability — the curtain's `open`, later the air conditioner's
-     * `temperature` — to [value]. Nothing is clamped here: what the device accepts is on the
-     * device, and the caller holds the bounds the poll reported. Re-read as for [setOn].
-     */
+    /** Sets a numeric capability; callers snap values to device bounds and re-read. */
     suspend fun setRange(
         deviceId: String,
         instance: String,
@@ -182,7 +154,7 @@ class YandexClient(
         if (response.status != null && response.status != "ok") {
             error("POST /v1.0/devices/actions returned status=${response.status} request_id=${response.requestId}")
         }
-    }
+    }.onFailure { if (it is CancellationException) throw it }
 
     private suspend fun get(path: String): String = send { request(path).build() }
 
@@ -202,22 +174,11 @@ class YandexClient(
             .header("Authorization", "Bearer $token")
     }
 
-    // enqueue() hands the response back as soon as the headers land, but reading the body is a
-    // blocking socket read — and it happens on whatever dispatcher called in. The panel polls from
-    // Dispatchers.Main, so without this the tablet answers NetworkOnMainThreadException and no
-    // tile ever gets a value. The request is built in here too, so reading the token out of
-    // encrypted storage — a decrypt per call — happens off the main thread as well.
+    // Credential decryption runs off Main. awaitBody reads the socket on OkHttp's dispatcher
+    // and keeps cancellation connected until the body has been consumed.
     private suspend fun send(build: () -> Request): String = withContext(Dispatchers.IO) {
         val request = build()
-        http.newCall(request).await().use { response ->
-            // A wrong OAuth scope answers with a bare non-JSON "Forbidden", so the body is read
-            // before it is trusted to be JSON and quoted back in the failure.
-            val body = response.body.string()
-            if (!response.isSuccessful) {
-                error("${request.method} ${request.url.encodedPath} failed: HTTP ${response.code} ${body.take(200)}")
-            }
-            body
-        }
+        http.newCall(request).awaitBody()
     }
 }
 
@@ -236,7 +197,6 @@ private fun DeviceDto.toDevice(
             OnOff(
                 isOn = it,
                 lastUpdated = Reading.ofEpochSeconds(capability.lastUpdated),
-                stateChangedAt = Reading.ofEpochSeconds(capability.stateChangedAt),
             )
         }
     },
@@ -245,6 +205,8 @@ private fun DeviceDto.toDevice(
     toggles = capabilities.filter { it.type == TOGGLE }.mapNotNull(CapabilityDto::toToggle).toMap(),
     color = capabilities.firstOrNull { it.type == COLOR_SETTING }?.toColorSetting(),
     properties = properties.filter { it.type == FLOAT_PROPERTY }.mapNotNull(PropertyDto::toFloatProperty).toMap(),
+    vendorType = type,
+    events = properties.filter { it.type == "devices.properties.event" }.mapNotNull(PropertyDto::toEventProperty).toMap(),
 )
 
 // A range with no state at all is kept, not dropped: its bounds are still what the device accepts,
@@ -259,8 +221,15 @@ private fun CapabilityDto.toRange(): Pair<String, Range>? {
             // The TV's volume range carries "" rather than omitting the unit; both mean the same.
             unit = parameters?.unit?.takeIf { it.isNotBlank() },
             lastUpdated = Reading.ofEpochSeconds(lastUpdated),
-            stateChangedAt = Reading.ofEpochSeconds(stateChangedAt),
         )
+}
+
+private fun PropertyDto.toEventProperty(): Pair<String, EventProperty>? {
+    val instance = parameters?.instance ?: state?.instance ?: return null
+    return instance to EventProperty(
+        value = (state?.value as? JsonPrimitive)?.takeIf { it.isString }?.content,
+        lastUpdated = Reading.ofEpochSeconds(lastUpdated),
+    )
 }
 
 private fun CapabilityDto.toMode(): Pair<String, Mode>? {
@@ -271,7 +240,6 @@ private fun CapabilityDto.toMode(): Pair<String, Mode>? {
             current = (state?.value as? JsonPrimitive)?.takeIf { it.isString }?.content,
             available = parameters?.modes.orEmpty().map(ModeParameterDto::value),
             lastUpdated = Reading.ofEpochSeconds(lastUpdated),
-            stateChangedAt = Reading.ofEpochSeconds(stateChangedAt),
         )
 }
 
@@ -281,7 +249,6 @@ private fun CapabilityDto.toToggle(): Pair<String, Toggle>? {
         Toggle(
             isOn = (state?.value as? JsonPrimitive)?.booleanOrNull,
             lastUpdated = Reading.ofEpochSeconds(lastUpdated),
-            stateChangedAt = Reading.ofEpochSeconds(stateChangedAt),
         )
 }
 
@@ -292,10 +259,9 @@ private fun CapabilityDto.toToggle(): Pair<String, Toggle>? {
 private fun CapabilityDto.toColorSetting(): ColorSetting = ColorSetting(
     instance = state?.instance,
     value = (state?.value as? JsonPrimitive)?.doubleOrNull,
-    temperatureBounds = parameters?.temperatureK?.let { Bounds(it.min, it.max, precision = 1.0) },
     scenes = parameters?.colorScene?.scenes.orEmpty().map(ColorSceneDto::id),
     lastUpdated = Reading.ofEpochSeconds(lastUpdated),
-    stateChangedAt = Reading.ofEpochSeconds(stateChangedAt),
+    scene = (state?.value as? JsonPrimitive)?.takeIf { state?.instance == "scene" && it.isString }?.content,
 )
 
 private fun PropertyDto.toFloatProperty(): Pair<String, FloatProperty>? {
@@ -303,9 +269,8 @@ private fun PropertyDto.toFloatProperty(): Pair<String, FloatProperty>? {
     return instance to
         FloatProperty(
             value = (state?.value as? JsonPrimitive)?.doubleOrNull,
-            unit = parameters?.unit?.takeIf { it.isNotBlank() },
             lastUpdated = Reading.ofEpochSeconds(lastUpdated),
-            stateChangedAt = Reading.ofEpochSeconds(stateChangedAt),
+            unit = parameters?.unit?.takeIf { it.isNotBlank() },
         )
 }
 
@@ -317,7 +282,8 @@ private fun Double.asJson(): JsonPrimitive = if (isFinite() && this == floor(thi
     JsonPrimitive(this)
 }
 
-private suspend fun Call.await(): Response = suspendCancellableCoroutine { continuation ->
+/** Keeps HTTP cancellation connected until the entire response body is consumed. */
+private suspend fun Call.awaitBody(): String = suspendCancellableCoroutine { continuation ->
     continuation.invokeOnCancellation { cancel() }
     enqueue(
         object : Callback {
@@ -325,7 +291,17 @@ private suspend fun Call.await(): Response = suspendCancellableCoroutine { conti
                 call: Call,
                 response: Response,
             ) {
-                continuation.resume(response)
+                val result = runCatching {
+                    response.use {
+                        val body = it.body.string()
+                        if (!it.isSuccessful) {
+                            val request = call.request()
+                            error("${request.method} ${request.url.encodedPath} failed: HTTP ${it.code} ${body.take(200)}")
+                        }
+                        body
+                    }
+                }
+                continuation.resumeWith(result)
             }
 
             override fun onFailure(

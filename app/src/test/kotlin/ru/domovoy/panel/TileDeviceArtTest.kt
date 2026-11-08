@@ -7,6 +7,8 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertHeightIsEqualTo
 import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.isToggleable
@@ -41,7 +43,7 @@ class TileDeviceArtTest {
     val compose = createComposeRule()
 
     @Test
-    fun `both status lines fit at increased system font size`() {
+    fun `compact failure indicator fits at increased system font size and retains its accessible reason`() {
         compose.setContent {
             CompositionLocalProvider(LocalDensity provides Density(LocalDensity.current.density, fontScale = 1.3f)) {
                 MaterialTheme(colorScheme = panelDarkScheme, typography = panelTypography) {
@@ -51,9 +53,11 @@ class TileDeviceArtTest {
         }
 
         val layouts = mutableListOf<TextLayoutResult>()
-        compose.onNodeWithText("failed").performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layouts) }
+        compose.onNodeWithText("failed").assertDoesNotExist()
+        compose.onNode(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "failed")).assertExists()
+        compose.onNodeWithText("—").performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layouts) }
         assertEquals(1, layouts.size)
-        assertFalse(layouts.single().didOverflowHeight, "The second status line must have room for its full height")
+        assertFalse(layouts.single().didOverflowHeight, "The compact failure indicator must have room for its full height")
     }
 
     @Test

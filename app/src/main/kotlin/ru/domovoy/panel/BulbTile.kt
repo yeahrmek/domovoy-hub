@@ -2,7 +2,6 @@ package ru.domovoy.panel
 
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import ru.domovoy.core.Reading
 import java.time.Instant
 
 /**
@@ -49,6 +48,7 @@ fun BulbTile(
                     id = tile.id,
                     value = tile.brightnessPercent,
                     bounds = bounds,
+                    showBounds = false,
                     label = "Яркость",
                     unit = "%",
                     enabled = !pending,
@@ -60,7 +60,7 @@ fun BulbTile(
 }
 
 /**
- * Room summary: lamp count, lit count, and oldest reading age remain visible while collapsed.
+ * Room summary: the lit count remains visible while collapsed.
  * Expanding reveals names and individual controls without replacing the summary.
  */
 @Composable
@@ -88,22 +88,15 @@ fun BulbGroupTile(
     )
 }
 
-/** Power, optional brightness, and the oldest displayed reading age. Unknown values have no age. */
+/** Unknown power stays explicit; known power is conveyed by the switch. */
 internal fun statusLine(
     tile: BulbTileState,
     now: Instant,
 ): String = listOfNotNull(
-    power(tile.isOn),
-    ageLine(oldest(tile.readings()), now),
+    "Нет данных".takeIf { tile.isOn == null },
 ).joinToString(" · ")
 
-private fun BulbTileState.readings(): List<Reading> = listOfNotNull(
-    lastUpdated.takeIf { isOn != null },
-    brightnessLastUpdated.takeIf { brightnessPercent != null },
-    color?.takeIf { it.value != null }?.lastUpdated,
-)
-
-/** Use the same power words on tiles and sheets; an absent reading stays unknown. */
+/** Power words for sheets and read-only readings; an absent reading stays unknown. */
 internal fun power(isOn: Boolean?): String = when (isOn) {
     true -> "Включено"
     false -> "Выключено"

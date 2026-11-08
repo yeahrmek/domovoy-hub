@@ -1,0 +1,29 @@
+{
+  "status": "ok",
+  "rooms": [{"id": "room-wardrobe", "name": "Гардероб"}],
+  "devices": [
+    {
+      "id": "button-lower", "name": "Нижняя кнопка", "type": "devices.types.switch",
+      "household_id": "household-flat", "room": "room-wardrobe", "capabilities": [],
+      "properties": [
+        {"type": "devices.properties.event", "last_updated": 1793518763.309587, "parameters": {"instance": "button"}, "state": {"instance": "button", "value": "click"}},
+        {"type": "devices.properties.float", "last_updated": 1793518573.79475, "parameters": {"instance": "battery_level", "unit": "unit.percent"}, "state": {"instance": "battery_level", "value": 100}}
+      ]
+    },
+    {
+      "id": "socket-iron", "name": "Утюг", "type": "devices.types.socket",
+      "household_id": "household-flat", "room": "room-wardrobe",
+      "capabilities": [{"type": "devices.capabilities.on_off", "last_updated": 1793172185.95, "parameters": {"split": false}, "state": {"instance": "on", "value": false}}],
+      "properties": [
+        {"type": "devices.properties.float", "last_updated": 1793528702.803, "parameters": {"instance": "voltage", "unit": "unit.volt"}, "state": {"instance": "voltage", "value": 226.7}},
+        {"type": "devices.properties.float", "last_updated": 1793172155.668, "parameters": {"instance": "power", "unit": "unit.watt"}, "state": {"instance": "power", "value": 0}},
+        {"type": "devices.properties.float", "last_updated": 1793172155.668, "parameters": {"instance": "amperage", "unit": "unit.ampere"}, "state": {"instance": "amperage", "value": 0}}
+      ]
+    },
+    {
+      "id": "button-upper", "name": "Верхняя кнопка", "type": "devices.types.switch",
+      "household_id": "household-flat", "room": "room-wardrobe", "capabilities": [],
+      "properties": [{"type": "devices.properties.event", "last_updated": 0.0, "parameters": {"instance": "button"}, "state": {"instance": "button", "value": "click"}}]
+    }
+  ]
+}

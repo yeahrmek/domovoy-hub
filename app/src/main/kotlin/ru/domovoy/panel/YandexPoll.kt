@@ -1,7 +1,15 @@
 package ru.domovoy.panel
 
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import ru.domovoy.integrations.yandex.YandexClient
 import java.time.Instant
+
+data class DeviceRefreshState(
+    val refreshing: Boolean = false,
+    val updated: Boolean = false,
+    val error: String? = null,
+)
 
 /**
  * The panel's one read of the Yandex house.
@@ -16,7 +24,7 @@ import java.time.Instant
  * on ac-01 alone, and never at all on the two strips — and one "last read" for the whole panel
  * would be a lie about most of them.
  *
- * Nothing here schedules; [refresh] is called by whatever owns the timer. See [pollPausingForCalls].
+ * The shared [polling] schedule pauses in the background and during intercom calls.
  */
 class YandexPoll(
     private val client: YandexClient,
@@ -28,10 +36,31 @@ class YandexPoll(
 ) {
     // Each group re-reads through this poller after an action, so a toggle costs one shared read
     // rather than one per group. The lambda is not evaluated until then, when `this` is built.
-    val bulbs = BulbTiles(client) { refresh() }
-    val curtains = CurtainTiles(client) { refresh() }
-    val acs = AcTiles(client) { refresh() }
-    val strips = LightStripTiles(client) { refresh() }
+    val bulbs = BulbTiles(client) { polling.refresh(force = true) }
+    val curtains = CurtainTiles(client) { polling.refresh(force = true) }
+    val acs = AcTiles(client) { polling.refresh(force = true) }
+    val strips = LightStripTiles(client) { polling.refresh(force = true) }
+    val discovered = DiscoveredDevices(client) { polling.refresh(force = true) }
+    val polling = AdaptivePolling(now = now) { readOnce() }
+    private val mutableRefreshState = MutableStateFlow(DeviceRefreshState())
+    val refreshState = mutableRefreshState.asStateFlow()
+
+    suspend fun refresh() = polling.refresh()
+
+    /** Explicit discovery bypasses the polling delay and replaces the inventory on success. */
+    suspend fun refreshDevices() {
+        if (mutableRefreshState.value.refreshing) return
+        mutableRefreshState.value = DeviceRefreshState(refreshing = true)
+        try {
+            mutableRefreshState.value = when (polling.refresh(force = true)) {
+                true -> DeviceRefreshState(updated = true)
+                false -> DeviceRefreshState(error = bulbs.state.value.error)
+                null -> DeviceRefreshState()
+            }
+        } finally {
+            mutableRefreshState.value = mutableRefreshState.value.copy(refreshing = false)
+        }
+    }
 
     /**
      * Reads the house once and hands the same answer to every group. On failure every group goes
@@ -42,8 +71,8 @@ class YandexPoll(
      * only record of when it last managed to read: the ages on the tiles are Yandex's
      * `last_updated`, which say when a device reported and not whether anyone is still listening.
      */
-    suspend fun refresh() {
-        client
+    private suspend fun readOnce(): Boolean {
+        val result = client
             .devices()
             .onSuccess { devices ->
                 val polledAt = now()
@@ -51,6 +80,7 @@ class YandexPoll(
                 curtains.show(devices, polledAt)
                 acs.show(devices, polledAt)
                 strips.show(devices, polledAt)
+                discovered.show(devices, polledAt)
             }
             .onFailure { failure ->
                 val reason = failure.describe()
@@ -58,6 +88,8 @@ class YandexPoll(
                 curtains.showFailure(reason)
                 acs.showFailure(reason)
                 strips.showFailure(reason)
+                discovered.showFailure(reason)
             }
+        return result.isSuccess
     }
 }

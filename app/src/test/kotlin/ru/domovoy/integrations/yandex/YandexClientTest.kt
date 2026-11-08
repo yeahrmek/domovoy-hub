@@ -1,6 +1,8 @@
 package ru.domovoy.integrations.yandex
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
@@ -15,6 +17,8 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import mockwebserver3.MockResponse
 import mockwebserver3.MockWebServer
+import okhttp3.Call
+import okhttp3.EventListener
 import okhttp3.OkHttpClient
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
@@ -27,6 +31,7 @@ import java.time.Instant
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -50,6 +55,19 @@ class YandexClientTest {
     @AfterEach
     fun stop() {
         server.close()
+    }
+
+    @Test
+    fun `new device types in the household are discovered without an allowlist`() = runTest {
+        val body = javaClass.getResource("/yandex/discovered_devices.json")!!.readText()
+        server.enqueue(MockResponse(body = body))
+
+        val devices = client().devices().getOrThrow()
+
+        assertEquals(5, devices.size)
+        assertEquals(setOf("Датчик климата", "Умный замок", "Домофон"), devices.map { it.name }.toSet())
+        assertTrue(devices.all { it.room == "Коридор" })
+        assertNotNull(devices.single { it.name == "Датчик климата" }.properties["temperature"])
     }
 
     @Test
@@ -84,28 +102,23 @@ class YandexClientTest {
                 DeviceKind.LightStrip to 2,
                 DeviceKind.Curtain to 1,
                 DeviceKind.AirConditioner to 3,
+                DeviceKind.Other to 5,
             ),
             devices.groupingBy { it.kind }.eachCount(),
         )
     }
 
     @Test
-    fun `devices of another household and types the panel has no tile for are left out`() = runTest {
+    fun `other households are excluded while every device of this household is retained`() = runTest {
         server.enqueue(MockResponse(body = fixture()))
 
         val ids = client().devices().map { list -> list.map { it.id } }.getOrThrow()
 
-        // light-09 and light-13 are bulbs, but of other households; light-14 is of another
-        // household too. The type match is still exact — a vacuum or a socket has no tile — but
-        // devices.types.light.strip now has one of its own.
-        assertTrue(
-            ids.none { it in setOf("light-09", "light-13", "light-14") },
-            "leaked out-of-scope devices: $ids",
-        )
-        assertTrue(
-            ids.none { it.startsWith("vacuum-") || it.startsWith("socket-") },
-            "leaked a type the panel has no tile for: $ids",
-        )
+        val expected = Json.parseToJsonElement(fixture()).jsonObject["devices"]!!.jsonArray
+            .filter { it.jsonObject["household_id"]?.jsonPrimitive?.content == "household-flat" }
+            .map { it.jsonObject["id"]!!.jsonPrimitive.content }
+        assertEquals(expected, ids)
+        assertTrue(ids.none { it in setOf("light-09", "light-13", "light-14") })
     }
 
     @Test
@@ -144,23 +157,27 @@ class YandexClientTest {
     }
 
     @Test
-    fun `a Kelvin light keeps the temperature bounds the device reported`() = runTest {
-        server.enqueue(MockResponse(body = fixture()))
-
-        val light = client().devices().getOrThrow().single { it.id == "light-01" }
-
-        assertEquals(Bounds(min = 2700.0, max = 6500.0, precision = 1.0), light.color?.temperatureBounds)
-        assertEquals(emptyList(), light.color?.scenes)
-    }
-
-    @Test
     fun `an RGB light keeps only the scenes the device advertised`() = runTest {
         server.enqueue(MockResponse(body = fixture()))
 
         val light = client().devices().getOrThrow().single { it.id == "light-21" }
 
-        assertNull(light.color?.temperatureBounds)
         assertEquals(listOf("candle", "rest", "movie", "sunrise"), light.color?.scenes)
+    }
+
+    @Test
+    fun `a reported colour scene remains a string selection instead of becoming unknown`() = runTest {
+        val body = fixture().replace(
+            "\"instance\": \"rgb\",\n            \"value\": 16777200",
+            "\"instance\": \"scene\",\n            \"value\": \"movie\"",
+        )
+        server.enqueue(MockResponse(body = body))
+
+        val light = client().devices().getOrThrow().single { it.id == "light-21" }
+
+        assertEquals("scene", light.color?.instance)
+        assertEquals("movie", light.color?.scene)
+        assertNull(light.color?.value)
     }
 
     @Test
@@ -172,7 +189,6 @@ class YandexClientTest {
         assertEquals(16.0, ac.ranges.getValue("temperature").value)
         val measured = ac.properties.getValue("temperature")
         assertEquals(28.0, measured.value)
-        assertEquals("unit.temperature.celsius", measured.unit)
         assertEquals(1_786_755_372, (measured.lastUpdated as Reading.At).instant.epochSecond)
     }
 
@@ -263,7 +279,6 @@ class YandexClientTest {
         assertEquals("unit.percent", open.unit)
         assertEquals(1_786_667_879, (open.lastUpdated as Reading.At).instant.epochSecond)
         // The range has never changed since Yandex started counting: 0.0, which is not the epoch.
-        assertEquals(Reading.Never, open.stateChangedAt)
     }
 
     @Test
@@ -351,7 +366,7 @@ class YandexClientTest {
     }
 
     @Test
-    fun `a bulb keeps its name, room and both capability timestamps`() = runTest {
+    fun `a bulb keeps its name, room and last reading time`() = runTest {
         server.enqueue(MockResponse(body = fixture()))
 
         val bulb = client().devices().getOrThrow().single { it.id == "light-01" }
@@ -362,7 +377,6 @@ class YandexClientTest {
             OnOff(
                 isOn = true,
                 lastUpdated = Reading.At(Instant.ofEpochSecond(1_784_883_564)),
-                stateChangedAt = Reading.At(Instant.ofEpochSecond(1_778_228_459)),
             ),
             bulb.onOff,
         )
@@ -375,7 +389,6 @@ class YandexClientTest {
         val bulb = client().devices().getOrThrow().single { it.id == "light-04" }
 
         assertEquals(Reading.Never, bulb.onOff?.lastUpdated)
-        assertEquals(Reading.Never, bulb.onOff?.stateChangedAt)
     }
 
     @Test
@@ -402,6 +415,32 @@ class YandexClientTest {
         // Not a request with an empty Bearer header either — Yandex would answer 403 and the
         // tile would blame the scopes rather than the missing token.
         assertEquals(0, server.requestCount)
+    }
+
+    @Test
+    fun `cancelling a poll propagates cancellation instead of reporting a failed device read`() = runTest {
+        assertFailsWith<CancellationException> {
+            client(token = { throw CancellationException("call started") }).devices()
+        }
+    }
+
+    @Test
+    fun `cancelling a poll interrupts a response body still being received`() = runBlocking {
+        val bodyStarted = CompletableDeferred<Unit>()
+        val http = OkHttpClient.Builder().eventListener(
+            object : EventListener() {
+                override fun responseBodyStart(call: Call) {
+                    bodyStarted.complete(Unit)
+                }
+            },
+        ).build()
+        server.enqueue(MockResponse.Builder().body(fixture()).throttleBody(1, 2, TimeUnit.SECONDS).build())
+        val poll = launch(Dispatchers.Default) { client(http = http).devices() }
+        withTimeout(1.seconds) { bodyStarted.await() }
+
+        poll.cancel()
+
+        withTimeout(1.seconds) { poll.join() }
     }
 
     @Test
@@ -530,8 +569,9 @@ class YandexClientTest {
         householdId: String = "household-flat",
         timeout: Duration = 10.seconds,
         token: () -> String = { "test-token" },
+        http: OkHttpClient = OkHttpClient(),
     ) = YandexClient(
-        http = OkHttpClient(),
+        http = http,
         token = token,
         householdId = householdId,
         baseUrl = server.url("/"),

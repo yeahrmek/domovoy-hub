@@ -1,9 +1,10 @@
 # Yandex Smart Home
 
-**Scope:** air conditioner, curtains, bulbs — full integration, and the reference one for the rest
-of the panel. The smart speaker is not a tile: it appears in the API, but the IoT API cannot make
-it speak or play. (It can, it turns out, set the light ring — see "What every type of device can be
-driven with", which counts what each of the thirteen types in this account actually exposes.)
+**Scope:** every device in the configured household is discovered automatically. Lights, strips,
+curtains and air conditioners have dedicated controls; sockets expose advertised power controls.
+Other types have read-only cards and sheets.
+The automatic-discovery section below describes current behavior; the older measurements and
+integration notes retain their original observations.
 
 Read from the public docs on 2026-08-15, and **`/v1.0/user/info` called for real on 2026-08-15**
 from a laptop on the flat's Wi-Fi — 41 devices came back. What that call actually returned is under
@@ -12,6 +13,121 @@ from a laptop on the flat's Wi-Fi — 41 devices came back. What that call actua
 for real too**, from the panel on the tablet on 2026-08-15 — see "Run on the tablet". No response
 body was captured from that call, so there is no fixture for it and the open questions about what
 the response *means* are still open.
+
+## Automatic inventory discovery (2026-10-31)
+
+### Missing Home devices checked 2026-11-08
+
+A read-only live inventory returned 36 devices in the configured household, including the curtain
+and one humidifier in Спальня. They were discovered correctly but excluded from the initial Home
+selection, which only included Коридор and Зал. Home now defaults to cards from every room;
+explicitly edited favourites remain user choices. A second humidifier, in Спальня взрослая, belongs
+to another household and remains excluded by the configured household filter. No device commands
+were sent. ADB listed no connected tablet, so installation and the physical screen were not checked.
+
+### Inventory replacement
+
+Every successful shared `/v1.0/user/info` poll replaces the inventory of the configured household. New devices and rooms appear without rebuilding or restarting; removed devices disappear
+only after a successful read. Other households remain excluded. A failed poll retains the previous
+inventory, reading ages and successful-poll timestamp, with a visible failure.
+
+The live read on 2026-10-31 returned 35 devices in the configured household; 24 had dedicated tiles.
+The client now retains every type. Lights, strips, curtains and air conditioners keep their verified
+controls; sockets now expose power as described below, while remaining types receive read-only cards
+and detail sheets. This includes previously hidden
+speakers, switches, the vacuum and humidifier, plus the climate sensor, door lock and three intercom
+relays. Mi Home and Domonap launchers remain available for their native app features.
+
+New types do not automatically gain write actions. In particular the door lock remains read-only,
+and intercom relay `on_off` is never offered as a power button or door-release action. A `door=closed`
+property reports the door contact, not proof that the lock is locked. No vendor write was used to
+verify discovery, and the Domonap incoming-call path is unchanged.
+
+The additional recorded fixture `app/src/test/resources/yandex/discovered_devices.json` contains
+five devices from that read: one climate sensor, one door lock and three `openable` intercom devices.
+All device, household and room identifiers and device names are replaced; only known on/off
+capabilities and float/event properties are retained. Observed properties include temperature,
+humidity, battery level, signal level, door/open, button and serviceability; missing states remain
+unknown. Numeric units and each property's `last_updated` are retained. Other capabilities such as
+lock/event-history are not interpreted. Detail sheets display individual ages; cards use the oldest
+of their displayed readings. Unknown types with no readable state still have a named card.
+
+## Grouped intercom entries (2026-11-01)
+
+Domonap's `devices.types.openable` entry endpoints share one expandable «Домофоны» group per room,
+like lights and breezers. Its summary shows their last reported door readings: «Все закрыты» only when every entry reports closed
+with a known timestamp, «Есть открытая дверь» when any entry reports opened or ajar, and an unknown
+reading otherwise. Missing readings and an explicitly offline entry cannot produce an all-closed
+summary. A failed shared poll retains the last group and marks it as not updating.
+
+Tapping the summary expands or collapses the original entry cards in place. Each child card opens
+its own readings; their separate timestamps remain in the group state. Home and room groups expand
+independently. The room-based group identity survives inventory reordering and entry removal;
+a successful empty inventory removes it. Favourite membership and card positions migrate from the original entries to the group.
+The duplicate room launcher card is hidden while the persistent Domonap shortcut remains in the
+header. No power or door-release action is exposed for the group, and incoming-call handling is
+unchanged. Validation uses recorded fixtures and local UI tests; no intercom command or real call
+was used for this grouping change.
+
+## Wardrobe switch and iron socket (2026-11-01)
+
+The current read exposes «Верхняя кнопка» and «Нижняя кнопка» as separate `devices.types.switch`
+endpoints of one YNDX-00534 wireless switch, as confirmed by the owner. Neither advertises
+`devices.capabilities.on_off`: both report `event/button` (`click`, `double_click`, `long_press`),
+and the lower endpoint also reports battery and signal properties. The panel combines this exact,
+unambiguous pair in Гардероб into one «Выключатель» card, retaining separate key events and their
+timestamps in details. Incomplete or ambiguous pairs remain separate. No synthetic power command
+or button press is sent for the wireless switch.
+
+The owner confirmed that the switch controls the wardrobe light in the bedroom. Its card and details
+therefore also expose the existing light's power action when exactly one bulb is reported in Гардероб.
+The displayed power state, pending state and command errors come from that bulb; the command targets
+the bulb through the existing verified light path. The switch's own key events and battery remain in
+details. Lights in Спальня or other rooms are not included, and multiple wardrobe bulbs do not result
+in an arbitrary target being chosen.
+
+«Утюг» is a YNDX-0007 socket with a retrievable `on_off/on` capability and voltage, power and current
+measurements. Socket cards and details expose power only when the device reports this capability.
+Commands use the existing Yandex action endpoint, block repeated presses while pending, and refresh
+the shared inventory before showing a changed state. Errors remain local to that socket. Locks,
+intercom relays and other discovered types retain their read-only behavior.
+
+The fixture `app/src/test/resources/yandex/switch_socket.json` records these observed capabilities,
+events and measurements with fake identifiers. This check used a live read only; socket commands
+and confirmation/error behavior were tested against MockWebServer, without switching the real iron.
+
+## Adaptive polling (2026-10-31)
+
+The shared inventory/state read runs once a minute during use and once every five minutes after
+two minutes without interaction. A new pointer press or key-down requests an immediate read;
+pointer movement, focus and accessibility interactions extend the active period without issuing
+one request per event. Touches during a read share its result. Successful device commands retain
+an immediate confirmation read; it starts after the command even if an older timer read is still
+in flight, and its completion resets the timer deadline.
+
+From 23:00 to 07:00 in the tablet's local time zone, an idle panel reads once every 30 minutes.
+Touching it restores the normal active cadence. The scheduler rechecks day/night and idle boundaries
+at least once a minute without making an HTTP request for that check. The first foreground read
+and each return from the background or intercom call are immediate, including at night.
+
+A failed read doubles the current mode's interval on each consecutive failure, capped at 30 minutes
+during day/active use and two hours during idle night hours. An explicit press or command confirmation
+can bypass the retry wait. A successful read resets the failure count. Cancellation for backgrounding
+or a call is not a vendor failure. No polling occurs while the activity is stopped or an intercom
+call is active; in-flight reads are cancelled, including Yandex command-confirmation reads. Existing
+values and their ages remain visible after failures. The UI receives the current planned interval
+so intentional idle/night/backoff delays are not misreported as a silently stopped poll.
+
+Tuya uses the same lifecycle/night scheduler, with its daytime active/idle interval kept at six
+minutes to preserve the metered allowance. Touches never force a Tuya inventory read; existing
+per-device command confirmations remain in place. At night the idle interval is 30 minutes, and
+inventory failures back off with the same limits. Individual recuperator failures remain local
+and do not mark the shared inventory read as failed. The separate 15-second UI clock only advances
+reading ages; it does not call vendor APIs.
+
+No live vendor actions or tablet installation were used to validate this scheduler. Unit tests use
+virtual time for day/night transitions, touch/idle behavior, errors, foreground/call cancellation,
+read coalescing and post-command deadlines. Existing vendor HTTP tests retain recorded fixtures.
 
 ## Verified in the docs
 
@@ -438,10 +554,9 @@ Built against the fixture; first run against the live API on the tablet on 2026-
 - **Filtering happens in `YandexClient`**, not downstream: 23 of the 41 devices returned belong to
   the other three households and never reach the shared model. `household_id` comes from
   `local.properties` as `yandex.household.id` via a `BuildConfig` constant.
-- **Both timestamps are kept** on the model (`OnOff.lastUpdated`, `OnOff.stateChangedAt`). The tile
-  prints the age of `last_updated` — that is literally "how old is this reading". Which of the two
-  a tile *should* show is still the open question below; keeping both means answering it later
-  costs nothing.
+- **The model keeps `last_updated` only** as `lastUpdated`. The tile prints its age. The response's
+  `state_changed_at` remains in the recorded fixtures and evidence below, but no current UI reads it,
+  so it is not decoded or copied through the model.
 - **`last_updated: 0.0` is `Reading.Never`**, rendered "never read". A `Double` at this magnitude
   resolves only ~0.2 µs, so sub-second parts survive approximately — irrelevant for an age display,
   worth knowing before anyone compares two timestamps for equality.
@@ -476,13 +591,12 @@ plus an `on_off` whose value is `false` and whose **both** timestamps are `0.0`,
 `zigbee_node` whose `state.value` is an *object* (`signal_quality`, `channel`, `is_active`) rather
 than a scalar.
 
-- **The tile shows the `range` timestamps, not the `on_off` ones.** The position is what the tile
-  prints, so its age is the age of the position — and on this device `on_off` has never reported at
-  all, so hanging the age on it would have said "never read" next to a position read minutes ago.
+- **In this recorded response, the position age comes from `range.last_updated`.** The `on_off`
+  timestamp is zero. Current position selection uses whichever of range or on/off has the newer
+  `last_updated`, as described in the voice-command findings below.
 - **`state_changed_at: 0.0` with a real `last_updated`** is the reverse of the bulbs' case: the
-  capability *has* been read, it just has no recorded change. Both are kept, `Reading.Never` covers
-  the `0.0`, and the tile prints the age of `last_updated` — the same choice as the bulbs, and the
-  same open question below.
+  capability *has* been read, it just has no recorded change. The model keeps `last_updated` and
+  the tile prints its age; `state_changed_at` is retained only in the recorded response.
 - **A `range` with no `state` at all reads as unknown, never as 0.** A curtain at 0% is shut; one
   that has never reported is not, and a tile that prints "0% open" for it says the opposite of the
   truth. The recorded response does carry a stateless range — on the TV's `channel` — so the shape
@@ -596,7 +710,8 @@ which tile group the device belongs to. One `/v1.0/user/info` call is the whole 
 `Mode` and `Toggle` now sit alongside `Range`, added the same way: `Device` carries **every** mode
 and **every** toggle the poll returned, keyed by instance, not an AC-shaped field. A `Mode` holds
 `current: String?` and `available: List<String>` — the values the device itself listed — and a
-`Toggle` holds `isOn: Boolean?`. Both carry the same two timestamps as everything else.
+`Toggle` holds `isOn: Boolean?`. Both carry `lastUpdated`, derived from `last_updated`, like the
+other capability models.
 
 `YandexClient.devices()` now returns every kind the panel has a tile for, told apart by `kind`,
 instead of bulbs only. The tile groups filter it. Each group polled separately for a while, which

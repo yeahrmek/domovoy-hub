@@ -38,7 +38,7 @@ class KnownRecuperatorsTest {
         val prefs = FakeSharedPreferences()
         val read =
             device("xfj-01", "Бризер зал", room = "Зал").copy(
-                onOff = OnOff(isOn = true, lastUpdated = Reading.At(Instant.EPOCH), stateChangedAt = Reading.Never),
+                onOff = OnOff(isOn = true, lastUpdated = Reading.At(Instant.EPOCH)),
             )
 
         KnownRecuperators(prefs).remember(listOf(read))

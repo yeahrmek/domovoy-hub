@@ -2,13 +2,7 @@ package ru.domovoy.panel
 
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import ru.domovoy.core.Reading
 import java.time.Instant
-import kotlin.math.roundToInt
-
-/** Verified colour-setting instances from recorded vendor responses. */
-private const val TEMPERATURE_K = "temperature_k"
-private const val RGB = "rgb"
 
 /** Power, brightness, and read-only colour. A failed poll visibly retains the last readings. */
 @Composable
@@ -51,6 +45,7 @@ fun LightStripTile(
                     id = tile.id,
                     value = tile.brightnessPercent,
                     bounds = bounds,
+                    showBounds = false,
                     label = "Яркость",
                     unit = if (tile.unit == "unit.percent") "%" else "",
                     enabled = !pending,
@@ -61,43 +56,19 @@ fun LightStripTile(
     )
 }
 
-/**
- * Power, brightness, and the oldest displayed reading age, including colour.
- * A poll failure temporarily replaces the colour detail.
- */
+/** Missing values remain explicit; power is conveyed by the switch. */
 internal fun statusLine(
     tile: LightStripTileState,
     now: Instant,
 ): String = listOfNotNull(
-    power(tile.isOn),
+    "Нет данных".takeIf { tile.isOn == null },
     "Яркость неизвестна".takeIf { tile.brightnessPercent == null },
-    ageLine(oldest(tile.readings()), now),
 ).joinToString(" · ")
-
-/** Only readings with values contribute to age; missing values are shown as unknown. */
-private fun LightStripTileState.readings(): List<Reading> = listOfNotNull(
-    powerLastUpdated.takeIf { isOn != null },
-    brightnessLastUpdated.takeIf { brightnessPercent != null },
-    color?.takeIf { it.value != null }?.lastUpdated,
-)
 
 /**
  * Label colour as read-only. Missing capability omits the line; an unread capability says unknown.
- * Its age contributes to the tile’s single status age.
  */
 internal fun colorLine(tile: LightStripTileState): String? {
     val color = tile.color ?: return null
-    return "${colorLabel(color.instance, color.value)} · только просмотр"
-}
-
-private fun colorLabel(
-    instance: String?,
-    value: Double?,
-): String {
-    val reported = value ?: return "Нет данных"
-    return when (instance) {
-        TEMPERATURE_K -> "${reported.roundToInt()} K"
-        RGB -> "#%06X".format(reported.roundToInt())
-        else -> "Нет данных"
-    }
+    return "${colorDescription(color)} · только просмотр"
 }

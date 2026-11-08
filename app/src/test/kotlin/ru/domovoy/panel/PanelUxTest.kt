@@ -3,12 +3,16 @@ package ru.domovoy.panel
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
+import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.hasContentDescription
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -32,14 +36,17 @@ class PanelUxTest {
     val compose = createComposeRule()
 
     @Test
-    fun `controls in the same row have aligned bottom edges despite long names`() {
+    fun `home cards grow independently when a neighbour has a long name`() {
         compose.setContent {
             MaterialTheme(colorScheme = panelLightScheme, typography = panelTypography) {
                 PanelRooms(
-                    acs = AcPanelState(tiles = listOf(Flat.acs.tiles.first()), lastPolledAt = Flat.NOW),
+                    acs = AcPanelState(lastPolledAt = Flat.NOW),
                     curtains = CurtainPanelState(lastPolledAt = Flat.NOW),
                     strips = LightStripPanelState(
-                        tiles = listOf(Flat.strips.tiles.first().copy(name = "Подсветка у окна, над полками и рядом с диваном", room = "Зал")),
+                        tiles = listOf(
+                            Flat.strips.tiles.first().copy(name = "Лента", room = "Зал"),
+                            Flat.strips.tiles.last().copy(name = "Подсветка у окна, над полками и рядом с диваном", room = "Зал"),
+                        ),
                         lastPolledAt = Flat.NOW,
                     ),
                     recuperators = RecuperatorPanelState(lastPolledAt = Flat.NOW),
@@ -51,14 +58,14 @@ class PanelUxTest {
                 )
             }
         }
-        val ac = compose.onNode(hasText("Кондиционер") and hasText("Зал") and hasClickAction()).getUnclippedBoundsInRoot()
-        val strip = compose.onNode(hasText("Подсветка у окна, над полками и рядом с диваном") and hasText("Зал") and hasClickAction()).getUnclippedBoundsInRoot()
-        assertTrue(ac.top == strip.top)
-        assertTrue(ac.bottom == strip.bottom)
+        val short = compose.onNode(hasText("Лента") and hasText("Зал") and hasClickAction() and hasAnyAncestor(hasTestTag("section:Главная"))).getUnclippedBoundsInRoot()
+        val strip = compose.onNode(hasText("Подсветка у окна, над полками и рядом с диваном") and hasText("Зал") and hasClickAction() and hasAnyAncestor(hasTestTag("section:Главная"))).getUnclippedBoundsInRoot()
+        assertTrue(short.top == strip.top)
+        assertTrue(short.bottom < strip.bottom)
     }
 
     @Test
-    fun `a reading summary precedes compact devices even when their vendor is failing`() {
+    fun `a summary and an unknown lamp remain side by side when their vendor is failing`() {
         compose.setContent {
             MaterialTheme(colorScheme = panelLightScheme, typography = panelTypography) {
                 PanelRooms(
@@ -66,6 +73,7 @@ class PanelUxTest {
                     curtains = CurtainPanelState(lastPolledAt = Flat.NOW),
                     strips = LightStripPanelState(lastPolledAt = Flat.NOW),
                     recuperators = RecuperatorPanelState(lastPolledAt = Flat.NOW),
+                    cardPreferences = CardPreferences(favourites = listOf("lamps:Зал", "bulb:unknown-lamp")),
                     bulbs = Flat.bulbs.copy(
                         tiles = Flat.bulbs.tiles.filter { it.room == "Зал" } +
                             Flat.bulbs.tiles.first().copy(
@@ -85,9 +93,10 @@ class PanelUxTest {
                 )
             }
         }
-        val group = compose.onNode(hasText("Свет") and hasText("Зал") and hasClickAction()).getUnclippedBoundsInRoot()
-        val compact = compose.onNode(hasText("Приток") and hasText("Зал") and hasClickAction()).getUnclippedBoundsInRoot()
-        assertTrue(group.bottom <= compact.top)
+        val group = compose.onNode(hasTestTag("card-slot:lamps:Зал") and hasAnyAncestor(hasTestTag("section:Главная"))).getUnclippedBoundsInRoot()
+        val compact = compose.onNode(hasTestTag("card-slot:bulb:unknown-lamp") and hasAnyAncestor(hasTestTag("section:Главная"))).getUnclippedBoundsInRoot()
+        assertTrue(group.top == compact.top)
+        assertTrue(group.right <= compact.left || compact.right <= group.left)
     }
 
     @Test
@@ -121,7 +130,7 @@ class PanelUxTest {
     }
 
     @Test
-    fun `a long reading leaves its age visible without overlap`() {
+    fun `a long reading stays visible without a timestamp`() {
         val reading = SheetReading("Цвет", "4500 K · только просмотр", "4 мин назад")
         val strip = sheet(Flat.strips.tiles.first(), Flat.NOW, null).copy(readings = listOf(reading))
         compose.setContent {
@@ -130,11 +139,9 @@ class PanelUxTest {
             }
         }
 
-        val valueBounds = compose.onNodeWithText(reading.value).getUnclippedBoundsInRoot()
-        val ageBounds = compose.onNodeWithText(reading.age).getUnclippedBoundsInRoot()
-        assertTrue(valueBounds.right + 16.dp <= ageBounds.left)
-        assertTrue(ageBounds.right - ageBounds.left >= 80.dp)
-        compose.onNodeWithText(reading.age).assertIsDisplayed()
+        compose.onNodeWithText(reading.label).assertIsDisplayed()
+        compose.onNodeWithText(reading.value).assertIsDisplayed()
+        compose.onNodeWithText(reading.age).assertDoesNotExist()
     }
 
     @Test
@@ -223,7 +230,20 @@ class PanelUxTest {
                 )
             }
         }
-        compose.onNodeWithText("${lamp.name}: Нет связи").assertIsDisplayed()
+        compose.onNode(
+            hasText("Свет") and hasAnyAncestor(hasTestTag("section:Спальня")),
+        ).assertIsDisplayed()
+            .assert(
+                SemanticsMatcher("announces the affected lamp and command failure") { node ->
+                    node.config.getOrElse(androidx.compose.ui.semantics.SemanticsProperties.StateDescription) { "" }
+                        .contains("${lamp.name}: Нет связи")
+                },
+            )
+        compose.onNode(hasText("—") and hasAnyAncestor(hasTestTag("card-slot:lamps:Спальня")) and hasAnyAncestor(hasTestTag("section:Спальня"))).assertIsDisplayed()
+        compose.onNode(
+            hasContentDescription("Питание лампы: ${lamp.name}, Спальня") and hasAnyAncestor(hasTestTag("section:Спальня")),
+        ).assert(SemanticsMatcher.expectValue(androidx.compose.ui.semantics.SemanticsProperties.StateDescription, "Ошибка команды: Нет связи"))
+        compose.onNodeWithText("${lamp.name}: Нет связи").assertDoesNotExist()
     }
 
     @Test
@@ -254,7 +274,7 @@ class PanelUxTest {
             }
         }
 
-        compose.onNode(hasText("Свет") and hasText("Коридор") and hasClickAction()).assertIsDisplayed()
-        compose.onNode(hasText("Свет") and hasText("Зал") and hasClickAction()).assertIsDisplayed()
+        compose.onNode(hasText("Свет") and hasText("Коридор") and hasClickAction() and hasAnyAncestor(hasTestTag("section:Главная"))).assertIsDisplayed()
+        compose.onNode(hasText("Свет") and hasText("Зал") and hasClickAction() and hasAnyAncestor(hasTestTag("section:Главная"))).assertIsDisplayed()
     }
 }

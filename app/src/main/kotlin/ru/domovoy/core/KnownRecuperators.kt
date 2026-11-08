@@ -19,24 +19,9 @@ private data class Remembered(
 )
 
 /**
- * What the panel knows about the recuperators before it has read anything.
- *
- * Every other tile group heals in seconds: Yandex is one call every 15 s, so a poll that missed the
- * Wi-Fi coming up is retried before anyone reaches the hallway. Tuya is five calls every 6 minutes
- * against a metered allowance, and the tiles exist only once the inventory call has answered — so a
- * tablet that rebooted into a network that was not up yet shows one line of error where five tiles
- * should be, for six minutes. This is what fills that gap: the wall puts up who it read last time,
- * with no values on them, and replaces them the moment a real read lands.
- *
- * **Identity only — id, name, room.** A switch position from before the reboot is not something the
- * panel has read, and a tile printing it would be claiming a poll that never happened. What comes
- * back has no capabilities at all, so every tile made from it says "unknown · never read", which is
- * the truth.
- *
- * Device ids are apartment-identifying, which is why this lives in the panel's encrypted store next
- * to the credentials rather than anywhere that can be committed. [prefs] is null when the tablet has
- * no usable keystore — a restored backup, a wiped key — and that is a panel with no memory rather
- * than a panel that will not start.
+ * Last successful recuperator inventory, used while a cold-start poll is still failing.
+ * Stores only identity: remembered devices have no values or reading timestamps.
+ * [prefs] is encrypted on-device; null means storage is unavailable.
  */
 class KnownRecuperators(private val prefs: SharedPreferences?) {
     /** The last inventory, or nothing at all — which is what the panel had before it remembered. */

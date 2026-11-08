@@ -123,4 +123,46 @@ class TokenStoreTest {
         store.seedYandexToken("  y0_padded  ")
         assertEquals("y0_padded", store.yandexToken())
     }
+
+    @Test
+    fun `local device JSON preserves special characters inside keys across launches`() {
+        val prefs = FakeSharedPreferences()
+        val devices = """[{"id":"test-fan","name":"Бризер","localKey":"a\\b\"c\td","host":"192.0.2.1"}]"""
+
+        TokenStore(prefs).seedTuyaLanDevices(devices)
+
+        assertEquals(devices, TokenStore(prefs).tuyaLanDevices())
+    }
+
+    @Test
+    fun `local device seeds trim only surrounding whitespace`() {
+        val store = TokenStore(FakeSharedPreferences())
+        val devices = """[{"id":"test-fan","localKey":" leading space "}]"""
+
+        store.seedTuyaLanDevices(" \n$devices\n ")
+
+        assertEquals(devices, store.tuyaLanDevices())
+    }
+
+    @Test
+    fun `a saved local device configuration survives an older APK seed`() {
+        val prefs = FakeSharedPreferences()
+        val current = """[{"id":"test-fan","localKey":"new-key"}]"""
+        TokenStore(prefs).seedTuyaLanDevices(current)
+
+        TokenStore(prefs).seedTuyaLanDevices("""[{"id":"test-fan","localKey":"old-key"}]""")
+
+        assertEquals(current, TokenStore(prefs).tuyaLanDevices())
+    }
+
+    @Test
+    fun `missing or blank local device seeds leave the configuration empty`() {
+        val prefs = FakeSharedPreferences()
+        val store = TokenStore(prefs)
+
+        assertEquals("", store.tuyaLanDevices())
+        store.seedTuyaLanDevices(" \n\t ")
+
+        assertEquals("", TokenStore(prefs).tuyaLanDevices())
+    }
 }

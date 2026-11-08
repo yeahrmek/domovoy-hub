@@ -111,7 +111,7 @@ class TileLayoutTest {
     fun `every current tile kind resolves to its real device art`() {
         assertEquals(R.drawable.device_art_air_conditioner, art(ac(isOn = true)))
         assertEquals(
-            R.drawable.device_art_recuperator,
+            R.drawable.device_art_airnanny_a7,
             art(recuperator(temperature = 29.3, humidity = 32.2)),
         )
         assertEquals(R.drawable.device_art_curtain, art(curtain(openPercent = 40.0)))
@@ -338,7 +338,7 @@ class TileLayoutTest {
 
         assertEquals("50%", anatomy(driven, now, error = null).promoted)
         assertEquals(TileMood.On, paint(driven, now, null).mood)
-        assertEquals("2 мин назад", statusLine(driven, now))
+        assertEquals("", statusLine(driven, now))
     }
 
     @Test
@@ -349,7 +349,7 @@ class TileLayoutTest {
             openCloseLastUpdated = minutesAgo(2),
         )
 
-        assertEquals("2 мин назад", statusLine(spoken, now))
+        assertEquals("", statusLine(spoken, now))
         assertEquals("100%", anatomy(spoken, now, error = null).promoted)
     }
 
@@ -363,14 +363,14 @@ class TileLayoutTest {
 
         assertNull(anatomy(old, now, error = null).promoted)
         assertEquals(TileMood.Unknown, paint(old, now, null).mood)
-        assertEquals("100% · 13 ч назад", statusLine(old, now))
+        assertEquals("Последнее: 100%", statusLine(old, now))
     }
 
     @Test
-    fun `a curtain whose position has aged out still says it, in small type, with its age`() {
+    fun `an older curtain command is labelled as the last position without a timestamp`() {
         val aged = curtain(openPercent = 0.0).copy(lastUpdated = hoursAgo(13))
 
-        assertEquals("0% · 13 ч назад", statusLine(aged, now))
+        assertEquals("Последнее: 0%", statusLine(aged, now))
     }
 
     @Test
@@ -438,11 +438,12 @@ class TileLayoutTest {
     }
 
     @Test
-    fun `every tile type fills the art, the name and the status slot, in every state it has`() {
+    fun `every tile type keeps its identity without redundant power text`() {
         everyTile().forEach { anatomy ->
             assertNotEquals(0, anatomy.art)
             assertTrue(anatomy.name.isNotBlank(), "a tile with no name: $anatomy")
-            assertTrue(anatomy.status.isNotBlank(), "a tile with no status line: $anatomy")
+            assertFalse(anatomy.status.contains("Включено"))
+            assertFalse(anatomy.status.contains("Выключено"))
         }
     }
 
@@ -481,10 +482,10 @@ class TileLayoutTest {
     }
 
     @Test
-    fun `no tile prints the same age twice, however many readings are behind it`() {
+    fun `no tile prints an age, however many readings are behind it`() {
         everyStaleTile().forEach { anatomy ->
             val ages = agesOn(anatomy)
-            assertEquals(1, ages.size, "a tile saying its age $ages times: $anatomy")
+            assertEquals(0, ages.size, "a tile still saying its age: $anatomy")
         }
     }
 
@@ -555,7 +556,7 @@ class TileLayoutTest {
 
     @Test
     fun `an AC with a fan mode and a wide powered recuperator get the useful fan shortcut`() {
-        val fan = Mode("auto", listOf("low", "medium", "high", "auto"), Reading.Never, Reading.Never)
+        val fan = Mode("auto", listOf("low", "medium", "high", "auto"), Reading.Never)
         val ac = ac(isOn = true).copy(modes = mapOf("fan_speed" to fan))
         val recuperator = recuperator(temperature = 29.3, humidity = 32.2, isOn = true)
 
@@ -709,7 +710,6 @@ class TileLayoutTest {
         instance = "temperature_k",
         value = 4500.0,
         lastUpdated = Reading.At(now),
-        stateChangedAt = Reading.At(now),
     )
 
     private fun recuperator(

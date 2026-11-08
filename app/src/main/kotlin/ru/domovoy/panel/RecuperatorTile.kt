@@ -7,8 +7,7 @@ import java.time.Instant
 import java.util.Locale
 
 /**
- * One recuperator: its name, whether it is on, what fan speed it reported, and how old each of
- * those two readings is.
+ * One recuperator: its name, power control, fan speed and climate readings.
  *
  * The error lives on the tile rather than on the group, because state costs one call per device —
  * a tile that says "not updating" here means *this* recuperator, and the one next to it may be
@@ -62,52 +61,19 @@ fun RecuperatorTile(
     )
 }
 
-/**
- * The line under the name: on/off, the fan speed and **one age for the whole tile**. The reason it
- * stopped updating is the tile's second line now — see [TileAnatomy].
- *
- * This is the tile the one-age rule was written for. It printed four of them — two here and two on
- * the climate line — and on the recorded response three were the same number: `on · 3 min ago · low
- * + medium + high · 3 min ago` over `26.4 °C · 3 min ago · 41.0 % · 3 min ago`. The four datapoints
- * really are timestamped separately, so the one printed is the **oldest** of them, the climate
- * included: the tile under-claims how fresh it is rather than quoting the humidity's 26 seconds over
- * a switch that has not moved in three days.
- *
- * **"offline" replaces the power word rather than leading a queue of echoes**, and this is the line
- * on the wall that most needed it. `offline · unknown · low + medium + high · not updating: timeout`
- * is 62 characters on a 251 dp tile that holds about twenty-four of them; it wrapped onto three
- * lines and was the longest thing on the panel. What is dropped is the echo: a device Tuya says is
- * offline is not confirming its switch or its speeds, and the panel's rule everywhere else is that
- * it does not assert what it has not read. What survives is the state, its age, and — on the line
- * below — why the panel is not reading it. The values themselves are still on
- * [RecuperatorTileState]; nothing about the device is forgotten, it is only not claimed.
- */
+/** Speed and unavailable state; power is conveyed by the switch. */
 internal fun statusLine(
     tile: RecuperatorTileState,
     now: Instant,
 ): String {
     val offline = tile.online == false
     return listOfNotNull(
-        if (offline) "Нет связи" else power(tile.isOn),
+        if (offline) "Нет связи" else "Нет данных".takeIf { tile.isOn == null },
         speedLabel(tile).takeUnless {
             offline || (tile.isOn == null && tile.speeds.isEmpty() && tile.speedLastUpdated == Reading.Never)
         },
-        ageLine(oldest(tile.readings()), now),
     ).joinToString(" · ")
 }
-
-/**
- * The readings behind everything this tile shows, on both of its lines — and only the ones it has a
- * value for, on [AcTileState]'s rule. A speed that reported nothing at all reads as "unknown" and
- * brings no age with it; three booleans that all came back false are a reading like any other and
- * bring theirs.
- */
-private fun RecuperatorTileState.readings(): List<Reading> = listOfNotNull(
-    powerLastUpdated.takeIf { isOn != null },
-    speedLastUpdated.takeIf { it != Reading.Never || speeds.isNotEmpty() },
-    temperatureLastUpdated.takeIf { temperature != null },
-    humidityLastUpdated.takeIf { humidity != null },
-)
 
 // "no speed" and "unknown" are different answers: the first is three booleans that all came back
 // false, the second is a device that reported no speed datapoint at all. Shared with the tile's

@@ -55,7 +55,7 @@ class BulbTilesTest {
         assertEquals(true, tile.isOn)
         // last_updated 1784883564 read two hours later.
         val now = Instant.ofEpochSecond(1_784_883_564 + 2 * 3600)
-        assertEquals("Включено · 2 ч назад", statusLine(tile, now))
+        assertEquals("", statusLine(tile, now))
     }
 
     @Test
@@ -112,6 +112,24 @@ class BulbTilesTest {
     }
 
     @Test
+    fun `RGB remains available while a reported scene is active`() = runTest {
+        val body = yandexFixture().replace(
+            "\"instance\": \"rgb\",\n            \"value\": 16777200",
+            "\"instance\": \"scene\",\n            \"value\": \"movie\"",
+        )
+        server.enqueue(MockResponse(body = body))
+        server.enqueue(MockResponse(body = """{"status":"ok","request_id":"r-rgb"}"""))
+        server.enqueue(MockResponse(body = yandexFixture()))
+        val poll = YandexPoll(server.yandexClient())
+        poll.refresh()
+
+        poll.bulbs.setRgb("light-21", 0xFF0000)
+
+        assertNull(poll.bulbs.state.value.commandErrors["light-21"])
+        assertEquals("rgb", poll.bulbs.state.value.tiles.single { it.id == "light-21" }.color?.instance)
+    }
+
+    @Test
     fun `every failure the panel can have comes out as one of four reasons`() {
         // Errors use four bounded labels; exception text belongs in Log.
         assertEquals("Нет связи с сервисом", reason(UnknownHostException("openapi.tuyaeu.com")))
@@ -147,7 +165,7 @@ class BulbTilesTest {
 
         val tile = tiles.state.value.tiles.single { it.id == "light-04" }
         assertEquals(Reading.Never, tile.lastUpdated)
-        assertEquals("Включено · Время неизвестно", statusLine(tile, Instant.ofEpochSecond(1_786_790_000)))
+        assertEquals("", statusLine(tile, Instant.ofEpochSecond(1_786_790_000)))
     }
 
     @Test
@@ -167,7 +185,7 @@ class BulbTilesTest {
         assertEquals(before, kept)
         val now = Instant.ofEpochSecond(1_784_883_564 + 2 * 3600)
         // Keep values and ages; show the poll failure on the second line.
-        assertEquals("Включено · 2 ч назад", statusLine(kept, now))
+        assertEquals("", statusLine(kept, now))
         assertEquals("Не удалось выполнить запрос", anatomy(kept, now, after.error).detail)
     }
 

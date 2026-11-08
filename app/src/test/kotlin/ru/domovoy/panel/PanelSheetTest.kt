@@ -21,9 +21,11 @@ import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.isFocused
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performKeyInput
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.pressKey
 import kotlinx.coroutines.runBlocking
 import org.junit.Rule
@@ -41,7 +43,7 @@ import kotlin.test.assertEquals
  * **What a tap on a tile does**, which is the one part of the device sheet that is Compose state
  * rather than a pure function and therefore the one part [TileSheetTest] cannot reach.
  *
- * One air conditioner in Спальня — not one of Главная's rooms, and neither failing nor stale, so it
+ * One air conditioner in Спальня, with Home explicitly empty, so it
  * appears once on the wall and every count below is unambiguous — plus the intercom's launcher tile,
  * which is the kind that opens an app instead.
  *
@@ -56,20 +58,16 @@ class PanelSheetTest {
     val compose = createComposeRule()
 
     @Test
-    fun `tapping a tile opens the device, with an age for every reading`() {
-        // The wall says "off · 24 °C · 3 дн. назад": one age, the oldest of the two readings behind it,
-        // because four timestamps in one paragraph is what made the panel unreadable. The tap is
-        // where the pair comes back apart — the on/off was read a minute ago and the target three
-        // days ago, and until now the panel held that difference and had nowhere to say it.
+    fun `tapping a tile opens device readings without timestamps`() {
         compose.setContent { Panel() }
-        compose.onNodeWithText("Задано").assertDoesNotExist()
+        compose.onNodeWithText("Питание").assertDoesNotExist()
 
         compose.onNodeWithText("Кондиционер", useUnmergedTree = true).performClick()
 
         compose.onNodeWithText("Питание").assertIsDisplayed()
         compose.onNodeWithText("Задано").assertIsDisplayed()
-        compose.onAllNodesWithText("1 мин назад").assertCountEquals(2)
-        compose.onNodeWithText("3 дн. назад").assertIsDisplayed()
+        compose.onAllNodesWithText("1 мин назад").assertCountEquals(0)
+        compose.onNodeWithText("3 дн. назад").assertDoesNotExist()
     }
 
     @Test
@@ -108,7 +106,7 @@ class PanelSheetTest {
         compose.onNodeWithText("Готово").performClick()
 
         compose.onNodeWithText("Готово").assertDoesNotExist()
-        compose.onNodeWithText("Задано").assertDoesNotExist()
+        compose.onNodeWithText("Питание").assertDoesNotExist()
     }
 
     @Test
@@ -165,7 +163,7 @@ class PanelSheetTest {
         runBlocking { returnToHome(scroll, openSheet) }
 
         compose.onNodeWithText("Готово").assertDoesNotExist()
-        compose.onNodeWithText("Задано").assertDoesNotExist()
+        compose.onNodeWithText("Питание").assertDoesNotExist()
     }
 
     @Test
@@ -194,9 +192,9 @@ class PanelSheetTest {
         compose.onNodeWithText("Свет").performClick()
 
         compose.onNodeWithText("Готово").assertDoesNotExist()
-        compose.onNodeWithText("Лампа 1").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Настроить: Лампа 1, Спальня").assertIsDisplayed()
 
-        compose.onNodeWithText("Лампа 1", useUnmergedTree = true).performClick()
+        compose.onNodeWithContentDescription("Настроить: Лампа 1, Спальня").performScrollTo().performClick()
 
         compose.onNodeWithText("Готово").assertIsDisplayed()
         compose.onNodeWithText("Питание").assertIsDisplayed()
@@ -231,6 +229,7 @@ class PanelSheetTest {
         MaterialTheme(colorScheme = panelLightScheme, typography = panelTypography) {
             Surface {
                 PanelRooms(
+                    cardPreferences = CardPreferences(favourites = emptyList()),
                     acs = oneAc,
                     curtains = CurtainPanelState(lastPolledAt = Flat.NOW),
                     strips = LightStripPanelState(lastPolledAt = Flat.NOW),

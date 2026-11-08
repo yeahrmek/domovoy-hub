@@ -1,6 +1,8 @@
 package ru.domovoy.integrations.tuya
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
@@ -16,6 +18,8 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import mockwebserver3.MockResponse
 import mockwebserver3.MockWebServer
+import okhttp3.Call
+import okhttp3.EventListener
 import okhttp3.OkHttpClient
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
@@ -29,6 +33,8 @@ import java.util.concurrent.TimeUnit
 import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
+import kotlin.test.assertIs
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.time.Duration
@@ -295,8 +301,9 @@ class TuyaClientTest {
 
         val result = client().devices()
 
-        assertTrue(result.isFailure)
-        val message = result.exceptionOrNull()?.message.orEmpty()
+        val failure = assertIs<TuyaApiException>(result.exceptionOrNull())
+        assertEquals(40001900L, failure.code)
+        val message = failure.message.orEmpty()
         assertTrue(message.contains("40001900"), "the code has to survive: $message")
         assertTrue(message.contains("No space permission"), "the message has to survive: $message")
     }
@@ -345,6 +352,32 @@ class TuyaClientTest {
         stored = TuyaCredentials("test-client-id", "test-client-secret", "eu-test-uid")
 
         assertTrue(client.devices().isSuccess)
+    }
+
+    @Test
+    fun `cancelling a poll propagates cancellation instead of reporting a failed device read`() = runTest {
+        assertFailsWith<CancellationException> {
+            client(credentials = { throw CancellationException("call started") }).devices()
+        }
+    }
+
+    @Test
+    fun `cancelling a poll interrupts a response body still being received`() = runBlocking {
+        val bodyStarted = CompletableDeferred<Unit>()
+        val http = OkHttpClient.Builder().eventListener(
+            object : EventListener() {
+                override fun responseBodyStart(call: Call) {
+                    bodyStarted.complete(Unit)
+                }
+            },
+        ).build()
+        server.enqueue(MockResponse.Builder().body(fixture("token.json")).throttleBody(1, 2, TimeUnit.SECONDS).build())
+        val poll = launch(Dispatchers.Default) { client(http = http).devices() }
+        withTimeout(1.seconds) { bodyStarted.await() }
+
+        poll.cancel()
+
+        withTimeout(1.seconds) { poll.join() }
     }
 
     @Test
@@ -481,8 +514,9 @@ class TuyaClientTest {
         credentials: () -> TuyaCredentials = { TuyaCredentials("test-client-id", "test-client-secret", "eu-test-uid") },
         timeout: Duration = 10.seconds,
         now: () -> Instant = { Instant.ofEpochSecond(1_786_817_910) },
+        http: OkHttpClient = OkHttpClient(),
     ) = TuyaClient(
-        http = OkHttpClient(),
+        http = http,
         credentials = credentials,
         baseUrl = server.url("/"),
         timeout = timeout,

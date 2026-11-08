@@ -1,5 +1,9 @@
 package ru.domovoy.panel
 
+import kotlinx.coroutines.async
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
@@ -13,9 +17,12 @@ import mockwebserver3.MockWebServer
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import ru.domovoy.integrations.domonap.CallState
 import java.time.Instant
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 /** One shared fetch serves every group; the request count protects the vendor allowance. */
 class YandexPollTest {
@@ -79,10 +86,10 @@ class YandexPollTest {
         assertEquals(acsBefore, acs.tiles)
         assertEquals(stripsBefore, strips.tiles)
         // Shared fetching must preserve each capability's timestamp.
-        assertEquals("Включено · 20 дн. назад", statusLine(bulbs.tiles.single { it.id == "light-01" }, now))
-        assertEquals("0% · 2 ч назад", statusLine(curtains.tiles.single(), now))
-        assertEquals("Выключено · 98 дн. назад", statusLine(acs.tiles.single { it.id == "ac-01" }, now))
-        assertEquals("Включено · Время неизвестно", statusLine(strips.tiles.single { it.id == "light-strip-01" }, now))
+        assertEquals("", statusLine(bulbs.tiles.single { it.id == "light-01" }, now))
+        assertEquals("Последнее: 0%", statusLine(curtains.tiles.single(), now))
+        assertEquals("", statusLine(acs.tiles.single { it.id == "ac-01" }, now))
+        assertEquals("", statusLine(strips.tiles.single { it.id == "light-strip-01" }, now))
     }
 
     @Test
@@ -131,6 +138,111 @@ class YandexPollTest {
         assertEquals(40.0, poll.curtains.state.value.tiles.single().openPercent)
         assertEquals(3, poll.acs.state.value.tiles.size)
         assertEquals(2, poll.strips.state.value.tiles.size)
+    }
+
+    @Test
+    fun `manual refresh replaces every device group including additions removals and rooms`() = runTest {
+        server.enqueue(MockResponse(body = yandexFixture()))
+        val root = Json.parseToJsonElement(yandexFixture()).jsonObject
+        val replacements = root["devices"]!!.jsonArray
+            .filter { it.jsonObject["household_id"]?.jsonPrimitive?.content == "household-flat" }
+            .map { device ->
+                JsonObject(device.jsonObject + ("id" to JsonPrimitive("new-${device.jsonObject["id"]!!.jsonPrimitive.content}")) + ("room" to JsonPrimitive("new-room")))
+            }
+        val updated = root.toMutableMap()
+        updated["devices"] = JsonArray(replacements)
+        updated["rooms"] = JsonArray(listOf(Json.parseToJsonElement("""{"id":"new-room","name":"Новая комната"}""")))
+        server.enqueue(MockResponse(body = JsonObject(updated).toString()))
+        val poll = YandexPoll(server.yandexClient())
+        poll.refresh()
+
+        poll.refreshDevices()
+
+        val ids = poll.bulbs.state.value.tiles.map { it.id } + poll.curtains.state.value.tiles.map { it.id } +
+            poll.acs.state.value.tiles.map { it.id } + poll.strips.state.value.tiles.map { it.id } +
+            poll.discovered.state.value.tiles.map { it.id }
+        assertTrue(ids.isNotEmpty())
+        assertTrue(ids.all { it.startsWith("new-") }, "old inventory must be replaced, not merged")
+        assertEquals(setOf("Новая комната"), poll.bulbs.state.value.tiles.map { it.room }.toSet())
+        assertTrue(poll.refreshState.value.updated)
+        assertFalse(poll.refreshState.value.refreshing)
+        assertEquals(2, server.requestCount)
+    }
+
+    @Test
+    fun `a successful empty inventory removes every Yandex tile`() = runTest {
+        server.enqueue(MockResponse(body = yandexFixture()))
+        server.enqueue(MockResponse(body = """{"status":"ok","devices":[],"rooms":[]}"""))
+        val poll = YandexPoll(server.yandexClient())
+        poll.refresh()
+
+        poll.refreshDevices()
+
+        assertTrue(poll.bulbs.state.value.tiles.isEmpty())
+        assertTrue(poll.curtains.state.value.tiles.isEmpty())
+        assertTrue(poll.acs.state.value.tiles.isEmpty())
+        assertTrue(poll.strips.state.value.tiles.isEmpty())
+        assertTrue(poll.discovered.state.value.tiles.isEmpty())
+        assertTrue(poll.refreshState.value.updated)
+    }
+
+    @Test
+    fun `manual failure preserves inventory and retry clears the failure`() = runTest {
+        server.enqueue(MockResponse(body = yandexFixture()))
+        server.enqueue(MockResponse(code = 500, body = "boom"))
+        server.enqueue(MockResponse(body = yandexFixture()))
+        val poll = YandexPoll(server.yandexClient())
+        poll.refresh()
+        val before = poll.discovered.state.value.tiles
+
+        poll.refreshDevices()
+
+        assertEquals(before, poll.discovered.state.value.tiles)
+        assertEquals("Не удалось выполнить запрос", poll.refreshState.value.error)
+        assertFalse(poll.refreshState.value.updated)
+        assertFalse(poll.refreshState.value.refreshing)
+
+        poll.refreshDevices()
+
+        assertTrue(poll.refreshState.value.updated)
+        assertNull(poll.refreshState.value.error)
+    }
+
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    @Test
+    fun `duplicate clicks share one manual refresh and cancellation resets loading`() = runTest {
+        val poll = YandexPoll(server.yandexClient())
+        val first = async { poll.refreshDevices() }
+        runCurrent()
+        assertTrue(poll.refreshState.value.refreshing)
+
+        poll.refreshDevices()
+        server.enqueue(MockResponse(body = yandexFixture()))
+        first.await()
+        assertEquals(1, server.requestCount)
+        assertFalse(poll.refreshState.value.refreshing)
+
+        val cancelled = async { poll.refreshDevices() }
+        runCurrent()
+        cancelled.cancel()
+        cancelled.join()
+        assertFalse(poll.refreshState.value.refreshing)
+        assertFalse(poll.refreshState.value.updated)
+        assertNull(poll.refreshState.value.error)
+    }
+
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    @Test
+    fun `manual refresh during an intercom call sends no request and claims no success`() = runTest {
+        val poll = YandexPoll(server.yandexClient())
+        backgroundScope.launch { poll.polling.run(MutableStateFlow(true), MutableStateFlow(CallState.Active)) }
+        runCurrent()
+
+        poll.refreshDevices()
+
+        assertEquals(0, server.requestCount)
+        assertFalse(poll.refreshState.value.updated)
+        assertFalse(poll.refreshState.value.refreshing)
     }
 
     /** The recorded body with curtain-01's `range` position set to [percent]. */

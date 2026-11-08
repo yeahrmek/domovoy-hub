@@ -295,8 +295,9 @@ private fun Set<SheetAction>.availableToggles(toggles: Map<String, Toggle>): Set
 private fun Set<SheetAction>.availableColor(color: ColorSetting?): Set<SheetAction> = if (color?.instance == "rgb" || color?.scenes?.isNotEmpty() == true) this else this - SheetAction.Color
 
 internal fun colorDescription(color: ColorSetting): String = when (color.instance) {
-    "rgb" -> color.value?.toInt()?.let { "#%06X".format(it) } ?: UNKNOWN
+    "rgb" -> color.value?.toInt()?.let(::rgbLabel) ?: UNKNOWN
     "temperature_k" -> color.value?.toInt()?.let { "$it K" } ?: UNKNOWN
+    "scene" -> color.scene?.let(::capabilityLabel) ?: UNKNOWN
     else -> UNKNOWN
 }
 
@@ -324,4 +325,14 @@ internal fun sheetAge(
             else -> "${age.inWholeDays} дн. назад"
         }
     }
+}
+
+/** Readable colour names accompany the actual swatch; arbitrary RGB stays visually exact. */
+private fun rgbLabel(rgb: Int): String = when (rgb) {
+    0xFF0000 -> "Красный"
+    0x00FF00 -> "Зелёный"
+    0x0000FF -> "Синий"
+    0xFFFFFF -> "Белый"
+    0x000000 -> "Чёрный"
+    else -> "Выбранный цвет"
 }

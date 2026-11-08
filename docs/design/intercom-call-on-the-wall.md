@@ -53,10 +53,10 @@ That is a hypothesis with one supporting measurement and no test.
 
 ## Where it stands
 
-The listener is read-only again. `DomonapCalls` still decides *when* a call screen would go up —
-once per call, on the post that carries the intent, ringing channel only — and nothing acts on it.
-That logic is unit-tested and cost nothing to keep; it is the part of the attempt that survived
-contact with the tablet.
+The listener is read-only. `DomonapCalls` tracks incoming and ongoing notification keys and emits
+`Idle` or `Active`; it neither inspects the full-screen intent nor retains a call-start timestamp.
+The panel pauses polling and closes an open sheet during a call. There is no remaining launch
+eligibility flag or return value; the notification-key state transitions are unit-tested.
 
 The trade is not close. A panel that shows nothing while the intercom rings is a poor wall panel. A
 panel that hangs up on whoever is at the door is a broken intercom, and the intercom is not ours to

@@ -22,13 +22,14 @@ fun LauncherTile(
     modifier: Modifier = Modifier,
     showRoom: Boolean = false,
     onOpen: (String) -> Unit = {},
+    error: String? = null,
 ) {
     // Nothing is read here, so there is no on/off to be in a mood about: the tile sits on the
     // unread step of the ramp unless it cannot do its single job, and a missing app is the only bad
     // news it has — its own, so it takes the red offline mark rather than the group outline. The package
     // name is the reason, which is what the line under the name prints too. See [paint].
     TileCard(
-        anatomy = anatomy(tile),
+        anatomy = anatomy(tile).let { it.copy(detail = error ?: it.detail) },
         paint = paint(tile),
         modifier = modifier,
         format = TileFormat.Launcher,

@@ -49,7 +49,7 @@ class CurtainTilesTest {
         assertEquals("Шторы", tile.name)
         assertEquals("Спальня", tile.room)
         assertEquals(0.0, tile.openPercent)
-        assertEquals("0% · 2 ч назад", statusLine(tile, Instant.ofEpochSecond(lastRead + 2 * 3600)))
+        assertEquals("Последнее: 0%", statusLine(tile, Instant.ofEpochSecond(lastRead + 2 * 3600)))
     }
 
     @Test
@@ -93,7 +93,7 @@ class CurtainTilesTest {
         val tile = curtains.state.value.tiles.single()
         val now = Instant.ofEpochSecond(lastRead + 13 * 3600)
         // The number survives, in small type, with the age that is the whole point of it...
-        assertEquals("0% · 13 ч назад", statusLine(tile, now))
+        assertEquals("Последнее: 0%", statusLine(tile, now))
         // ...and the wall stops saying it at four metres, in either of the two ways it could.
         assertNull(anatomy(tile, now, error = null).promoted)
         assertEquals(TileMood.Unknown, paint(tile, now, null).mood)
@@ -116,7 +116,7 @@ class CurtainTilesTest {
         val now = Instant.ofEpochSecond(lastRead + 300)
         // The percentage the vendor still holds is the stale one, and the tile does not print it.
         assertEquals(0.0, tile.openPercent)
-        assertEquals("3 мин назад", statusLine(tile, now))
+        assertEquals("", statusLine(tile, now))
         assertEquals("100%", anatomy(tile, now, error = null).promoted)
         assertEquals(TileMood.On, paint(tile, now, null).mood)
         assertEquals(TileAction.Close, action(tile, now))
@@ -133,7 +133,7 @@ class CurtainTilesTest {
 
         val tile = curtains.state.value.tiles.single()
         val now = Instant.ofEpochSecond(lastRead + 300)
-        assertEquals("3 мин назад", statusLine(tile, now))
+        assertEquals("", statusLine(tile, now))
         assertEquals(TileMood.Off, paint(tile, now, null).mood)
         assertEquals(TileAction.Open, action(tile, now))
     }
@@ -149,7 +149,7 @@ class CurtainTilesTest {
 
         val tile = curtains.state.value.tiles.single()
         val now = Instant.ofEpochSecond(lastRead + 120)
-        assertEquals("2 мин назад", statusLine(tile, now))
+        assertEquals("", statusLine(tile, now))
         assertEquals("0%", anatomy(tile, now, error = null).promoted)
         assertEquals(TileMood.Off, paint(tile, now, null).mood)
         assertEquals(TileAction.Open, action(tile, now))
@@ -170,7 +170,7 @@ class CurtainTilesTest {
         assertNotNull(after.error)
         assertEquals(before, after.tiles.single())
         val now = Instant.ofEpochSecond(lastRead + 2 * 3600)
-        assertEquals("0% · 2 ч назад", statusLine(after.tiles.single(), now))
+        assertEquals("Последнее: 0%", statusLine(after.tiles.single(), now))
         assertEquals("Не удалось выполнить запрос", anatomy(after.tiles.single(), now, after.error).detail)
     }
 
