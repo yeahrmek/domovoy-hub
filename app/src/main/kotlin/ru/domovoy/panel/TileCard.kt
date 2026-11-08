@@ -6,12 +6,12 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.sizeIn
@@ -53,7 +53,7 @@ internal val MIN_TOUCH = 64.dp
 private val TILE_PADDING = 6.dp
 
 /** Inside the card, on all four sides. One padding, on every tile, whatever its span. */
-private val TILE_CONTENT_PADDING = 20.dp
+private val TILE_CONTENT_PADDING = 16.dp
 
 /** Main controls remain easy to reach while simple cards omit absent content. */
 private val ART_ROW = MIN_TOUCH
@@ -114,25 +114,25 @@ private fun TileBody(
     level: @Composable () -> Unit,
     onAction: () -> Unit,
 ) {
-    Column(modifier = Modifier.fillMaxWidth().padding(TILE_CONTENT_PADDING)) {
+    Column(modifier = Modifier.fillMaxWidth().padding(TILE_CONTENT_PADDING), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(
-            modifier = Modifier.fillMaxWidth().height(ART_ROW),
+            modifier = Modifier.fillMaxWidth().heightIn(min = ART_ROW),
             verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             TileArt(anatomy.art, paint.mood)
-            Spacer(modifier = Modifier.weight(1f))
-
-            Box(modifier = Modifier.touchable(), contentAlignment = Alignment.Center) { toggle() }
-
+            Column(Modifier.weight(1f)) {
+                Text(text = anatomy.name, style = MaterialTheme.typography.titleMedium)
+                if (showRoom) {
+                    Text(
+                        text = anatomy.room ?: "Без комнаты",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+            toggle()
             TileActionButton(anatomy.action, onAction, enabled = !pending)
-        }
-        Text(text = anatomy.name, style = MaterialTheme.typography.titleMedium)
-        if (showRoom) {
-            Text(
-                text = anatomy.room ?: "Без комнаты",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
         }
         PromotedValue(anatomy.promoted ?: "—".takeIf { format == TileFormat.Reading || format == TileFormat.Control })
         if (hasLevel) level()
@@ -173,47 +173,45 @@ private val DEVICE_ART_SIZE = 80.dp
 internal fun TileDeviceArt(
     @DrawableRes art: Int,
     modifier: Modifier = Modifier,
+    active: Boolean = false,
 ) {
-    Image(
-        painter = painterResource(art),
-        contentDescription = null,
-        modifier = modifier.size(DEVICE_ART_SIZE),
-        contentScale = ContentScale.Fit,
-    )
-}
-
-/** Device art keeps its appearance; state adds an accent dot or error-coloured offline glyph. */
-@Composable
-private fun TileArt(
-    @DrawableRes art: Int,
-    mood: TileMood,
-) {
-    Box(modifier = Modifier.size(ART_ROW)) {
-        TileDeviceArt(art, Modifier.size(ART_ROW))
-        when {
-            TileMark.Lit in marks(mood) ->
-                Box(
-                    modifier =
-                    Modifier.align(Alignment.TopEnd).size(MARK_SIZE).clip(CircleShape)
-                        .background(tileAccent()),
-                )
-
-            TileMark.Offline in marks(mood) ->
-                Icon(
-                    painter = painterResource(R.drawable.ic_wifi_off),
-                    contentDescription = null,
-                    modifier = Modifier.align(Alignment.TopEnd).size(MARK_GLYPH_SIZE),
-                    tint = MaterialTheme.colorScheme.error,
-                )
+    Box(modifier = modifier.size(DEVICE_ART_SIZE)) {
+        Image(
+            painter = painterResource(art),
+            contentDescription = null,
+            modifier = Modifier.matchParentSize(),
+            contentScale = ContentScale.Fit,
+        )
+        if (art == R.drawable.device_art_humidifier && active) {
+            HumidifierWorkingEffects(Modifier.matchParentSize())
         }
     }
 }
 
-/** How big the on dot is where it sits on the device art. */
-private val MARK_SIZE = 12.dp
+/** Confirmed power adds a lime dot unless the hardware illustration conveys its state. */
+@Composable
+internal fun TileArt(
+    @DrawableRes art: Int,
+    mood: TileMood,
+    modifier: Modifier = Modifier,
+) {
+    Box(modifier = modifier.size(48.dp)) {
+        TileDeviceArt(art, Modifier.size(48.dp), active = mood == TileMood.On)
+        if (mood == TileMood.On && art != R.drawable.device_art_bulb_on && art != R.drawable.device_art_bulb_off && art != R.drawable.device_art_humidifier) {
+            DeviceOnDot(Modifier.align(Alignment.TopEnd))
+        }
+    }
+}
 
-/** The offline glyph needs more space than the dot for its strike-through to remain legible. */
-private val MARK_GLYPH_SIZE = 28.dp
+/** A light lime centre with a readable edge in either theme. */
+@Composable
+internal fun DeviceOnDot(modifier: Modifier = Modifier) {
+    Box(
+        modifier.size(8.dp)
+            .background(MaterialTheme.colorScheme.primaryFixedDim, CircleShape)
+            .border(1.dp, MaterialTheme.colorScheme.primary, CircleShape),
+    )
+}
 
 /** The secondary button’s visible disc sits inside the reserved control box. */
 private val ACTION_BUTTON_SIZE = 40.dp

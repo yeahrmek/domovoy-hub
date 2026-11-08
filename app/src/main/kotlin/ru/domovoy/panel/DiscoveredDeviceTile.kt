@@ -12,13 +12,22 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
@@ -28,8 +37,10 @@ import ru.domovoy.core.Device
 import ru.domovoy.core.Reading
 import java.time.Instant
 import java.util.Locale
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.minutes
 
-/** Every new type is visible immediately; controls require a dedicated, verified integration. */
+/** Discovered devices show readings and the controls verified for their type. */
 @Composable
 internal fun DiscoveredDeviceTile(
     tile: Device,
@@ -41,10 +52,18 @@ internal fun DiscoveredDeviceTile(
     showRoom: Boolean = false,
     controlledLight: BulbTileState? = null,
     onToggle: () -> Unit = {},
+    onSetMode: (String, String) -> Unit = { _, _ -> },
+    onSetHumidity: (Double) -> Unit = {},
+    polledAt: Instant? = null,
+    interval: Duration = 1.minutes,
     onOpen: () -> Unit,
 ) {
     if (tile.vendorType == "devices.types.sensor.climate") {
         ClimateSensorRow(tile, modifier, showRoom, commandError ?: error, onOpen)
+        return
+    }
+    if (tile.vendorType == "devices.types.humidifier") {
+        HumidifierTile(tile, now, modifier, commandError ?: error, pending, polledAt, interval, onToggle, onSetMode, onSetHumidity, onOpen)
         return
     }
     val readings = discoveredReadings(tile)
@@ -83,6 +102,99 @@ internal fun DiscoveredDeviceTile(
     )
 }
 
+@Composable
+private fun HumidifierTile(
+    tile: Device,
+    now: Instant,
+    modifier: Modifier,
+    error: String?,
+    pending: Boolean,
+    polledAt: Instant?,
+    interval: Duration,
+    onToggle: () -> Unit,
+    onSetMode: (String, String) -> Unit,
+    onSetHumidity: (Double) -> Unit,
+    onOpen: () -> Unit,
+) {
+    var expanded by rememberSaveable(tile.id) { mutableStateOf(false) }
+    val modes = humidifierModes(tile)
+    val paint = paint(tile.onOff?.isOn, ownError = error, groupError = null)
+    HomeDeviceTile(
+        anatomy = TileAnatomy(discoveredArt(tile), null, tile.name, null, "", error, tile.room),
+        paint = paint,
+        polledAt = polledAt,
+        now = now,
+        interval = interval,
+        modifier = modifier,
+        pending = pending,
+        commandError = error,
+        onOpen = onOpen,
+        showValue = false,
+        toggle = {
+            if (canTogglePower(tile)) {
+                TilePowerButton(tile.name, tile.room, tile.onOff?.isOn == true, paint.mood, onToggle, enabled = !pending)
+            }
+        },
+        controls = {
+            ClimateReadings(tile, Modifier.fillMaxWidth(), Arrangement.SpaceBetween) {
+                if (modes.isNotEmpty()) {
+                    IconButton(
+                        onClick = { expanded = !expanded },
+                        modifier = Modifier.size(MIN_TOUCH).semantics {
+                            contentDescription = "${if (expanded) "Скрыть" else "Показать"} уровни: ${tile.name}, ${tile.room ?: "Без комнаты"}"
+                            stateDescription = if (expanded) "Развёрнуто" else "Свёрнуто"
+                        },
+                    ) {
+                        Icon(
+                            painterResource(R.drawable.ic_chevron_right),
+                            contentDescription = null,
+                            modifier = Modifier.size(24.dp).rotate(if (expanded) 270f else 90f),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
+            val target = tile.ranges["humidity"]
+            target?.bounds?.let { bounds ->
+                LevelControl(
+                    id = tile.id,
+                    value = target.value,
+                    bounds = bounds,
+                    onSetValue = onSetHumidity,
+                    enabled = !pending,
+                    label = "Целевая влажность",
+                    unit = "%",
+                    showBounds = false,
+                    prominentValue = true,
+                )
+            }
+            if (expanded) HumidifierModeControls(modes, onSetMode, enabled = !pending)
+        },
+    )
+}
+
+/** Units identify the visible readings; accessibility retains the full measurement names. */
+@Composable
+private fun ClimateReadings(
+    tile: Device,
+    modifier: Modifier = Modifier,
+    arrangement: Arrangement.Horizontal = Arrangement.spacedBy(24.dp),
+    between: @Composable () -> Unit = {},
+) {
+    Row(modifier, horizontalArrangement = arrangement, verticalAlignment = Alignment.CenterVertically) {
+        listOf("temperature", "humidity").forEach { instance ->
+            if (instance == "humidity") between()
+            val property = tile.properties[instance]
+            val value = property?.let { propertyValue(it.value, it.unit) }?.takeUnless { it == "Нет данных" } ?: "—"
+            Text(
+                value,
+                style = MaterialTheme.typography.headlineSmall,
+                modifier = Modifier.semantics { contentDescription = "${propertyLabel(instance)}: $value" },
+            )
+        }
+    }
+}
+
 /** Read-only climate readings share one slim row; smaller containers wrap below the identity. */
 @Composable
 private fun ClimateSensorRow(
@@ -116,16 +228,7 @@ private fun ClimateSensorRow(
             }
             val readings: @Composable () -> Unit = {
                 Row(horizontalArrangement = Arrangement.spacedBy(24.dp), verticalAlignment = Alignment.CenterVertically) {
-                    listOf("temperature", "humidity").forEach { instance ->
-                        Column {
-                            Text(propertyLabel(instance), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            val property = tile.properties[instance]
-                            Text(
-                                property?.let { propertyValue(it.value, it.unit) }?.takeUnless { it == "Нет данных" } ?: "—",
-                                style = MaterialTheme.typography.headlineSmall,
-                            )
-                        }
-                    }
+                    ClimateReadings(tile)
                     if (error != null) {
                         Text("—", color = MaterialTheme.colorScheme.error, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
                     }
@@ -146,9 +249,11 @@ private fun ClimateSensorRow(
     }
 }
 
-/** Power controls a socket or the wardrobe switch's linked lamp; entry devices remain read-only. */
+/** Power and modes follow the device capabilities; entry devices remain read-only. */
 internal fun sheet(tile: Device, now: Instant, error: String?, controlledLight: BulbTileState? = null): TileSheet {
     val light = switchLight(tile, listOfNotNull(controlledLight))
+    val humidity = tile.ranges["humidity"].takeIf { tile.vendorType == "devices.types.humidifier" }
+    val level = humidity?.bounds?.let { SheetLevel(humidity.value ?: it.min, it) }
     val deviceReadings = discoveredReadings(tile).map { SheetReading(it.label, it.value, sheetAge(it.reading, now)) }
     val readings = listOfNotNull(light?.let { SheetReading("Свет гардероба", power(it.isOn), sheetAge(it.lastUpdated, now)) }) +
         deviceReadings
@@ -158,9 +263,16 @@ internal fun sheet(tile: Device, now: Instant, error: String?, controlledLight: 
         room = tile.room,
         art = discoveredArt(tile),
         readings = readings.ifEmpty { listOf(SheetReading("Состояние", "Нет показаний", "Время неизвестно")) },
-        actions = if (canTogglePower(tile) || light != null) setOf(SheetAction.Power) else emptySet(),
+        actions = buildSet {
+            if (canTogglePower(tile) || light != null) add(SheetAction.Power)
+            if (humidifierModes(tile).isNotEmpty()) add(SheetAction.Mode)
+            if (level != null) add(SheetAction.Level)
+        },
         isOn = if (light != null) light.isOn else tile.onOff?.isOn,
-        level = null,
+        level = level,
+        levelLabel = "Целевая влажность",
+        levelUnit = "%",
+        modes = humidifierModes(tile),
         notUpdating = error,
     )
 }
@@ -188,7 +300,8 @@ private fun discoveredReadings(tile: Device): List<DiscoveredReading> = buildLis
     }
     if (!canTogglePower(tile)) tile.onOff?.let { add(DiscoveredReading("Питание", power(it.isOn), it.lastUpdated)) }
     tile.ranges.forEach { (instance, range) ->
-        add(DiscoveredReading(propertyLabel(instance), propertyValue(range.value, range.unit), range.lastUpdated))
+        val label = if (instance == "humidity" && tile.vendorType == "devices.types.humidifier") "Целевая влажность" else propertyLabel(instance)
+        add(DiscoveredReading(label, propertyValue(range.value, range.unit), range.lastUpdated))
     }
     tile.modes.forEach { (instance, mode) ->
         add(DiscoveredReading(capabilityLabel(instance), mode.current?.let(::capabilityLabel) ?: "Нет данных", mode.lastUpdated))

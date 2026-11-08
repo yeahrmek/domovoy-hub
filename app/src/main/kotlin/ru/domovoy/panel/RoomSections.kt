@@ -179,7 +179,7 @@ internal fun sectionFailures(section: RoomSection, errors: GroupErrors): List<St
     errors.strips?.takeIf { section.strips.isNotEmpty() }?.let { "Подсветка" to it },
     errors.recuperators?.takeIf { section.recuperators.isNotEmpty() }?.let { "Бризеры" to it },
     errors.bulbs?.takeIf { section.bulbs.isNotEmpty() }?.let { "Свет" to it },
-    errors.discovered?.takeIf { section.discovered.isNotEmpty() }?.let { "Устройства Яндекса" to it },
+    errors.discovered?.takeIf { section.discovered.any { it.id !in errors.localDiscovered } }?.let { "Устройства Яндекса" to it },
 ).groupBy({ it.second }, { it.first }).map { (reason, groups) ->
     "${groups.joinToString(", ")}: нет обновления — $reason"
 }

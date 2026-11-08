@@ -84,7 +84,7 @@ internal fun HomeDeviceTile(
             val inlineValue = horizontalValue && effectiveWidth >= 500.dp
             val heading: @Composable () -> Unit = {
                 Row(Modifier.fillMaxWidth().heightIn(min = MIN_TOUCH).then(if (headerOpensOnly) openAction else Modifier), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    TileDeviceArt(anatomy.art, Modifier.size(48.dp).testTag("device-art"))
+                    TileArt(anatomy.art, if (failing || pending) TileMood.Unknown else paint.mood, Modifier.testTag("device-art"))
                     Column(Modifier.weight(1f)) {
                         Text(anatomy.name, style = MaterialTheme.typography.titleMedium)
                         Text(anatomy.room ?: "Без комнаты", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)

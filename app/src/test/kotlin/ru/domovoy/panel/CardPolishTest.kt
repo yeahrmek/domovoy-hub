@@ -37,10 +37,12 @@ class CardPolishTest {
     val compose = createComposeRule()
 
     @Test
-    fun `home light keeps its setting label without printing the range`() {
+    fun `home light identifies brightness with an icon and retains its accessible control`() {
         panel()
         val home = hasAnyAncestor(hasContentDescription("Настроить: Лента, Коридор")) and hasAnyAncestor(hasTestTag("section:Главная"))
-        compose.onNode(hasText("Яркость") and home, useUnmergedTree = true).assertIsDisplayed()
+        compose.onNode(hasTestTag("level-label-icon") and home, useUnmergedTree = true).assertIsDisplayed()
+        compose.onNode(hasContentDescription("Яркость") and home).assertIsDisplayed()
+        compose.onNode(hasText("Яркость") and home, useUnmergedTree = true).assertDoesNotExist()
         compose.onNode(hasText("60%") and home, useUnmergedTree = true).assertIsDisplayed()
         compose.onNode(hasText("1–100 %") and home, useUnmergedTree = true).assertDoesNotExist()
     }

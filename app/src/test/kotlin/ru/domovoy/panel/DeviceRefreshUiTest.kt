@@ -10,6 +10,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
@@ -52,12 +53,13 @@ class DeviceRefreshUiTest {
                 )
             }
         }
-        compose.onNodeWithText("Обновить устройства").assertIsDisplayed().performClick()
-        compose.onNodeWithText("Обновляем устройства…").assertIsNotEnabled()
+        compose.onNodeWithContentDescription("Обновить устройства").assertIsDisplayed().performClick()
+        compose.onNodeWithContentDescription("Обновляем устройства…").assertIsNotEnabled()
+        compose.onNodeWithText("Обновить устройства").assertDoesNotExist()
         assertEquals(1, clicks)
         state = DeviceRefreshState(error = "Нет связи")
         compose.onNodeWithText("Не удалось обновить устройства: Нет связи. Нажмите ещё раз.").assertIsDisplayed()
-        compose.onNodeWithText("Обновить устройства").performClick()
+        compose.onNodeWithContentDescription("Обновить устройства").performClick()
         assertEquals(2, clicks)
         state = DeviceRefreshState(updated = true)
         compose.onNodeWithText("Устройства обновлены").assertIsDisplayed()
@@ -85,8 +87,8 @@ class DeviceRefreshUiTest {
                 }
             }
         }
-        compose.onNodeWithText(if (dark) "Обновляем устройства…" else "Обновить устройства").assertIsDisplayed()
-        compose.onNodeWithText("Домофон").assertIsDisplayed()
+        compose.onNodeWithContentDescription(if (dark) "Обновляем устройства…" else "Обновить устройства").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Открыть домофон").assertIsDisplayed()
         compose.onNodeWithText("Комнаты").assertIsDisplayed()
         compose.onRoot().captureRoboImage("build/outputs/device-refresh/$name.png")
     }

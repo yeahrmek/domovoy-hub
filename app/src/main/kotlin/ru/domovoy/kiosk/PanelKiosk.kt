@@ -17,14 +17,25 @@ import ru.domovoy.MainActivity
 import ru.domovoy.integrations.domonap.CallState
 import ru.domovoy.integrations.domonap.DomonapCallListener
 import ru.domovoy.integrations.domonap.domonapCalls
+import ru.domovoy.integrations.xiaomi.MI_HOME_PACKAGE
+import ru.domovoy.integrations.xiaomi.miHomeDeviceIntent
 import ru.domovoy.openVendorApp
 
-private const val DOMONAP = "com.domonap.app"
-private const val XIAOMI = "com.xiaomi.smarthome"
+/** The household apps available without leaving protection. */
+internal val kioskApps = mapOf(
+    "com.domonap.app" to "Domonap",
+    "com.xiaomi.smarthome" to "Mi Home",
+    "com.openai.chatgpt" to "ChatGPT",
+    "com.google.android.apps.bard" to "Gemini",
+    "com.sec.android.app.camera" to "Камера",
+    "org.amnezia.vpn.family" to "Amnezia VPN",
+    "com.sec.android.gallery3d" to "Галерея",
+)
 
 internal data class KioskState(
     val enabled: Boolean = false,
     val locked: Boolean = false,
+    val deviceOwner: Boolean = false,
     val problem: String? = null,
     val error: String? = null,
 )
@@ -39,6 +50,7 @@ internal class PanelKiosk(
     private val dpm = activity.getSystemService(DevicePolicyManager::class.java)
     private val keyguard = activity.getSystemService(KeyguardManager::class.java)
     private val admin = ComponentName(activity, PanelDeviceAdmin::class.java)
+    private val allowedPackages = (listOf(activity.packageName, "com.google.android.googlequicksearchbox") + kioskApps.keys).toTypedArray()
     private val preferences = activity.getSharedPreferences("panel-kiosk", Activity.MODE_PRIVATE)
     private val mutableState = MutableStateFlow(KioskState(enabled = preferences.getBoolean("enabled", false)))
     val state = mutableState.asStateFlow()
@@ -51,12 +63,12 @@ internal class PanelKiosk(
         foreground = true
         // Android can create a separate Home task. Another panel task may have exited protection.
         mutableState.value = state.value.copy(enabled = preferences.getBoolean("enabled", false))
-        // Returning Home also revokes a previous vendor session, including after process death.
+        // Restore the same household allowlist after returning Home or process death.
         if (state.value.enabled) {
             attempt {
                 if (callActive()) {
-                    // Home must revoke Xiaomi even during a call; Domonap stays allowed.
-                    dpm.setLockTaskPackages(admin, arrayOf(activity.packageName, DOMONAP))
+                    // Restore allowed packages without taking the foreground away from the call.
+                    dpm.setLockTaskPackages(admin, allowedPackages)
                 } else {
                     check(availabilityProblem() == null) { "Настройки защиты изменились" }
                     applyPolicy()
@@ -79,6 +91,7 @@ internal class PanelKiosk(
     fun refresh() {
         mutableState.value = state.value.copy(
             locked = activity.getSystemService(ActivityManager::class.java).lockTaskModeState == ActivityManager.LOCK_TASK_MODE_LOCKED,
+            deviceOwner = dpm.isDeviceOwnerApp(activity.packageName),
             problem = availabilityProblem(),
         )
     }
@@ -132,30 +145,65 @@ internal class PanelKiosk(
         }
     }
 
+    @Suppress("DEPRECATION")
+    fun removeOwner() {
+        authorize("Снять управление планшетом") { failure ->
+            if (failure != null) {
+                mutableState.value = state.value.copy(error = failure)
+            } else {
+                attempt {
+                    check(dpm.isDeviceOwnerApp(activity.packageName)) { "Панель уже не управляет планшетом" }
+                    releasePolicy()
+                    dpm.getUserRestrictions(admin).keySet().toList().forEach { dpm.clearUserRestriction(admin, it) }
+                    check(dpm.getUserRestrictions(admin).isEmpty) { "Не удалось снять ограничения управления" }
+                    // Persist the ordinary mode before giving up the privileges needed to restore it.
+                    check(preferences.edit().putBoolean("enabled", false).commit()) { "Не удалось сохранить отключение защиты" }
+                    mutableState.value = state.value.copy(enabled = false)
+                    dpm.clearDeviceOwnerApp(activity.packageName)
+                    check(!dpm.isDeviceOwnerApp(activity.packageName)) { "Права управления остались активны" }
+                    // Android finishes disabling the admin through an asynchronous ordered broadcast.
+                    activity.startActivity(Intent(Settings.ACTION_HOME_SETTINGS))
+                }
+            }
+            refresh()
+        }
+    }
+
     fun openApp(packageName: String, result: (String?) -> Unit) {
-        if (packageName != DOMONAP && packageName != XIAOMI) {
+        openApp(packageName, result) { openVendorApp(activity, packageName) }
+    }
+
+    fun openVacuum(deviceId: String, result: (String?) -> Unit) {
+        openApp(MI_HOME_PACKAGE, result) {
+            if (deviceId.isBlank()) {
+                "Пылесос не настроен. Откройте Mi Home через меню «Защита»."
+            } else {
+                activity.startActivity(miHomeDeviceIntent(deviceId))
+                null
+            }
+        }
+    }
+
+    private fun openApp(packageName: String, result: (String?) -> Unit, launch: () -> String?) {
+        if (packageName !in kioskApps) {
             result("Приложение не разрешено")
             return
         }
-        authorize("Открыть приложение") { failure ->
-            if (failure != null) {
-                result(failure)
-            } else {
-                var error: String? = null
-                try {
-                    if (state.value.enabled) {
-                        check(availabilityProblem() == null) { "Защита панели недоступна" }
-                        dpm.setLockTaskPackages(admin, arrayOf(activity.packageName, DOMONAP, packageName).distinct().toTypedArray())
-                    }
-                    error = openVendorApp(activity, packageName)
-                } catch (failure: Exception) {
-                    Log.w("PanelKiosk", "vendor launch failed", failure)
-                    error = "Не удалось открыть приложение"
-                }
-                if (error != null && state.value.enabled) attempt { applyPolicy() }
-                result(error)
-            }
+        if (destroyed || !foreground || callActive() || keyguard.isKeyguardLocked) {
+            result("Сейчас приложение недоступно. Повторите после звонка или разблокировки планшета.")
+            return
         }
+        val error = try {
+            if (state.value.enabled) {
+                check(availabilityProblem() == null) { "Защита панели недоступна" }
+                dpm.setLockTaskPackages(admin, allowedPackages)
+            }
+            launch()
+        } catch (failure: Exception) {
+            Log.w("PanelKiosk", "vendor launch failed", failure)
+            "Не удалось открыть приложение"
+        }
+        result(error)
     }
 
     fun onCallStarted() {
@@ -228,7 +276,7 @@ internal class PanelKiosk(
                 DevicePolicyManager.LOCK_TASK_FEATURE_KEYGUARD or DevicePolicyManager.LOCK_TASK_FEATURE_GLOBAL_ACTIONS or
                 DevicePolicyManager.LOCK_TASK_FEATURE_BLOCK_ACTIVITY_START_IN_TASK,
         )
-        dpm.setLockTaskPackages(admin, arrayOf(activity.packageName, DOMONAP))
+        dpm.setLockTaskPackages(admin, allowedPackages)
         val home = IntentFilter(Intent.ACTION_MAIN).apply {
             addCategory(Intent.CATEGORY_HOME)
             addCategory(Intent.CATEGORY_DEFAULT)
@@ -241,6 +289,9 @@ internal class PanelKiosk(
         if (dpm.isDeviceOwnerApp(activity.packageName)) {
             dpm.clearPackagePersistentPreferredActivities(admin, activity.packageName)
             dpm.setLockTaskPackages(admin, emptyArray())
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                dpm.setLockTaskFeatures(admin, DevicePolicyManager.LOCK_TASK_FEATURE_NONE)
+            }
         }
     }
 

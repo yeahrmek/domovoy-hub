@@ -7,6 +7,267 @@ the guesses further down wherever they disagree. **No Domonap endpoint has been 
 below about the *backend* comes from a third-party Home Assistant integration, not from Domonap. Do
 not invent endpoints on top of it.
 
+## Tablet update and silent ringtone diagnosis (2026-11-08)
+
+After a physical call showed notification buttons without sound or video, the installed base APK
+was checked against the retained builds: it was still the portrait-only modification, without the
+automatic-preview hook. The five production APKs in
+`.toolchain/domonap-autovideo-20261031/candidate-signed/` were verified against their recorded hashes,
+signatures and alignment, then installed in place while no call service was active. The installed
+base hash matches the auto-preview candidate; application data was retained. The offline probe APK
+was not installed.
+
+The tablet's internal and external ringer modes were both `SILENT`, with `STREAM_RING` muted and DND
+off. Static inspection of `RingtoneUtils.start()` confirms that Domonap skips ringtone playback in
+silent/vibrate mode. It uses `STREAM_RING` and does not set its volume to maximum. The system sound
+setting was changed to Sound, then ring volume set to 15/15. Read-back confirms `NORMAL`, an unmuted
+ring stream and speaker routing. The panel was returned to the foreground.
+
+The preview's 11 JVM behavior checks, independent DEX comparison, project unit tests and
+`ktlintCheck` passed. Physical calls confirmed audible ringing and automatic screen opening; the
+video and answer failures from the repeat test are recorded below. Two-way audio after manual
+answer and ordinary end/reject behavior remain unverified. The retained scratch directory above holds
+the candidate, rollback references and private diagnostic evidence; keep it until physical validation
+and rollback are no longer needed. The narrow ringtone decompilation is in `lifecycle/RingtoneUtils.java`.
+A UI dump was written to `/sdcard/window.xml` on the tablet during diagnosis; it was retained because
+prior ownership of that conventional path was not established. No physical call was observed in the
+90-second post-update capture; the empty-call capture and disposable settings screenshot were removed.
+
+### Physical repeat: sound and preview work, live video and answer do not
+
+The user repeated the call with the tablet in hand, disconnected from USB. Audible ringing and the
+video screen appeared, but the image seemed frozen and Answer was grey. Open Door and close were
+available; the user manually pressed Open Door and confirmed that it worked. No answer or door
+action was automated. Live motion and two-way audio were not confirmed.
+
+The detached five-minute recorder's log was retrieved from
+`/data/local/tmp/domovoy-call-20261108T162458Z/logcat.txt` after USB reconnection. The retained local
+capture directory is `.toolchain/domonap-autovideo-20261031/captures/20261108T162458Z/`; it contains
+`device-logcat.txt`, the fuller `reconnected-logcat.txt`, network/audio snapshots, recorder metadata
+and the sanitized `review.json`. Keep the private evidence until diagnosis is complete; deletion of
+the tablet-side log still needs authorization.
+
+The repeat-call log, in Moscow time, establishes:
+
+- 19:28:53.716: native ringtone playback started; 19:28:53.890: automatic preview requested.
+- 19:29:03.746: SignalR's `OkHttpWebSocketWrapper` timed out during the TLS handshake.
+- 19:29:09.676: WebRTC's renderer reported **0 received, 0 rendered frames** over four seconds.
+- 19:29:11.469: native SIP teardown was observed after the user's door action.
+
+Static inspection explains Answer's disabled state: `LiveLayerState.isAnswerAvailable` follows
+`IncomingCallViewState.isSipConnected`, which the ViewModel sets after `SipRegState.Ok`. This is
+SIP account registration readiness, not proof of an answered voice call. The normal preview intent
+does not set a preview-only restriction, and the hook uses that same intent. Do not force-enable
+Answer or infer a SIP failure merely from the normal Telecom `LOCAL` handoff.
+
+The video layout keeps `PreviewImage` over the WebRTC renderer while the live stream is loading.
+`initPushData` enables the preview layer when either a live-stream URL or a preview-image URL is
+present. Thus the user's visible frozen image is consistent with a static preview awaiting video,
+not evidence that a previously running video stream froze. Narrow decompilations supporting these
+findings are retained under the existing `lifecycle/` scratch directory (`LiveLayerState.java`,
+`VideoLayerState.java`, `VideoLayerKt.java`, `WebRTCPlayerHelper.java`, `SipCallProvider.java` and
+`WebRtcRepository.java`); retain them with the private capture until this diagnosis is resolved.
+
+The SignalR timeout is not itself a WHEP/video or SIP error: the preview uses WHEP over HTTP, while
+Linphone's SIP transport is TCP. Logs do not yet establish the root cause of either missing media
+or missing SIP readiness. At reconnection, Domonap's UID was included in the active Amnezia VPN's
+ranges. ### Direct-network repeat: video and answer readiness recovered
+
+The user authorized a controlled repeat without VPN. Amnezia was disconnected using its normal
+button; a connectivity snapshot confirmed no active VPN transport. The Domonap APK and audio
+settings were unchanged. The user repeated a real call with the tablet disconnected from USB.
+At 19:39:40.083 the preview opened; at 19:39:45.019 the WebRTC renderer reported **10 received and
+10 rendered frames** over four seconds, versus zero in the previous VPN test. The user confirmed
+working video, an active Answer button and clearly audible sound on the tablet. Audio at the
+intercom was probably audible according to the user, but was not confidently confirmed.
+
+This comparison implicates the prior VPN path for video and SIP-readiness failures on this tablet;
+it does not identify the exact failed protocol/hop or establish that every VPN would fail. After
+confirming no active call service, Amnezia was reconnected using the normal button. Connectivity
+read-back confirmed an active, validated VPN transport. Existing split tunneling is enabled in
+Directly mode. The user subsequently authorized a permanent bypass for **only `com.domonap.app`**.
+After the user finished their own sound settings, VPN was briefly disconnected because Amnezia
+locks editing while connected. Domonap was added through the installed-app picker in Directly mode,
+then VPN was reconnected. The saved list showed Domonap. System connectivity read-back confirmed an
+active, validated VPN and exclusion of Domonap's application UID plus its paired SDK-sandbox UID;
+all other application UID routes matched the pre-change ranges. Android maps an app UID to its
+[paired SDK-sandbox UID](https://android.googlesource.com/platform/frameworks/base/+/HEAD/core/java/android/os/Process.java),
+so that additional system range change does not represent another selected application.
+The panel was returned to the foreground. A fresh physical call with VPN enabled and this final
+exclusion has not been made; the preceding direct-network call confirmed video and answer readiness.
+
+The five-minute on-device log was retrieved from
+`/data/local/tmp/domovoy-direct-20261108T163745Z/logcat.txt`; local metadata, direct/restored-network
+snapshots, app log, sanitized `review.json` and `exclusion-review.json` are in
+`captures/direct-20261108T163745Z/` under the
+same task scratch directory. Retain the private evidence until the routing fix is validated and
+rollback is unnecessary; tablet-side deletion requires separate authorization.
+
+### Call with VPN plus exclusion: media recovered, quiet uplink remains
+
+The user made further physical calls with VPN enabled and Domonap excluded. Video and the door
+button worked. Tablet playback volume was normal, but sound quality was poor. Speech from the
+tablet was extremely quiet at the intercom; moving to 10–15 cm from the tablet did not make it
+noticeably louder. This supersedes the earlier uncertainty about the reverse audio direction.
+
+In the captured repeat, WebRTC received/rendered 10 frames over four seconds. Eight snapshots
+during active Domonap recording show `VOICE_COMMUNICATION`, 48 kHz mono PCM, `silenced:false`, and
+**`MODE_NORMAL`**, with no communication-mode owner. Hardware AEC is listed for the recording;
+the vendor's disabled Linphone echo-cancellation flag therefore does not establish that all AEC
+is absent. The earlier call's HAL log selected `rec-sub-mic`; that label alone does not prove a
+blocked physical microphone or establish the cause of the quiet uplink.
+
+Static inspection identified a packaging defect: the installed production APK lacks class
+definitions for `androidx.media.AudioAttributesCompat`, `AudioFocusRequestCompat` and
+`AudioManagerCompat` in every DEX; the split APKs contain no DEX. Linphone's
+`AndroidPlatformHelper.isAndroidXMediaAvailable()` checks those classes, so it cannot create its
+`AudioHelper`. The call-state callback returns immediately without that helper. Normally, after
+`StreamsRunning`, the helper requests voice-call audio focus and sets `MODE_IN_COMMUNICATION`,
+then restores normal mode when the call ends. The missing optional dependency explains the absent
+mode/focus path; whether repairing it resolves quiet uplink and poor sound requires a physical
+comparison. The matching upstream [Linphone implementation](https://github.com/BelledonneCommunications/liblinphone/blob/master/wrappers/java/classes/org/linphone/core/tools/AndroidPlatformHelper.java)
+documents the same class checks.
+
+The user authorized adding the missing dependency and installing an update. AndroidX Media 1.7.1
+was downloaded from official Google Maven, together with the required Core 1.6.0,
+VersionedParcelable 1.1.1 and annotation 1.2.0 artifacts. `audio-fix/build_media_fix.py` takes the
+transitive class closure of the three audio entry points, excluding existing definitions. D8 adds
+30 official AndroidX classes in a new `classes5.dex` (23,192 bytes). Every original non-signature APK
+entry, including all four existing DEX files, manifest, resources and native libraries, is
+byte-identical to the installed auto-preview baseline. All four splits are unchanged. No gain or
+echo-processing setting was changed.
+
+A separate instrumentation fixture on the offline Android 13 emulator exercises the **real bundled
+Linphone `AudioHelper`**, initializing its native factory but creating no call. It first failed on
+the baseline with `NoClassDefFoundError: AudioAttributesCompat$Builder`. With the new dependency it
+passed: voice/speech transient audio focus, actual `MODE_IN_COMMUNICATION` owned by Domonap in
+Android's dump, then cleared focus and restored `MODE_NORMAL` on release. The fixture is separate
+from the production APK and was installed only on the emulator. The emulator was shut down after
+verification without wiping its existing AVD. The preview's 11 JVM checks, project unit tests
+(708 cases) and `ktlintCheck` also passed.
+
+All five update APK signatures, matching update certificate and ZIP alignment were verified.
+After checking no call service was active, the update was installed in place on the Samsung tablet;
+the installed base hash matches `audio-fix/candidate-signed/base.apk`. Application data was retained
+and the panel was returned to the foreground. This validates packaging and the restored SDK audio
+path on the emulator, **not yet improved physical intercom microphone loudness or sound quality**.
+A new real call must verify conversation mode during speech, voice volume in both directions,
+sound quality, ordinary ringtone and end/reject cleanup. The prior auto-preview APK set remains the
+same-certificate rollback; do not uninstall Domonap.
+
+Build inputs, the reproducible builder, production APKs, `build-report.json`, emulator red/green
+evidence and `tablet-installation.json` are retained under the existing task directory's `audio-fix/`.
+Keep them until real-call validation and rollback are no longer needed. Disposable unsigned/aligned
+build APKs and derived D8 inputs were removed after installation; no tablet-side evidence was deleted.
+
+After installation, the tablet's active VPN and Domonap bypass were read back successfully, and
+the package was not stopped. A new five-minute on-device audio/log recorder was armed for the first
+physical call after the repair. Recorder metadata is in
+`.toolchain/domonap-autovideo-20261031/captures/audio-fixed-20261108T172208Z/metadata.json`; tablet-side
+files are under `/data/local/tmp/domovoy-audio-fixed-20261108T172208Z/`. Retrieve them after the user's
+next USB reconnection and retain until voice-quality validation is complete and deletion is authorized.
+
+### Physical audio-mode validation and microphone gain step
+
+The user reported that sound improved after the audio dependency update and requested louder
+speech at the intercom. The real-call capture confirms `MODE_IN_COMMUNICATION` throughout ten active
+Domonap microphone snapshots and a HAL route change from `rec-sub-mic` to
+`voip-comm-speaker-mic`/`voip-comm-speaker`; mode returned to normal at call end. Evidence and the
+compressed full audio snapshots are retained in `captures/audio-fixed-20261108T172208Z/`.
+
+There is no useful unbounded software "maximum": `Call.setMicrophoneVolumeGain` accepts 0–1,
+while `Core.setMicGainDb` has no safe hard maximum. The bundled SDK's native component is
+`5.4.42-3-g4781e2b5c`, matching SDK 5.4.43. Its exact
+[MediaStreamer volume implementation](https://github.com/BelledonneCommunications/mediastreamer2/blob/ee9c75ada4d9fac61d7d4bff4046e88799d7dada/src/audiofilters/msvolume.c#L262)
+uses `pow(10, db/10)` followed by int16 saturation. Therefore a gain value of `3.0` is approximately
+twice the PCM amplitude in this version; do not describe `6.0` as a twofold amplitude change.
+That does not guarantee twofold perceived loudness or absence of clipping.
+
+The next update adds only `Core.setMicGainDb(3.0f)` at the end of vendor
+`SipCallProvider.configureAudio(Core)`. An independent semantic DEX comparison checked 9,258 classes
+and 54,701 methods: the only behavior change is this constant plus interface invocation, exactly
+five code units. All other payload entries and splits are byte-identical to the audio dependency
+build; gain, not speaker volume, is the intended change. Echo processing, AGC and video parameters
+were not changed. The original preview verifier still passes after adding microphone-patch support
+to the common verifier.
+
+A separate offline emulator instrumentation test invokes the real vendor configuration method on
+a real unstarted native Core through the application's actual ContextProvider. Baseline gain was
+0.0 and failed the desired-value check; the candidate returned 3.0 while preserving the other
+configuration behavior. The real AudioHelper focus/mode regression also passed against the same
+candidate. No test account or call was created. The emulator was stopped after testing. Project
+unit tests and `ktlintCheck` passed.
+
+The microphone-gain update was installed in place, its installed base hash verified, and the panel
+returned to the foreground. VPN remained active with Domonap excluded. Current production APKs,
+the builder, semantic verification, signature hashes and installation evidence are under
+`audio-fix/microphone-gain/`; the immediately preceding `audio-fix/candidate-signed/` is the rollback.
+Real-call gain adequacy, clipping and echo remain to be checked by the user.
+
+The user confirmed that video stutters during the answered conversation; the pre-answer stage was
+not observed carefully. Answered video uses SIP rather than the WebRTC preview. Aggregate Android
+UI stats alone do not measure SIP input frame rate or prove the cause of a video stall. A five-minute
+on-device recording was armed at `/data/local/tmp/domovoy-mic-gain-20261108T173752Z/`, with audio/log
+capture and low-frequency UI rendering/CPU/SurfaceFlinger latency snapshots. Local metadata is in
+`captures/mic-gain-20261108T173752Z/`; retrieve the private device files after USB reconnection. No
+video smoothness fix is claimed yet. Keep new build/test/capture evidence until physical validation
+and rollback are unnecessary; tablet-side deletion still requires authorization.
+
+### Automatic end near one minute: vendor watchdog and bounded conversation fix
+
+The user reported much better video with small remaining stalls, followed by an unrequested end;
+their son saw the picture freeze. The captured preview started at 20:38:59.085, conversation mode
+began at 20:39:02.271, and audio/video teardown began around 20:39:59.691. The app was not killed
+and no crash, ANR or Wi-Fi loss was observed. UI rendering continued through the last pre-end
+sample; these UI counters do not establish whether new SIP video frames were arriving.
+
+Static inspection found an explicit local `EndCallTimer`: the service starts a 60,000 ms
+`CountDownTimer`, the SIP CONNECTED observer restarts it, and `onFinish()` unconditionally requests
+`stopCallService()`. Answering did not remove the one-minute cap. The observed timing closely matches
+this watchdog, but the old build did not log expiry, so this capture alone does not establish that
+the timer, rather than a concurrent remote/native event, caused this particular end. The bundled
+native SDK defaults are different: incoming timeout 45 seconds, total in-call limit 0 and no-RTP
+timeout 30 seconds.
+
+The local update selects 60,000 ms while unanswered and 300,000 ms after the user has accepted the
+call. Manual answer rearms the timer after setting the accepted flag, so a missed CONNECTED event
+cannot leave the original ringing deadline in place. The existing CONNECTED restart and normal
+service-destruction cancellation remain. Safe `DomonapCallTimer` markers record the selected deadline
+and local expiry without caller data. This changes three vendor methods: the countdown constructor,
+its expiry log and manual answer rearming; the independent DEX verifier checked all other methods
+and metadata and all non-DEX payloads stayed byte-identical to the microphone-gain baseline.
+
+Offline instrumentation on the real vendor timer first reproduced answered duration 60,000 ms,
+then confirmed 300,000 ms after acceptance, cancellation of replaced timers, clearing on cancel and
+60,000 ms for the next unanswered call. Audio focus/mode and microphone-gain regressions passed
+against the same final APK, as did project unit tests and `ktlintCheck`. The emulator's temporary
+test-only hidden-API policy override was restored to its original value and the emulator stopped.
+Production permissions and manifest were not changed.
+
+The update was installed in place and the installed hash verified. Current production files and
+installation/semantic verification evidence are under `audio-fix/call-timeout/`; the preceding
+`audio-fix/microphone-gain/candidate-signed/` set is the rollback. A physical answered call beyond
+70–90 seconds is still pending; this update does not prove that any remote timeout or video stall
+is resolved. A five-minute recorder with the timer markers was armed at
+`/data/local/tmp/domovoy-call-timeout-20261108T175454Z/`, with metadata in local
+`captures/call-timeout-20261108T175454Z/`. Prior end/performance evidence is in
+`captures/mic-gain-20261108T173752Z/`. Keep the private captures and these build/test inputs until
+physical validation and rollback are unnecessary; remote deletion requires authorization.
+
+The user subsequently confirmed that microphone loudness and speech quality are satisfactory,
+without reported distortion or echo. Keep the gain3.0 configuration. The long-call test was
+explicitly deferred to **2026-11-09**; call stability beyond one minute and any remaining SIP video
+stalls are still unverified. No further tablet changes are needed before that test. The current
+recorders are bounded to five minutes; arm a fresh capture when the user is ready tomorrow.
+
+Private evidence is in `.toolchain/domonap-autovideo-20261031/captures/audio-20261108T170423Z/`:
+`review.json`, `device-logcat.txt`, `prior-call-logcat.txt`, audio/policy baselines, and the complete
+compressed `audio-snapshots.txt.gz`. The tablet-side recorder files are under
+`/data/local/tmp/domovoy-audio-20261108T170423Z/`; keep them until this diagnosis is resolved and
+deletion is authorized. Supporting narrow decompilations are in the existing `lifecycle/`
+directory: `AudioRouteUtils.java`, `IncomingCallScreenKt.java`, `AndroidPlatformHelper.java` and
+`AudioHelper.java`. Local and tablet captures contain diagnostics, not a recording of the speech.
+
 ## APK investigation and preview candidate (2026-10-31)
 
 Static inspection of Domonap **9852** changes the interpretation of the earlier call capture:
@@ -31,9 +292,9 @@ normal `LOCAL` handoff. No additional background-launch permission was needed in
 The synthetic fixture had no SIP credentials or live video URL, so this is **not** a real-call
 video/audio result or proof of Samsung background behavior.
 
-The tablet has the earlier **portrait-only** APK modification installed, with the welcome screen
-physically verified as full-height. The new automatic-preview candidate is **prepared, not installed
-on the tablet**; the user deferred the real call test. Local ignored artifacts, the deliverable
+At that time the tablet had the earlier **portrait-only** APK modification installed, with the welcome screen
+physically verified as full-height. The new automatic-preview candidate was **prepared, not installed
+on the tablet**; the user deferred the real call test. The update on 2026-11-08 is recorded above. Local ignored artifacts, the deliverable
 five-APK archive, and a read-only capture script are under
 `.toolchain/domonap-autovideo-20261031/`. The candidate has the same local signing certificate as the
 installed portrait build and can be updated in place; do not uninstall it for this update.
@@ -69,9 +330,10 @@ aapt2 dump xmltree base.apk --file AndroidManifest.xml
 | `telecom_missed_channel3` | Уведомление | 3 (DEFAULT) | default |
 
 The incoming channel is `mImportance=5`, `mBypassDnd=false`, `mSound=null`, `mAudioAttributes=null`.
-Sound being null means **the ringtone is not the channel's** — it is played by the app/Telecom. So
-the "maximum volume" part of the takeover is already Domonap's, and the panel must not touch audio
-streams to try to help.
+Sound being null means **the ringtone is not the channel's** — it is played by the app/Telecom.
+Domonap respects the system ringer mode and volume; it does not guarantee maximum volume. The panel
+leaves playback to Domonap. The tablet needs Sound mode and a suitable ring volume; see the
+2026-11-08 diagnosis above.
 
 **The call is a real Telecom call, not just a notification.** `dumpsys telecom` shows a registered
 self-managed phone account:

@@ -10,6 +10,17 @@ import kotlin.test.assertTrue
  */
 class TokenStoreTest {
     @Test
+    fun `Xiaomi LAN credentials persist without overwriting a stored configuration`() {
+        val prefs = FakeSharedPreferences()
+        val store = TokenStore(prefs)
+        store.seedXiaomiLanDevices(" ")
+        assertEquals("", store.xiaomiLanDevices())
+        store.seedXiaomiLanDevices("[{\"id\":\"new-config\"}]")
+        TokenStore(prefs).seedXiaomiLanDevices("[{\"id\":\"old-apk-config\"}]")
+        assertEquals("[{\"id\":\"new-config\"}]", TokenStore(prefs).xiaomiLanDevices())
+    }
+
+    @Test
     fun `a token written to the store reads back`() {
         val store = TokenStore(FakeSharedPreferences())
 

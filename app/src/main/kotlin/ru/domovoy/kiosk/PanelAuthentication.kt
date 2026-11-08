@@ -2,7 +2,6 @@ package ru.domovoy.kiosk
 
 import android.app.Activity
 import android.app.KeyguardManager
-import android.hardware.biometrics.BiometricManager.Authenticators.BIOMETRIC_STRONG
 import android.hardware.biometrics.BiometricManager.Authenticators.DEVICE_CREDENTIAL
 import android.hardware.biometrics.BiometricPrompt
 import android.os.Build
@@ -13,7 +12,7 @@ import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.withResumed
 import kotlinx.coroutines.launch
 
-/** The system owns PIN verification, biometric enrollment and failed-attempt limits. */
+/** Android verifies the screen-lock credential and limits failed attempts. */
 internal class PanelAuthentication(private val activity: ComponentActivity) {
     private var cancellation: CancellationSignal? = null
     private var generation = 0
@@ -39,7 +38,7 @@ internal class PanelAuthentication(private val activity: ComponentActivity) {
             cancellation = signal
             BiometricPrompt.Builder(activity)
                 .setTitle(title)
-                .setAllowedAuthenticators(BIOMETRIC_STRONG or DEVICE_CREDENTIAL)
+                .setAllowedAuthenticators(DEVICE_CREDENTIAL)
                 .build()
                 .authenticate(
                     signal,

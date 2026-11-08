@@ -1,11 +1,11 @@
 package ru.domovoy.panel
 
 import androidx.compose.foundation.gestures.scrollBy
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
@@ -51,6 +51,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import ru.domovoy.R
 import ru.domovoy.core.Device
 import java.time.Instant
 import java.time.ZoneId
@@ -85,6 +86,7 @@ fun PanelRooms(
     tuyaInterval: Duration,
     modifier: Modifier = Modifier,
     discovered: DiscoveredPanelState = DiscoveredPanelState(),
+    xiaomiInterval: Duration = yandexInterval,
     /** Hoisted so idle reset can return the panel to Главная. */
     scroll: LazyGridState = rememberLazyGridState(),
     /** Open device id survives polling updates. Idle reset and intercom calls close the sheet externally. */
@@ -93,6 +95,7 @@ fun PanelRooms(
     launcherErrors: Map<String, String> = emptyMap(),
     onPanelAccess: (() -> Unit)? = null,
     accessMessage: String? = null,
+    notificationContent: @Composable () -> Unit = {},
     deviceRefresh: DeviceRefreshState = DeviceRefreshState(),
     onRefreshDevices: (() -> Unit)? = null,
     cardPreferences: CardPreferences = CardPreferences(),
@@ -108,6 +111,8 @@ fun PanelRooms(
     onSetRecuperatorSpeed: (String, FanSpeed) -> Unit = { _, _ -> },
     onToggleBulb: (String) -> Unit = {},
     onToggleDiscovered: (String) -> Unit = {},
+    onSetDiscoveredMode: (String, String, String) -> Unit = { _, _, _ -> },
+    onSetDiscoveredHumidity: (String, Double) -> Unit = { _, _ -> },
     onSetBulbBrightness: (String, Double) -> Unit = { _, _ -> },
     onSetBulbScene: (String, String) -> Unit = { _, _ -> },
     onSetBulbRgb: (String, Int) -> Unit = { _, _ -> },
@@ -123,6 +128,9 @@ fun PanelRooms(
             recuperators = recuperators.error,
             bulbs = bulbs.error,
             discovered = discovered.error,
+            localDiscovered = discovered.localIds.associateWith { id ->
+                notUpdating(discovered.readErrors[id], discovered.localPolledAt[id], now, xiaomiInterval)
+            },
         )
     // Keep polling ages separate so a stopped group cannot borrow another group’s freshness.
     val polls =
@@ -199,7 +207,7 @@ fun PanelRooms(
             discovered.intercomGroups.values.any { entries -> entries.any { it.id == id } }
     } == true
     // Keep the mosaic mounted beneath the sheet.
-    BoxWithConstraints(modifier = modifier) {
+    Box(modifier = modifier) {
         Column(modifier = if (sheetIsOpen) Modifier.clearAndSetSemantics { hideFromAccessibility() } else Modifier) {
             PanelNavigation(
                 intercom = intercom,
@@ -235,6 +243,7 @@ fun PanelRooms(
                 Text(reason, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(horizontal = 16.dp).semantics { liveRegion = LiveRegionMode.Polite })
             }
             // Full-span rows preserve the hoisted scroll state.
+            notificationContent()
             LazyVerticalGrid(
                 columns = GridCells.Fixed(COLUMNS),
                 state = scroll,
@@ -294,7 +303,7 @@ fun PanelRooms(
                             showValue = tile.brightnessBounds == null,
                             controls = {
                                 tile.brightnessBounds?.let { bounds ->
-                                    LevelControl(tile.id, tile.brightnessPercent, bounds, onSetValue = { onSetBulbBrightness(tile.id, it) }, label = "Яркость", enabled = tile.id !in bulbs.pending, prominentValue = true)
+                                    LevelControl(tile.id, tile.brightnessPercent, bounds, onSetValue = { onSetBulbBrightness(tile.id, it) }, label = "Яркость", enabled = tile.id !in bulbs.pending, labelIcon = R.drawable.ic_brightness, prominentValue = true)
                                 }
                             },
                             toggle = {
@@ -393,28 +402,17 @@ fun PanelRooms(
                                                         value = position(tile)?.percent,
                                                         bounds = bounds,
                                                         label = "Открытие",
+                                                        showLabel = false,
                                                         showBounds = false,
                                                         enabled = tile.id !in curtains.pending,
                                                         modifier = sliderModifier,
                                                         onSetValue = { onSetOpen(tile.id, it) },
                                                     )
                                                 }
-                                                BoxWithConstraints {
-                                                    if (maxWidth / LocalDensity.current.fontScale >= 500.dp) {
-                                                        Row(horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(12.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                                                            androidx.compose.material3.OutlinedButton(onClick = { onSetOpen(tile.id, bounds.min) }, enabled = tile.id !in curtains.pending, modifier = Modifier.heightIn(min = MIN_TOUCH)) { Text("Закрыть") }
-                                                            slider(Modifier.weight(1f))
-                                                            androidx.compose.material3.OutlinedButton(onClick = { onSetOpen(tile.id, bounds.max) }, enabled = tile.id !in curtains.pending, modifier = Modifier.heightIn(min = MIN_TOUCH)) { Text("Открыть") }
-                                                        }
-                                                    } else {
-                                                        Column {
-                                                            slider(Modifier.fillMaxWidth())
-                                                            Row(horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(12.dp)) {
-                                                                androidx.compose.material3.OutlinedButton(onClick = { onSetOpen(tile.id, bounds.min) }, enabled = tile.id !in curtains.pending, modifier = Modifier.weight(1f).heightIn(min = MIN_TOUCH)) { Text("Закрыть") }
-                                                                androidx.compose.material3.OutlinedButton(onClick = { onSetOpen(tile.id, bounds.max) }, enabled = tile.id !in curtains.pending, modifier = Modifier.weight(1f).heightIn(min = MIN_TOUCH)) { Text("Открыть") }
-                                                            }
-                                                        }
-                                                    }
+                                                Row(horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                                                    PanelIconButton(R.drawable.ic_vertical_shades_closed, "Закрыть штору", { onSetOpen(tile.id, bounds.min) }, enabled = tile.id !in curtains.pending)
+                                                    slider(Modifier.weight(1f))
+                                                    PanelIconButton(R.drawable.ic_vertical_shades, "Открыть штору", { onSetOpen(tile.id, bounds.max) }, enabled = tile.id !in curtains.pending)
                                                 }
                                             }
                                         },
@@ -444,7 +442,7 @@ fun PanelRooms(
                                                     value = tile.brightnessPercent,
                                                     bounds = bounds,
                                                     label = "Яркость",
-                                                    prominentValue = true,
+                                                    labelIcon = R.drawable.ic_brightness, prominentValue = true,
                                                     unit = if (tile.unit == "unit.percent") "%" else "",
                                                     enabled = tile.id !in strips.pending,
                                                     onSetValue = { onSetBrightness(tile.id, it) },
@@ -541,6 +539,14 @@ fun PanelRooms(
                         }
                         fun discoveredEntry(tile: Device): PanelTile {
                             val light = switchLight(tile, bulbs.tiles)
+                            val local = tile.id in discovered.localIds
+                            val polledAt = if (local) discovered.localPolledAt[tile.id] else discovered.lastPolledAt
+                            val interval = if (local) xiaomiInterval else yandexInterval
+                            val error = when {
+                                light != null -> bulbs.error ?: discovered.error
+                                local -> discovered.readErrors[tile.id]
+                                else -> discovered.error
+                            }
                             val format = if (tile.vendorType == "devices.types.sensor.climate") TileFormat.Wide else TileFormat.Reading
                             return PanelTile("$room/discovered:${tile.id}", format, label = "${tile.name}, ${tile.room.orEmpty()}") { modifier ->
                                 DiscoveredDeviceTile(
@@ -551,11 +557,15 @@ fun PanelRooms(
                                     pending = if (light != null) light.id in bulbs.pending else tile.id in discovered.pending,
                                     commandError = if (light != null) bulbs.commandErrors[light.id] else discovered.commandErrors[tile.id],
                                     onToggle = { if (light != null) onToggleBulb(light.id) else onToggleDiscovered(tile.id) },
+                                    onSetMode = { instance, value -> onSetDiscoveredMode(tile.id, instance, value) },
+                                    onSetHumidity = { percent -> onSetDiscoveredHumidity(tile.id, percent) },
+                                    polledAt = polledAt,
+                                    interval = interval,
                                     error = updateFailure(
-                                        if (light != null) bulbs.error ?: discovered.error else discovered.error,
-                                        if (light != null) bulbs.lastPolledAt else discovered.lastPolledAt,
+                                        error,
+                                        if (light != null) bulbs.lastPolledAt else polledAt,
                                         now,
-                                        yandexInterval,
+                                        interval,
                                     ),
                                     showRoom = showRoom,
                                     onOpen = { openSheet.value = tile.id },
@@ -642,6 +652,7 @@ fun PanelRooms(
             now = now,
             yandexInterval = yandexInterval,
             tuyaInterval = tuyaInterval,
+            xiaomiInterval = xiaomiInterval,
             onToggleAc = onToggleAc,
             onSetTemperature = onSetTemperature,
             onSetAcMode = onSetAcMode,
@@ -653,6 +664,8 @@ fun PanelRooms(
             onSetRecuperatorSpeed = onSetRecuperatorSpeed,
             onToggleBulb = onToggleBulb,
             onToggleDiscovered = onToggleDiscovered,
+            onSetDiscoveredMode = onSetDiscoveredMode,
+            onSetDiscoveredHumidity = onSetDiscoveredHumidity,
             onSetBulbBrightness = onSetBulbBrightness,
             onSetBulbScene = onSetBulbScene,
             onSetBulbRgb = onSetBulbRgb,
@@ -833,6 +846,7 @@ private fun OpenSheet(
     now: Instant,
     yandexInterval: Duration,
     tuyaInterval: Duration,
+    xiaomiInterval: Duration,
     onToggleAc: (String) -> Unit,
     onSetTemperature: (String, Double) -> Unit,
     onSetAcMode: (String, String, String) -> Unit,
@@ -844,6 +858,8 @@ private fun OpenSheet(
     onSetRecuperatorSpeed: (String, FanSpeed) -> Unit,
     onToggleBulb: (String) -> Unit,
     onToggleDiscovered: (String) -> Unit,
+    onSetDiscoveredMode: (String, String, String) -> Unit,
+    onSetDiscoveredHumidity: (String, Double) -> Unit,
     onSetBulbBrightness: (String, Double) -> Unit,
     onSetBulbScene: (String, String) -> Unit,
     onSetBulbRgb: (String, Int) -> Unit,
@@ -858,21 +874,34 @@ private fun OpenSheet(
     val other = discovered.tiles.firstOrNull { it.id == id }
         ?: discovered.intercomGroups.values.firstNotNullOfOrNull { entries -> entries.firstOrNull { it.id == id } }
     val controlledLight = other?.let { switchLight(it, bulbs.tiles) }
+    val local = id in discovered.localIds
+    val otherError = when {
+        controlledLight != null -> bulbs.error ?: discovered.error
+        local -> discovered.readErrors[id]
+        else -> discovered.error
+    }
+    val otherPolledAt = when {
+        controlledLight != null -> bulbs.lastPolledAt
+        local -> discovered.localPolledAt[id]
+        else -> discovered.lastPolledAt
+    }
     when {
         other != null -> DeviceSheet(
             sheet = sheet(
                 other,
                 now,
                 updateFailure(
-                    if (controlledLight != null) bulbs.error ?: discovered.error else discovered.error,
-                    if (controlledLight != null) bulbs.lastPolledAt else discovered.lastPolledAt,
+                    otherError,
+                    otherPolledAt,
                     now,
-                    yandexInterval,
+                    if (local) xiaomiInterval else yandexInterval,
                 ),
                 controlledLight,
             ),
             onDismiss = dismiss,
             onToggle = { if (controlledLight != null) onToggleBulb(controlledLight.id) else onToggleDiscovered(id) },
+            onSetMode = { instance, value -> onSetDiscoveredMode(id, instance, value) },
+            onSetLevel = { percent -> onSetDiscoveredHumidity(id, percent) },
             pending = if (controlledLight != null) controlledLight.id in bulbs.pending else id in discovered.pending,
             commandError = if (controlledLight != null) bulbs.commandErrors[controlledLight.id] else discovered.commandErrors[id],
         )

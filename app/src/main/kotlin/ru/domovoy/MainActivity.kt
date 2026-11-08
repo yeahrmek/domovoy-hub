@@ -1,7 +1,10 @@
 package ru.domovoy
 
+import android.content.ComponentName
 import android.content.Context
+import android.os.Build
 import android.os.Bundle
+import android.service.notification.NotificationListenerService
 import android.util.Log
 import android.view.accessibility.AccessibilityManager
 import androidx.activity.ComponentActivity
@@ -31,6 +34,7 @@ import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.core.app.NotificationManagerCompat
 import androidx.lifecycle.lifecycleScope
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
@@ -44,11 +48,18 @@ import okhttp3.OkHttpClient
 import ru.domovoy.core.KnownRecuperators
 import ru.domovoy.core.TokenStore
 import ru.domovoy.integrations.domonap.CallState
+import ru.domovoy.integrations.domonap.DomonapCallListener
 import ru.domovoy.integrations.domonap.domonapCalls
 import ru.domovoy.integrations.tuya.TuyaLanClient
 import ru.domovoy.integrations.tuya.TuyaLanDevice
 import ru.domovoy.integrations.tuya.TuyaLanNetwork
 import ru.domovoy.integrations.tuya.tuyaLanDevices
+import ru.domovoy.integrations.xiaomi.MI_HOME_PACKAGE
+import ru.domovoy.integrations.xiaomi.MiHomeNotificationStatus
+import ru.domovoy.integrations.xiaomi.XiaomiLanClient
+import ru.domovoy.integrations.xiaomi.XiaomiLanDevice
+import ru.domovoy.integrations.xiaomi.miHomeNotifications
+import ru.domovoy.integrations.xiaomi.xiaomiLanDevices
 import ru.domovoy.integrations.yandex.YandexClient
 import ru.domovoy.kiosk.KioskSettings
 import ru.domovoy.kiosk.PanelAuthentication
@@ -56,6 +67,7 @@ import ru.domovoy.kiosk.PanelKiosk
 import ru.domovoy.kiosk.lockTaskChanges
 import ru.domovoy.panel.AdaptivePolling
 import ru.domovoy.panel.CardPreferencesStore
+import ru.domovoy.panel.MiHomeMessages
 import ru.domovoy.panel.PanelRooms
 import ru.domovoy.panel.TuyaPoll
 import ru.domovoy.panel.YandexPoll
@@ -88,6 +100,16 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         kiosk.resume()
+        refreshMiHomeNotificationAccess()
+    }
+
+    private fun refreshMiHomeNotificationAccess() {
+        val component = ComponentName(this, DomonapCallListener::class.java)
+        val granted = packageName in NotificationManagerCompat.getEnabledListenerPackages(this)
+        miHomeNotifications.onAccessChanged(granted)
+        if (granted && miHomeNotifications.status.value != MiHomeNotificationStatus.Connected) {
+            NotificationListenerService.requestRebind(component)
+        }
     }
 
     override fun onUserLeaveHint() {
@@ -140,6 +162,7 @@ class MainActivity : ComponentActivity() {
         lifecycleScope.launch { lockTaskChanges.collect { kiosk.refresh() } }
         val secrets = secrets(applicationContext)
         setContent {
+            var appLaunchError by remember { mutableStateOf<String?>(null) }
             MaterialTheme(
                 colorScheme = if (isSystemInDarkTheme()) panelDarkScheme else panelLightScheme,
                 typography = panelTypography,
@@ -153,6 +176,7 @@ class MainActivity : ComponentActivity() {
                         interactions,
                         foreground,
                         onPanelAccess = {
+                            appLaunchError = null
                             kiosk.refresh()
                             accessOpen = domonapCalls.state.value != CallState.Active
                         },
@@ -161,11 +185,17 @@ class MainActivity : ComponentActivity() {
                         } else {
                             null
                         },
-                        openApp = kiosk::openApp,
+                        openApp = { packageName, result ->
+                            if (packageName == MI_HOME_PACKAGE) {
+                                kiosk.openVacuum(runCatching { secrets.vacuumDeviceId() }.getOrDefault(""), result)
+                            } else {
+                                kiosk.openApp(packageName, result)
+                            }
+                        },
                     )
                     if (accessOpen) {
                         KioskSettings(
-                            state = protection,
+                            state = protection.copy(error = appLaunchError ?: protection.error),
                             onEnable = {
                                 accessOpen = false
                                 kiosk.enable()
@@ -175,6 +205,17 @@ class MainActivity : ComponentActivity() {
                                 kiosk.exit()
                             },
                             onDismiss = { accessOpen = false },
+                            onOpenApp = { packageName ->
+                                kiosk.openApp(packageName) { failure ->
+                                    appLaunchError = failure
+                                    if (failure == null) accessOpen = false
+                                }
+                            },
+                            onRemoveOwner = {
+                                appLaunchError = null
+                                accessOpen = false
+                                kiosk.removeOwner()
+                            },
                         )
                     }
                 }
@@ -185,8 +226,10 @@ class MainActivity : ComponentActivity() {
 
 /** Credential readers and the cached recuperator inventory. */
 private class PanelSecrets(
+    val vacuumDeviceId: () -> String,
     val yandexToken: () -> String,
     val tuya: () -> List<TuyaLanDevice>,
+    val xiaomi: () -> List<XiaomiLanDevice>,
     /** Device ids are apartment-identifying, so the inventory is encrypted too. */
     val recuperators: KnownRecuperators,
 )
@@ -197,14 +240,18 @@ private fun secrets(context: Context): PanelSecrets {
         runCatching { encryptedPrefs(context) }.getOrElse { failure ->
             // Lost keystore: keep the panel running and expose the failure through each vendor.
             val reason = { error("secure storage unavailable: ${failure.message}") }
-            return PanelSecrets(yandexToken = reason, tuya = reason, recuperators = KnownRecuperators(null))
+            return PanelSecrets(vacuumDeviceId = reason, yandexToken = reason, tuya = reason, xiaomi = reason, recuperators = KnownRecuperators(null))
         }
     val store = TokenStore(prefs)
+    store.seedXiaomiVacuumDeviceId(BuildConfig.XIAOMI_VACUUM_DEVICE_ID)
     store.seedYandexToken(BuildConfig.YANDEX_OAUTH_TOKEN)
     store.seedTuyaLanDevices(BuildConfig.TUYA_LOCAL_DEVICES)
+    store.seedXiaomiLanDevices(BuildConfig.XIAOMI_LOCAL_DEVICES)
     return PanelSecrets(
+        vacuumDeviceId = store::xiaomiVacuumDeviceId,
         yandexToken = store::yandexToken,
         tuya = { tuyaLanDevices(store.tuyaLanDevices()) },
+        xiaomi = { xiaomiLanDevices(store.xiaomiLanDevices()) },
         recuperators = KnownRecuperators(prefs),
     )
 }
@@ -229,6 +276,15 @@ private fun Panel(
     openApp: (String, (String?) -> Unit) -> Unit,
 ) {
     val context = LocalContext.current
+    val miHomeMessages by miHomeNotifications.notifications.collectAsState()
+    val miHomeStatus by miHomeNotifications.status.collectAsState()
+    val callState by domonapCalls.state.collectAsState()
+    LaunchedEffect(miHomeStatus) {
+        if (miHomeStatus == MiHomeNotificationStatus.Connecting) {
+            delay(10.seconds)
+            if (miHomeNotifications.status.value == MiHomeNotificationStatus.Connecting) miHomeNotifications.onListenerDisconnected()
+        }
+    }
     val cardStore = remember(context) { CardPreferencesStore(runCatching { encryptedPrefs(context) }.getOrNull()) }
     var cardPreferences by remember(cardStore) { mutableStateOf(cardStore.load()) }
     // Vendor clients share the connection pool, but have independent call timeouts.
@@ -241,7 +297,17 @@ private fun Panel(
                 householdId = BuildConfig.YANDEX_HOUSEHOLD_ID,
             )
         }
-    val poll = remember(client) { YandexPoll(client) }
+    val xiaomi = remember(secrets) { XiaomiLanClient(configuration = secrets.xiaomi) }
+    val poll = remember(client, xiaomi) { YandexPoll(client, xiaomi) }
+    val xiaomiPolling = remember(poll) {
+        AdaptivePolling(activeInterval = 15.seconds, idleInterval = 1.minutes, nightInterval = 5.minutes) {
+            poll.discovered.refreshLocal()
+            val local = poll.discovered.state.value
+            local.localIds.isEmpty() || local.localIds.any { it !in local.readErrors }
+        }
+    }
+    val xiaomiInterval by xiaomiPolling.interval.collectAsState()
+    LaunchedEffect(xiaomiPolling, foreground) { xiaomiPolling.run(foreground, domonapCalls.state) }
     val tuyaNetwork = remember(context) { TuyaLanNetwork(context.applicationContext) }
     val tuyaPoll =
         remember(tuyaNetwork) {
@@ -257,10 +323,11 @@ private fun Panel(
             tuyaPoll.recuperators.state.value.error == null
         }
     }
-    LaunchedEffect(poll, tuyaPolling, touches) {
+    LaunchedEffect(poll, tuyaPolling, xiaomiPolling, touches) {
         touches.collect {
             poll.polling.touch(refresh = false)
             tuyaPolling.touch(refresh = false)
+            xiaomiPolling.touch(refresh = false)
         }
     }
     val yandexInterval by poll.polling.interval.collectAsState()
@@ -342,6 +409,7 @@ private fun Panel(
         now = now,
         yandexInterval = yandexInterval,
         tuyaInterval = tuyaInterval,
+        xiaomiInterval = xiaomiInterval,
         modifier =
         Modifier.fillMaxSize()
             .onPreviewKeyEvent {
@@ -387,10 +455,16 @@ private fun Panel(
         openSheet = openSheet,
         roomPickerOpen = roomPickerOpen,
         launcherErrors = launcherErrors,
+        notificationContent = {
+            if (callState != CallState.Active) MiHomeMessages(miHomeMessages, miHomeStatus)
+        },
         onPanelAccess = onPanelAccess,
         accessMessage = accessMessage,
         deviceRefresh = deviceRefresh,
-        onRefreshDevices = { scope.launch { poll.refreshDevices() } },
+        onRefreshDevices = {
+            scope.launch { poll.refreshDevices() }
+            scope.launch { xiaomiPolling.refresh(force = true) }
+        },
         cardPreferences = cardPreferences,
         onCardPreferencesChange = { value ->
             cardPreferences = value
@@ -440,6 +514,14 @@ private fun Panel(
             touches.tryEmit(Unit)
             scope.launch { poll.discovered.toggle(id) }
         },
+        onSetDiscoveredHumidity = { id, percent ->
+            touches.tryEmit(Unit)
+            scope.launch { poll.discovered.setHumidity(id, percent) }
+        },
+        onSetDiscoveredMode = { id, instance, value ->
+            touches.tryEmit(Unit)
+            scope.launch { poll.discovered.setMode(id, instance, value) }
+        },
         onSetBulbBrightness = { id, percent ->
             touches.tryEmit(Unit)
             scope.launch { tiles.setBrightness(id, percent) }
@@ -466,7 +548,17 @@ internal fun openVendorApp(
     context: Context,
     packageName: String,
 ): String? {
-    val intent = context.packageManager.getLaunchIntentForPackage(packageName) ?: return "Приложение недоступно"
+    val intent = context.packageManager.getLaunchIntentForPackage(packageName)
+    if (intent == null) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return "Приложение недоступно"
+        // Android 13 can launch a known package without granting package-query visibility.
+        return runCatching {
+            context.packageManager.getLaunchIntentSenderForPackage(packageName).sendIntent(context, 0, null, null, null)
+        }.fold(
+            onSuccess = { null },
+            onFailure = { "Приложение недоступно" },
+        )
+    }
     return runCatching { context.startActivity(intent) }.fold(
         onSuccess = { null },
         onFailure = { failure ->

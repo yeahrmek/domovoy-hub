@@ -1,0 +1,18 @@
+// Keep emulator builds separate and prevent vendor credentials from entering the APK.
+// ./gradlew -I scripts/kiosk-emulator.init.gradle \
+//   -Ddomovoy.kiosk.buildDir=/private/tmp/domovoy-kiosk/build assembleDebug
+def outputRoot = System.getProperty('domovoy.kiosk.buildDir')
+if (!outputRoot) throw new GradleException('Set -Ddomovoy.kiosk.buildDir to the test build directory')
+
+gradle.beforeProject { project ->
+    project.layout.buildDirectory.set(new File(outputRoot, project.path == ':' ? 'root' : project.path.substring(1).replace(':', '/')))
+    project.pluginManager.withPlugin('com.android.application') {
+        project.extensions.getByName('androidComponents').finalizeDsl { android ->
+            ['YANDEX_HOUSEHOLD_ID', 'YANDEX_OAUTH_TOKEN', 'TUYA_CLIENT_ID', 'TUYA_CLIENT_SECRET',
+             'TUYA_UID', 'TUYA_LOCAL_DEVICES', 'TUYA_ROOMS',
+             'XIAOMI_LOCAL_DEVICES', 'XIAOMI_VACUUM_DEVICE_ID'].each { field ->
+                android.defaultConfig.buildConfigField('String', field, '""')
+            }
+        }
+    }
+}

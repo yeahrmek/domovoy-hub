@@ -58,6 +58,7 @@ android {
 
         buildConfigField("String", "YANDEX_HOUSEHOLD_ID", "\"${localProperty("yandex.household.id")}\"")
         buildConfigField("String", "YANDEX_OAUTH_TOKEN", "\"${localProperty("yandex.oauth.token")}\"")
+        buildConfigField("String", "XIAOMI_VACUUM_DEVICE_ID", javaStringLiteral(localProperty("xiaomi.vacuum.device.id")))
 
         // First-run seeds for Tuya; its region default belongs to the client.
         buildConfigField("String", "TUYA_CLIENT_ID", "\"${localProperty("tuya.client.id")}\"")
@@ -66,6 +67,8 @@ android {
 
         // JSON preserves key characters that delimiter-separated configuration cannot represent.
         buildConfigField("String", "TUYA_LOCAL_DEVICES", javaStringLiteral(localProperty("tuya.local.devices")))
+
+        buildConfigField("String", "XIAOMI_LOCAL_DEVICES", javaStringLiteral(localProperty("xiaomi.local.devices")))
 
         // Tuya exposes no rooms. Map device ids locally; unset means unplaced tiles.
         buildConfigField("String", "TUYA_ROOMS", "\"${localProperty("tuya.rooms")}\"")

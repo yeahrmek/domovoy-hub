@@ -41,6 +41,7 @@ data class GroupErrors(
     val recuperators: String? = null,
     val bulbs: String? = null,
     val discovered: String? = null,
+    val localDiscovered: Map<String, Boolean> = emptyMap(),
 )
 
 /**
@@ -119,5 +120,5 @@ private fun marked(
     (section.strips.isNotEmpty() && notUpdating(errors.strips, polls.strips, now, yandex)) ||
     (section.bulbs.isNotEmpty() && notUpdating(errors.bulbs, polls.bulbs, now, yandex)) ||
     (section.recuperators.isNotEmpty() && notUpdating(errors.recuperators, polls.recuperators, now, tuya)) ||
-    (section.discovered.isNotEmpty() && notUpdating(errors.discovered, polls.discovered, now, yandex)) ||
+    section.discovered.any { errors.localDiscovered[it.id] ?: notUpdating(errors.discovered, polls.discovered, now, yandex) } ||
     section.recuperators.any { it.error != null }
