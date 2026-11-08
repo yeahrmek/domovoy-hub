@@ -161,6 +161,8 @@ Cards share the tile radius. Power has a rounded square visible surface inside a
 
 ## Components
 
+Small device illustrations use an 8 dp light-lime dot (`primaryFixedDim`) for a confirmed on state, with no overlaid power or connectivity glyphs. Bulbs omit the dot because their illustration already lights up. Exceptional states retain their text.
+
 - **Home thermostat:** a working 210 dp target dial built from advertised temperature bounds and precision, plus power. Its full 270-degree arc runs light-to-rich peach from the minimum at 135 degrees to the maximum at 405 degrees; a 16 dp round marker locates the target. An unknown reading has no marker. There are no plus/minus buttons on the card. Without advertised bounds, show the reading without inventing adjustment.
 - **Curtain:** promoted neutral position, vendor-bounded slider and close/open actions using the actual minimum and maximum.
 - **Lighting:** power and brightness adjustment when supported. Room light groups show one small labelled icon per lamp instead of a lit/total count. Each icon directly toggles its lamp and shows confirmed power, pending commands, unknown readings or errors. Group power and the header disclosure remain available; expanded dimmable lamps expose their own brightness slider. Icons retain 64 dp touch targets and wrap with font scaling. Colours, scenes and other advanced modes remain in details.

@@ -19,8 +19,16 @@ import ru.domovoy.integrations.domonap.DomonapCallListener
 import ru.domovoy.integrations.domonap.domonapCalls
 import ru.domovoy.openVendorApp
 
-private const val DOMONAP = "com.domonap.app"
-private const val XIAOMI = "com.xiaomi.smarthome"
+/** The household apps available without leaving protection. */
+internal val kioskApps = mapOf(
+    "com.domonap.app" to "Domonap",
+    "com.xiaomi.smarthome" to "Mi Home",
+    "com.openai.chatgpt" to "ChatGPT",
+    "com.google.android.apps.bard" to "Gemini",
+    "com.sec.android.app.camera" to "Камера",
+    "org.amnezia.vpn.family" to "Amnezia VPN",
+    "com.sec.android.gallery3d" to "Галерея",
+)
 
 internal data class KioskState(
     val enabled: Boolean = false,
@@ -39,6 +47,7 @@ internal class PanelKiosk(
     private val dpm = activity.getSystemService(DevicePolicyManager::class.java)
     private val keyguard = activity.getSystemService(KeyguardManager::class.java)
     private val admin = ComponentName(activity, PanelDeviceAdmin::class.java)
+    private val allowedPackages = (listOf(activity.packageName, "com.google.android.googlequicksearchbox") + kioskApps.keys).toTypedArray()
     private val preferences = activity.getSharedPreferences("panel-kiosk", Activity.MODE_PRIVATE)
     private val mutableState = MutableStateFlow(KioskState(enabled = preferences.getBoolean("enabled", false)))
     val state = mutableState.asStateFlow()
@@ -51,12 +60,12 @@ internal class PanelKiosk(
         foreground = true
         // Android can create a separate Home task. Another panel task may have exited protection.
         mutableState.value = state.value.copy(enabled = preferences.getBoolean("enabled", false))
-        // Returning Home also revokes a previous vendor session, including after process death.
+        // Restore the same household allowlist after returning Home or process death.
         if (state.value.enabled) {
             attempt {
                 if (callActive()) {
-                    // Home must revoke Xiaomi even during a call; Domonap stays allowed.
-                    dpm.setLockTaskPackages(admin, arrayOf(activity.packageName, DOMONAP))
+                    // Restore allowed packages without taking the foreground away from the call.
+                    dpm.setLockTaskPackages(admin, allowedPackages)
                 } else {
                     check(availabilityProblem() == null) { "Настройки защиты изменились" }
                     applyPolicy()
@@ -133,29 +142,25 @@ internal class PanelKiosk(
     }
 
     fun openApp(packageName: String, result: (String?) -> Unit) {
-        if (packageName != DOMONAP && packageName != XIAOMI) {
+        if (packageName !in kioskApps) {
             result("Приложение не разрешено")
             return
         }
-        authorize("Открыть приложение") { failure ->
-            if (failure != null) {
-                result(failure)
-            } else {
-                var error: String? = null
-                try {
-                    if (state.value.enabled) {
-                        check(availabilityProblem() == null) { "Защита панели недоступна" }
-                        dpm.setLockTaskPackages(admin, arrayOf(activity.packageName, DOMONAP, packageName).distinct().toTypedArray())
-                    }
-                    error = openVendorApp(activity, packageName)
-                } catch (failure: Exception) {
-                    Log.w("PanelKiosk", "vendor launch failed", failure)
-                    error = "Не удалось открыть приложение"
-                }
-                if (error != null && state.value.enabled) attempt { applyPolicy() }
-                result(error)
-            }
+        if (destroyed || !foreground || callActive() || keyguard.isKeyguardLocked) {
+            result("Сейчас приложение недоступно. Повторите после звонка или разблокировки планшета.")
+            return
         }
+        val error = try {
+            if (state.value.enabled) {
+                check(availabilityProblem() == null) { "Защита панели недоступна" }
+                dpm.setLockTaskPackages(admin, allowedPackages)
+            }
+            openVendorApp(activity, packageName)
+        } catch (failure: Exception) {
+            Log.w("PanelKiosk", "vendor launch failed", failure)
+            "Не удалось открыть приложение"
+        }
+        result(error)
     }
 
     fun onCallStarted() {
@@ -228,7 +233,7 @@ internal class PanelKiosk(
                 DevicePolicyManager.LOCK_TASK_FEATURE_KEYGUARD or DevicePolicyManager.LOCK_TASK_FEATURE_GLOBAL_ACTIONS or
                 DevicePolicyManager.LOCK_TASK_FEATURE_BLOCK_ACTIVITY_START_IN_TASK,
         )
-        dpm.setLockTaskPackages(admin, arrayOf(activity.packageName, DOMONAP))
+        dpm.setLockTaskPackages(admin, allowedPackages)
         val home = IntentFilter(Intent.ACTION_MAIN).apply {
             addCategory(Intent.CATEGORY_HOME)
             addCategory(Intent.CATEGORY_DEFAULT)

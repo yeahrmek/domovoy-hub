@@ -31,6 +31,17 @@ class PanelKioskTest {
     private val activity = activityController.get()
     private val dpm = activity.getSystemService(DevicePolicyManager::class.java)
     private val admin = ComponentName(activity, PanelDeviceAdmin::class.java)
+    private val allowedApps = setOf(
+        "ru.domovoy",
+        "com.google.android.googlequicksearchbox",
+        "com.domonap.app",
+        "com.xiaomi.smarthome",
+        "com.openai.chatgpt",
+        "com.google.android.apps.bard",
+        "com.sec.android.app.camera",
+        "org.amnezia.vpn.family",
+        "com.sec.android.gallery3d",
+    )
     private var callActive = false
     private val authentication = mutableListOf<(String?) -> Unit>()
     private val kiosk = PanelKiosk(activity, { _, result -> authentication.add(result) }, {}, { callActive }).also { it.resume() }
@@ -52,91 +63,142 @@ class PanelKioskTest {
     }
 
     @Test
-    fun `missing PIN fails closed for kiosk and vendor apps`() {
+    fun `missing PIN prevents enabling protection but allowed apps need no authentication`() {
         shadowOf(dpm).setDeviceOwner(admin)
-        var failure: String? = null
+        registerApp("com.xiaomi.smarthome")
+        var failure: String? = "not launched"
         kiosk.openApp("com.xiaomi.smarthome") { failure = it }
+        assertNull(failure)
+        assertEquals("com.xiaomi.smarthome", shadowOf(activity).nextStartedActivity.component?.packageName)
         kiosk.enable()
         assertTrue(authentication.isEmpty())
-        assertNotNull(failure)
         assertFalse(kiosk.state.value.enabled)
-        assertNull(shadowOf(activity).nextStartedActivity)
+        assertNotNull(kiosk.state.value.problem)
     }
 
     @Test
-    fun `authentication is required before enabling and restoring only permits panel and calls`() {
+    fun `authentication is required before enabling and restores the permanent application allowlist`() {
         prepareOwner()
         kiosk.enable()
         assertFalse(kiosk.state.value.enabled)
         authentication.single()(null)
         assertTrue(kiosk.state.value.enabled)
         assertTrue(shadowOf(activity).isLockTask)
-        assertEquals(setOf("ru.domovoy", "com.domonap.app"), dpm.getLockTaskPackages(admin).toSet())
+        assertEquals(allowedApps, dpm.getLockTaskPackages(admin).toSet())
         val features = dpm.getLockTaskFeatures(admin)
         assertTrue(features and DevicePolicyManager.LOCK_TASK_FEATURE_NOTIFICATIONS != 0)
         assertTrue(features and DevicePolicyManager.LOCK_TASK_FEATURE_HOME != 0)
         assertTrue(features and DevicePolicyManager.LOCK_TASK_FEATURE_BLOCK_ACTIVITY_START_IN_TASK != 0)
         assertEquals(0, features and DevicePolicyManager.LOCK_TASK_FEATURE_OVERVIEW)
 
-        dpm.setLockTaskPackages(admin, arrayOf("ru.domovoy", "com.domonap.app", "com.xiaomi.smarthome"))
+        dpm.setLockTaskPackages(admin, arrayOf("ru.domovoy", "com.android.settings"))
         val restored = PanelKiosk(activity, { _, _ -> error("restore needs no authentication") }, {}, { false })
         restored.resume()
         assertTrue(restored.state.value.enabled)
-        assertEquals(setOf("ru.domovoy", "com.domonap.app"), dpm.getLockTaskPackages(admin).toSet())
+        assertEquals(allowedApps, dpm.getLockTaskPackages(admin).toSet())
         restored.destroy()
     }
 
     @Test
-    fun `cancelling or rejecting authentication never opens an app`() {
-        secureDevice()
-        registerXiaomi()
-        var failure: String? = null
-        kiosk.openApp("com.xiaomi.smarthome") { failure = it }
+    fun `cancelling or rejecting authentication never enables protection`() {
+        prepareOwner()
+        kiosk.enable()
         authentication.single()("Проверка отменена")
-        assertNotNull(failure)
+        assertFalse(kiosk.state.value.enabled)
+        assertFalse(shadowOf(activity).isLockTask)
+        assertNotNull(kiosk.state.value.error)
         assertNull(shadowOf(activity).nextStartedActivity)
     }
 
     @Test
-    fun `call cancels pending authentication and late success cannot open an app`() {
-        secureDevice()
-        registerXiaomi()
-        kiosk.openApp("com.xiaomi.smarthome") {}
+    fun `call cancels pending exit and late success cannot leave protection`() {
+        prepareOwner()
+        kiosk.enable()
+        authentication.last()(null)
+        kiosk.exit()
         callActive = true
         kiosk.onCallStarted()
         callActive = false
-        authentication.single()(null)
+        authentication.last()(null)
+        assertTrue(kiosk.state.value.enabled)
+        assertTrue(shadowOf(activity).isLockTask)
         assertNull(shadowOf(activity).nextStartedActivity)
     }
 
     @Test
     fun `duplicate or superseded authentication success is never reused`() {
-        secureDevice()
-        registerXiaomi()
-        kiosk.openApp("com.xiaomi.smarthome") {}
-        kiosk.openApp("com.xiaomi.smarthome") {}
+        prepareOwner()
+        kiosk.enable()
+        kiosk.enable()
         authentication.first()(null)
+        assertFalse(kiosk.state.value.enabled)
+        authentication.last()(null)
+        assertTrue(kiosk.state.value.enabled)
+        kiosk.exit()
+        authentication[1](null)
+        assertTrue(kiosk.state.value.enabled)
         assertNull(shadowOf(activity).nextStartedActivity)
         authentication.last()(null)
-        assertEquals("com.xiaomi.smarthome", shadowOf(activity).nextStartedActivity.component?.packageName)
+        assertFalse(kiosk.state.value.enabled)
+        assertEquals(Settings.ACTION_SETTINGS, shadowOf(activity).nextStartedActivity.action)
         authentication.last()(null)
         assertNull(shadowOf(activity).nextStartedActivity)
     }
 
     @Test
-    fun `an authenticated vendor permission is revoked when home resumes`() {
+    fun `every permitted application opens without authentication with protection disabled`() {
+        allowedApps.filter { it != activity.packageName && it != "com.google.android.googlequicksearchbox" }.forEach { packageName ->
+            registerApp(packageName)
+            var failure: String? = "not launched"
+            kiosk.openApp(packageName) { failure = it }
+            assertNull(failure, packageName)
+            assertEquals(packageName, shadowOf(activity).nextStartedActivity.component?.packageName)
+        }
+        assertTrue(authentication.isEmpty())
+    }
+
+    @Test
+    fun `allowed applications remain available without PIN after returning home`() {
         prepareOwner()
-        registerXiaomi()
         kiosk.enable()
-        authentication.last()(null)
-        kiosk.openApp("com.xiaomi.smarthome") {}
-        assertFalse("com.xiaomi.smarthome" in dpm.getLockTaskPackages(admin))
-        authentication.last()(null)
-        assertTrue("com.xiaomi.smarthome" in dpm.getLockTaskPackages(admin))
-        assertEquals("com.xiaomi.smarthome", shadowOf(activity).nextStartedActivity.component?.packageName)
-        kiosk.resume()
-        assertFalse("com.xiaomi.smarthome" in dpm.getLockTaskPackages(admin))
-        assertTrue(shadowOf(activity).isLockTask)
+        authentication.single()(null)
+        allowedApps.filter { it != activity.packageName && it != "com.google.android.googlequicksearchbox" }.forEach { packageName ->
+            registerApp(packageName)
+            var failure: String? = "not launched"
+            kiosk.openApp(packageName) { failure = it }
+            assertNull(failure, packageName)
+            assertEquals(packageName, shadowOf(activity).nextStartedActivity.component?.packageName)
+            kiosk.background()
+            kiosk.resume()
+            assertEquals(allowedApps, dpm.getLockTaskPackages(admin).toSet())
+            assertTrue(shadowOf(activity).isLockTask)
+        }
+        assertEquals(1, authentication.size)
+    }
+
+    @Test
+    fun `Gemini opens without PIN and its Google host is permanently allowed`() {
+        prepareOwner()
+        registerApp("com.google.android.apps.bard")
+        kiosk.enable()
+        authentication.single()(null)
+        var failure: String? = null
+        kiosk.openApp("com.google.android.apps.bard") { failure = it }
+        assertNull(failure)
+        assertEquals("com.google.android.apps.bard", shadowOf(activity).nextStartedActivity.component?.packageName)
+        assertTrue("com.google.android.googlequicksearchbox" in dpm.getLockTaskPackages(admin))
+        assertEquals(allowedApps, dpm.getLockTaskPackages(admin).toSet())
+        assertEquals(1, authentication.size)
+    }
+
+    @Test
+    fun `an application outside the allowlist is rejected without opening it`() {
+        registerApp("com.android.settings")
+        var failure: String? = null
+        kiosk.openApp("com.android.settings") { failure = it }
+        assertNotNull(failure)
+        assertTrue(authentication.isEmpty())
+        assertNull(shadowOf(activity).nextStartedActivity)
     }
 
     @Test
@@ -171,26 +233,54 @@ class PanelKioskTest {
     }
 
     @Test
-    fun `a missing vendor app leaves no temporary kiosk permission`() {
+    fun `a missing allowed application leaves the permanent policy unchanged`() {
         prepareOwner()
         kiosk.enable()
         authentication.last()(null)
         var error: String? = null
         kiosk.openApp("com.xiaomi.smarthome") { error = it }
-        authentication.last()(null)
         assertNotNull(error)
-        assertFalse("com.xiaomi.smarthome" in dpm.getLockTaskPackages(admin))
+        assertEquals(allowedApps, dpm.getLockTaskPackages(admin).toSet())
+        assertEquals(1, authentication.size)
+        assertTrue(shadowOf(activity).isLockTask)
     }
 
     @Test
-    fun `a background authentication success never opens another app`() {
-        secureDevice()
-        registerXiaomi()
-        kiosk.openApp("com.xiaomi.smarthome") {}
+    fun `a background authentication success never exits protection`() {
+        prepareOwner()
+        kiosk.enable()
+        authentication.last()(null)
+        kiosk.exit()
         kiosk.background()
         authentication.last()(null)
         kiosk.resume()
+        assertTrue(kiosk.state.value.enabled)
+        assertTrue(shadowOf(activity).isLockTask)
         assertNull(shadowOf(activity).nextStartedActivity)
+    }
+
+    @Test
+    fun `allowed applications do not interrupt calls or a locked background or destroyed panel`() {
+        registerApp("com.xiaomi.smarthome")
+        fun assertRejected() {
+            var failure: String? = null
+            kiosk.openApp("com.xiaomi.smarthome") { failure = it }
+            assertNotNull(failure)
+            assertTrue(authentication.isEmpty())
+            assertNull(shadowOf(activity).nextStartedActivity)
+        }
+        callActive = true
+        assertRejected()
+        callActive = false
+        val keyguard = shadowOf(activity.getSystemService(KeyguardManager::class.java))
+        keyguard.setKeyguardLocked(true)
+        assertRejected()
+        keyguard.setKeyguardLocked(false)
+        kiosk.background()
+        assertRejected()
+        kiosk.resume()
+        kiosk.destroy()
+        assertRejected()
     }
 
     @Test
@@ -224,33 +314,33 @@ class PanelKioskTest {
     }
 
     @Test
-    fun `home revokes Xiaomi permission even while a call is active`() {
+    fun `home preserves the permanent application allowlist while a call is active`() {
         prepareOwner()
-        registerXiaomi()
         kiosk.enable()
         authentication.last()(null)
-        kiosk.openApp("com.xiaomi.smarthome") {}
-        authentication.last()(null)
-        assertTrue("com.xiaomi.smarthome" in dpm.getLockTaskPackages(admin))
+        assertEquals(allowedApps, dpm.getLockTaskPackages(admin).toSet())
         callActive = true
         kiosk.onCallStarted()
         kiosk.resume()
-        assertEquals(setOf("ru.domovoy", "com.domonap.app"), dpm.getLockTaskPackages(admin).toSet())
+        assertEquals(allowedApps, dpm.getLockTaskPackages(admin).toSet())
         callActive = false
         kiosk.onCallEnded()
         assertTrue(shadowOf(activity).isLockTask)
-        assertEquals(setOf("ru.domovoy", "com.domonap.app"), dpm.getLockTaskPackages(admin).toSet())
+        assertEquals(allowedApps, dpm.getLockTaskPackages(admin).toSet())
     }
 
     @Test
     fun `leaving then returning to the panel invalidates an earlier authentication`() {
-        secureDevice()
-        registerXiaomi()
-        kiosk.openApp("com.xiaomi.smarthome") {}
+        prepareOwner()
+        kiosk.enable()
+        authentication.last()(null)
+        kiosk.exit()
         kiosk.userLeft()
         kiosk.background()
         kiosk.resume()
         authentication.last()(null)
+        assertTrue(kiosk.state.value.enabled)
+        assertTrue(shadowOf(activity).isLockTask)
         assertNull(shadowOf(activity).nextStartedActivity)
     }
 
@@ -262,7 +352,7 @@ class PanelKioskTest {
         val restored = PanelKiosk(activity, { _, _ -> error("restore does not authenticate") }, {}, { false })
         restored.resume()
         assertTrue(shadowOf(activity).isLockTask)
-        assertEquals(setOf("ru.domovoy", "com.domonap.app"), dpm.getLockTaskPackages(admin).toSet())
+        assertEquals(allowedApps, dpm.getLockTaskPackages(admin).toSet())
         restored.destroy()
     }
 
@@ -292,16 +382,16 @@ class PanelKioskTest {
             .setNotificationListenerAccessGranted(ComponentName(activity, DomonapCallListener::class.java), true)
     }
 
-    private fun registerXiaomi() {
+    private fun registerApp(packageName: String) {
         val info = ResolveInfo().apply {
             activityInfo = ActivityInfo().apply {
-                name = "com.xiaomi.smarthome.MainActivity"
-                packageName = "com.xiaomi.smarthome"
-                applicationInfo = ApplicationInfo().apply { packageName = "com.xiaomi.smarthome" }
+                name = "$packageName.MainActivity"
+                this.packageName = packageName
+                applicationInfo = ApplicationInfo().apply { this.packageName = packageName }
             }
         }
         shadowOf(activity.packageManager).addResolveInfoForIntent(
-            Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER).setPackage("com.xiaomi.smarthome"),
+            Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER).setPackage(packageName),
             info,
         )
     }
