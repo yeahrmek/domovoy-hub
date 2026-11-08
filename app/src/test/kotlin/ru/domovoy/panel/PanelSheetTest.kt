@@ -42,7 +42,7 @@ import kotlin.test.assertEquals
  * **What a tap on a tile does**, which is the one part of the device sheet that is Compose state
  * rather than a pure function and therefore the one part [TileSheetTest] cannot reach.
  *
- * One air conditioner in Спальня — not one of Главная's rooms, and neither failing nor stale, so it
+ * One air conditioner in Спальня, with Home explicitly empty, so it
  * appears once on the wall and every count below is unambiguous — plus the intercom's launcher tile,
  * which is the kind that opens an app instead.
  *
@@ -232,6 +232,7 @@ class PanelSheetTest {
         MaterialTheme(colorScheme = panelLightScheme, typography = panelTypography) {
             Surface {
                 PanelRooms(
+                    cardPreferences = CardPreferences(favourites = emptyList()),
                     acs = oneAc,
                     curtains = CurtainPanelState(lastPolledAt = Flat.NOW),
                     strips = LightStripPanelState(lastPolledAt = Flat.NOW),

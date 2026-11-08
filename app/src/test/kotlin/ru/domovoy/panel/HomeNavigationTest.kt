@@ -12,7 +12,10 @@ import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
+import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.hasContentDescription
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -73,9 +76,10 @@ class HomeNavigationTest {
     @Test
     fun `compact home dial has no step buttons and complete controls remain reachable`() {
         compose.setContent { Panel() }
-        val tile = compose.onNode(hasText("Кондиционер") and hasText("Зал") and hasClickAction())
+        val home = hasAnyAncestor(hasTestTag("section:Главная"))
+        val tile = compose.onNode(hasText("Кондиционер") and hasText("Зал") and hasClickAction() and home)
         val bounds = tile.getUnclippedBoundsInRoot()
-        val dial = compose.onNodeWithContentDescription("Температура").assertIsDisplayed().getUnclippedBoundsInRoot()
+        val dial = compose.onNode(hasContentDescription("Температура") and hasAnyAncestor(hasContentDescription("Настроить: Кондиционер, Зал")) and home).assertIsDisplayed().getUnclippedBoundsInRoot()
         assertTrue(kotlin.math.abs((dial.bottom - dial.top).value - 210f) < 0.5f)
         assertTrue(bounds.bottom - bounds.top >= 250.dp && bounds.bottom - bounds.top < 304.dp)
         compose.onNodeWithContentDescription("Увеличить температуру").assertDoesNotExist()
