@@ -22,11 +22,18 @@ and device details without tinting. Reading age remains separate from service-po
 controls and command failures remain visible. Automatic Home reset is disabled during touch
 exploration.
 
-## Current panel behavior (2026-10-31)
+## Current panel behavior (2026-11-08)
 
 This section describes the native implementation. The historical design record below retains the
 reasoning behind the earlier mosaic and its physical checks; it is not evidence that the current
 redesign has been installed or physically validated.
+
+Home includes every room of the configured household by default. An existing explicit favourites
+selection remains in effect. Its card order is saved in encrypted local preferences after the
+first Yandex and Tuya poll attempts. Poll response order and renamed devices do not rearrange
+existing cards; new cards append, and returning cards recover their saved order. The first layout
+uses the existing card formats and stable device keys. Home light groups keep their membership
+when a power reading becomes unknown. Group power commands target only lamps with known states.
 
 - Home gives the thermostat and curtain full-width cards. Light strips, light-group summaries,
   dimmable lamps and recuperators use two-column Home cards. Non-dimmable compact lamps retain

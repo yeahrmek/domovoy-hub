@@ -15,6 +15,16 @@ the response *means* are still open.
 
 ## Automatic inventory discovery (2026-10-31)
 
+### Missing Home devices checked 2026-11-08
+
+A read-only live inventory returned 36 devices in the configured household, including the curtain
+and one humidifier in Спальня. Discovery retained them, but the initial Home selection only included
+Коридор and Зал. Home now defaults to every room in the configured household. A second humidifier,
+in Спальня взрослая, belongs to another household and remains excluded by the household filter.
+No device commands were sent for this inventory check.
+
+### Inventory replacement
+
 Every successful shared `/v1.0/user/info` poll replaces the inventory of the configured household. New devices and rooms appear without rebuilding or restarting; removed devices disappear
 only after a successful read. Other households remain excluded. A failed poll retains the previous
 inventory, reading ages and successful-poll timestamp, with a visible failure.

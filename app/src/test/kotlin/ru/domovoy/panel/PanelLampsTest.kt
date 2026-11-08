@@ -21,7 +21,7 @@ import ru.domovoy.panelTypography
  * What the lights group does when somebody touches it — the one thing about it that is Compose state
  * rather than a pure function, and therefore the one thing [BulbGroupTest] cannot reach.
  *
- * Seven lamps in Спальня, which is not one of Главная's rooms and is not failing, so they appear
+ * Seven lamps in Спальня, with Home explicitly empty, so they appear
  * once on the wall and the counts below are unambiguous. Nothing else is polled, so the whole panel
  * is a heading, a group tile and — when it is open — seven named tiles, all of which compose inside
  * the wall's own 1204 dp without scrolling.
@@ -115,8 +115,8 @@ class PanelLampsTest {
         MaterialTheme(colorScheme = panelLightScheme, typography = panelTypography) {
             Surface {
                 PanelRooms(
-                    // Nothing but the lamps: every other group is empty, so the wall is one room
-                    // and there is no Главная section to show them twice on.
+                    cardPreferences = CardPreferences(favourites = emptyList()),
+                    // Keep Home empty so this fixture exercises the room light group only.
                     acs = AcPanelState(lastPolledAt = Flat.NOW),
                     curtains = CurtainPanelState(lastPolledAt = Flat.NOW),
                     strips = LightStripPanelState(lastPolledAt = Flat.NOW),

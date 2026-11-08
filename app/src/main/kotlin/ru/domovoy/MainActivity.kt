@@ -47,6 +47,7 @@ import ru.domovoy.integrations.tuya.TuyaLanNetwork
 import ru.domovoy.integrations.tuya.tuyaLanDevices
 import ru.domovoy.integrations.yandex.YandexClient
 import ru.domovoy.panel.AdaptivePolling
+import ru.domovoy.panel.CardPreferencesStore
 import ru.domovoy.panel.PanelRooms
 import ru.domovoy.panel.TuyaPoll
 import ru.domovoy.panel.YandexPoll
@@ -151,6 +152,8 @@ private fun encryptedPrefs(context: Context) = EncryptedSharedPreferences.create
 @Composable
 private fun Panel(secrets: PanelSecrets, touches: MutableSharedFlow<Unit>, foreground: StateFlow<Boolean>) {
     val context = LocalContext.current
+    val cardStore = remember(context) { CardPreferencesStore(runCatching { encryptedPrefs(context) }.getOrNull()) }
+    var cardPreferences by remember(cardStore) { mutableStateOf(cardStore.load()) }
     // Vendor clients share the connection pool, but have independent call timeouts.
     val http = remember { OkHttpClient() }
     val client =
@@ -282,6 +285,11 @@ private fun Panel(secrets: PanelSecrets, touches: MutableSharedFlow<Unit>, foreg
         openSheet = openSheet,
         roomPickerOpen = roomPickerOpen,
         launcherErrors = launcherErrors,
+        cardPreferences = cardPreferences,
+        onCardPreferencesChange = { value ->
+            cardPreferences = value
+            cardStore.save(value)
+        },
         onToggleAc = { id ->
             touches.tryEmit(Unit)
             scope.launch { acs.toggle(id) }

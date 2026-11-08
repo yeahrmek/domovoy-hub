@@ -30,6 +30,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.heading
@@ -57,7 +58,7 @@ private val HEADING_BOTTOM = 8.dp
 /** Align room headings with tile text: 4 dp outer padding plus 12 dp content padding. */
 private val HEADING_INDENT = 16.dp
 
-/** All rooms share one scroll. Главная repeats favourites and surfaces stale or failing devices first. */
+/** Home retains its device selection and order independently of readings and polling response order. */
 @Composable
 fun PanelRooms(
     acs: AcPanelState,
@@ -79,6 +80,8 @@ fun PanelRooms(
     openSheet: MutableState<String?> = remember { mutableStateOf(null) },
     roomPickerOpen: MutableState<Boolean> = remember { mutableStateOf(false) },
     launcherErrors: Map<String, String> = emptyMap(),
+    cardPreferences: CardPreferences = CardPreferences(),
+    onCardPreferencesChange: (CardPreferences) -> Unit = {},
     onToggleAc: (String) -> Unit = {},
     onSetTemperature: (String, Double) -> Unit = { _, _ -> },
     onSetAcMode: (String, String, String) -> Unit = { _, _, _ -> },
@@ -115,7 +118,12 @@ fun PanelRooms(
             bulbs = bulbs.lastPolledAt,
             discovered = discovered.lastPolledAt,
         )
-    val headings = panelHeadings(sections, errors, polls, now, yandexInterval, tuyaInterval)
+    val inventoryReady = (polls.acs != null || errors.acs != null || polls.discovered != null || errors.discovered != null) &&
+        (polls.recuperators != null || errors.recuperators != null)
+    val headings = panelHeadings(sections, errors, polls, now, yandexInterval, tuyaInterval).let { headings ->
+        if (headings.any { it.title == "Главная" }) headings else listOf(PanelHeading("Главная", RoomSection(null), false)) + headings
+    }
+    var preferences by remember(cardPreferences) { mutableStateOf(cardPreferences) }
     val scope = rememberCoroutineScope()
     val roomIndices = remember { mutableMapOf<String, Int>() }
     val intercom = launchers.firstOrNull { it.packageName == "com.domonap.app" }
@@ -174,28 +182,15 @@ fun PanelRooms(
                     )
                 }
                 headings.forEach { heading ->
-                    val section = heading.section
+                    val isHome = heading.title == "Главная"
+                    val section = if (isHome) {
+                        RoomSection(null, acs.tiles, curtains.tiles, strips.tiles, recuperators.tiles, bulbs.tiles, launchers, discovered.tiles)
+                    } else {
+                        heading.section
+                    }
                     // Prefix keys by section because a device can appear in both Главная and its room.
                     val room = heading.title
                     roomIndices[room] = itemIndex++
-                    item(key = "heading:$room", span = { GridItemSpan(maxLineSpan) }) {
-                        SectionHeading(title = room, marked = heading.marked)
-                    }
-                    val noticeSection = if (heading.title == "Главная") {
-                        RoomSection(null, acs.tiles, curtains.tiles, strips.tiles, recuperators.tiles, bulbs.tiles, discovered = discovered.tiles)
-                    } else {
-                        section
-                    }
-                    items(sectionFailures(noticeSection, errors), key = { "$room/failure:$it" }, span = { GridItemSpan(maxLineSpan) }) { failure ->
-                        Text(
-                            failure,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.error,
-                            modifier = Modifier.padding(horizontal = HEADING_INDENT, vertical = 8.dp)
-                                .semantics { liveRegion = LiveRegionMode.Polite },
-                        )
-                    }
-                    itemIndex += sectionFailures(noticeSection, errors).size
                     val showRoom = heading.title == "Главная"
                     fun bulbEntry(tile: BulbTileState, prefix: String) = PanelTile(
                         "$room/$prefix:${tile.id}",
@@ -431,7 +426,13 @@ fun PanelRooms(
                             )
                         }
                         section.bulbs.groupBy { it.room }.forEach { (bulbRoom, roomBulbs) ->
-                            val group = bulbGroup(roomBulbs)
+                            val individual = if (isHome) roomBulbs.filter { "bulb:${it.id}" in preferences.favourites.orEmpty() } else emptyList()
+                            val grouped = roomBulbs - individual.toSet()
+                            val group = if (isHome) {
+                                BulbGroup(grouped, individual, grouped.count { it.isOn == true }, oldest(grouped.map { it.lastUpdated }))
+                            } else {
+                                bulbGroup(roomBulbs)
+                            }
                             group.brokenOut.forEach { add(bulbEntry(it, "bulb")) }
                             if (group.lamps.isNotEmpty()) {
                                 val groupKey = "$room/lamps:${bulbRoom.orEmpty()}"
@@ -444,8 +445,11 @@ fun PanelRooms(
                                     ) { modifier ->
                                         val commandError = group.lamps.firstNotNullOfOrNull { lamp -> bulbs.commandErrors[lamp.id]?.let { "${lamp.name}: $it" } }
                                         if (showRoom) {
+                                            val known = group.lamps.filter { it.isOn != null }
+                                            val allOn = known.isNotEmpty() && known.all { it.isOn == true }
                                             HomeDeviceTile(
                                                 anatomy = anatomy(group, now, commandError, notUpdating(null, bulbs.lastPolledAt, now, yandexInterval), open).copy(
+                                                    promoted = if (group.lamps.any { it.isOn == null }) "—" else promoted(group),
                                                     status = if (open) "Свернуть" else "Показать лампы",
                                                     detail = commandError,
                                                 ),
@@ -461,14 +465,13 @@ fun PanelRooms(
                                                     TilePowerButton(
                                                         "Свет",
                                                         bulbRoom,
-                                                        group.on == group.lamps.size,
+                                                        allOn,
                                                         paint(group, bulbs.error).mood,
-                                                        modifier = Modifier.semantics { stateDescription = "Включено ${group.on} из ${group.lamps.size}" },
+                                                        modifier = Modifier.semantics { stateDescription = if (group.lamps.any { it.isOn == null }) "Нет данных" else "Включено ${group.on} из ${group.lamps.size}" },
                                                         onToggle = {
-                                                            val target = group.on < group.lamps.size
-                                                            group.lamps.filter { it.isOn != target && it.id !in bulbs.pending }.forEach { onToggleBulb(it.id) }
+                                                            known.filter { it.isOn == allOn && it.id !in bulbs.pending }.forEach { onToggleBulb(it.id) }
                                                         },
-                                                        enabled = group.lamps.none { it.id in bulbs.pending },
+                                                        enabled = known.isNotEmpty() && group.lamps.none { it.id in bulbs.pending },
                                                     )
                                                 },
                                                 openLabel = if (open) "Свернуть" else "Показать лампы",
@@ -517,7 +520,42 @@ fun PanelRooms(
                             )
                         }
                     }
-                    itemIndex += tileRows(room, entries)
+                    val available = if (isHome) entries.sortedWith(compareBy<PanelTile> { it.format.ordinal }.thenBy { it.id }) else entries
+                    val keys = available.map { it.id }
+                    item(key = "heading:$room", span = { GridItemSpan(maxLineSpan) }) {
+                        LaunchedEffect(room, keys, inventoryReady) {
+                            if (isHome && inventoryReady) {
+                                val pinned = preferences.rememberOrder(room, keys)
+                                if (pinned != preferences) {
+                                    preferences = pinned
+                                    onCardPreferencesChange(pinned)
+                                }
+                            }
+                        }
+                        SectionHeading(title = room, marked = heading.marked)
+                    }
+                    val noticeSection = if (heading.title == "Главная") {
+                        RoomSection(null, acs.tiles, curtains.tiles, strips.tiles, recuperators.tiles, bulbs.tiles, discovered = discovered.tiles)
+                    } else {
+                        section
+                    }
+                    items(sectionFailures(noticeSection, errors), key = { "$room/failure:$it" }, span = { GridItemSpan(maxLineSpan) }) { failure ->
+                        Text(
+                            failure,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.padding(horizontal = HEADING_INDENT, vertical = 8.dp)
+                                .semantics { liveRegion = LiveRegionMode.Polite },
+                        )
+                    }
+                    itemIndex += sectionFailures(noticeSection, errors).size
+                    val selected = if (isHome) {
+                        val byId = available.associateBy { it.id }
+                        preferences.ordered(room, keys).mapNotNull { byId[it] }.filter { preferences.isFavourite(it.id, keys) }
+                    } else {
+                        available
+                    }
+                    itemIndex += tileRows(room, selected, preserveOrder = isHome)
                 }
             }
         }
@@ -555,16 +593,29 @@ private class PanelTile(
     val format: TileFormat,
     val children: List<PanelTile> = emptyList(),
     val content: @Composable (Modifier) -> Unit,
-)
+) {
+    val id: String get() = key.substringAfter("/")
+}
 
 /** Each row uses its tallest card; expanded lamps stay directly below their summary row. */
-private fun LazyGridScope.tileRows(prefix: String, entries: List<PanelTile>): Int {
+private fun LazyGridScope.tileRows(prefix: String, entries: List<PanelTile>, preserveOrder: Boolean = false): Int {
     var count = 0
-    TileFormat.entries.forEach { format ->
-        entries.filter { it.format == format }.chunked(format.columns).forEach { row ->
+    val batches = if (preserveOrder) {
+        buildList<MutableList<PanelTile>> {
+            entries.forEach { tile ->
+                if (lastOrNull()?.firstOrNull()?.format != tile.format) add(mutableListOf())
+                last().add(tile)
+            }
+        }
+    } else {
+        TileFormat.entries.map { format -> entries.filter { it.format == format } }
+    }
+    batches.filter { it.isNotEmpty() }.forEach { batch ->
+        val format = batch.first().format
+        batch.chunked(format.columns).forEach { row ->
             val rowKey = "$prefix/row:${row.joinToString { it.key }}"
             item(key = rowKey, span = { GridItemSpan(maxLineSpan) }) {
-                Row(modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
+                Row(modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min).testTag("section:$prefix")) {
                     row.forEach { tile ->
                         key(tile.key) { tile.content(Modifier.weight(1f).fillMaxHeight()) }
                     }

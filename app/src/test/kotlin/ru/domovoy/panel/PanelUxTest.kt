@@ -8,7 +8,9 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
+import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -69,6 +71,7 @@ class PanelUxTest {
                     curtains = CurtainPanelState(lastPolledAt = Flat.NOW),
                     strips = LightStripPanelState(lastPolledAt = Flat.NOW),
                     recuperators = RecuperatorPanelState(lastPolledAt = Flat.NOW),
+                    cardPreferences = CardPreferences(favourites = listOf("lamps:Зал", "bulb:unknown-lamp")),
                     bulbs = Flat.bulbs.copy(
                         tiles = Flat.bulbs.tiles.filter { it.room == "Зал" } +
                             Flat.bulbs.tiles.first().copy(
@@ -88,8 +91,8 @@ class PanelUxTest {
                 )
             }
         }
-        val group = compose.onNode(hasText("Свет") and hasText("Зал") and hasClickAction()).getUnclippedBoundsInRoot()
-        val compact = compose.onNode(hasText("Приток") and hasText("Зал") and hasClickAction()).getUnclippedBoundsInRoot()
+        val group = compose.onNode(hasText("Свет") and hasText("Зал") and hasClickAction() and hasAnyAncestor(hasTestTag("section:Главная"))).getUnclippedBoundsInRoot()
+        val compact = compose.onNode(hasText("Приток") and hasText("Зал") and hasClickAction() and hasAnyAncestor(hasTestTag("section:Главная"))).getUnclippedBoundsInRoot()
         assertTrue(group.bottom <= compact.top)
     }
 
@@ -210,6 +213,7 @@ class PanelUxTest {
         compose.setContent {
             MaterialTheme(colorScheme = panelLightScheme, typography = panelTypography) {
                 PanelRooms(
+                    cardPreferences = CardPreferences(favourites = emptyList()),
                     acs = AcPanelState(lastPolledAt = Flat.NOW),
                     curtains = CurtainPanelState(lastPolledAt = Flat.NOW),
                     strips = LightStripPanelState(lastPolledAt = Flat.NOW),
