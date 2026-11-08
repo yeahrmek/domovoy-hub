@@ -53,7 +53,7 @@ class LightStripTilesTest {
         assertEquals("Зал", tile.room)
         assertEquals(true, tile.isOn)
         assertEquals(26.0, tile.brightnessPercent)
-        assertEquals("Включено · Время неизвестно", statusLine(tile, now))
+        assertEquals("", statusLine(tile, now))
     }
 
     @Test
@@ -152,7 +152,7 @@ class LightStripTilesTest {
 
         val tile = poll.strips.state.value.tiles.single { it.id == "light-strip-01" }
         assertNull(tile.brightnessPercent)
-        assertEquals("Включено · Яркость неизвестна · Время неизвестно", statusLine(tile, now))
+        assertEquals("Яркость неизвестна", statusLine(tile, now))
     }
 
     @Test
@@ -163,7 +163,7 @@ class LightStripTilesTest {
         poll.refresh()
 
         val tile = poll.strips.state.value.tiles.single { it.id == "light-strip-01" }
-        assertEquals("Включено · Время неизвестно", statusLine(tile, now))
+        assertEquals("", statusLine(tile, now))
     }
 
     @Test
@@ -175,7 +175,7 @@ class LightStripTilesTest {
 
         val tile = poll.strips.state.value.tiles.single { it.id == "light-strip-01" }
         assertNull(tile.isOn)
-        assertEquals("Нет данных · Время неизвестно", statusLine(tile, now))
+        assertEquals("Нет данных", statusLine(tile, now))
     }
 
     @Test
@@ -274,7 +274,7 @@ class LightStripTilesTest {
         assertEquals(before, after.tiles)
         val tile = after.tiles.single { it.id == "light-strip-01" }
         // Failure takes the second line; values and their age remain on the first.
-        assertEquals("Включено · Время неизвестно", statusLine(tile, now))
+        assertEquals("", statusLine(tile, now))
         assertEquals("Не удалось выполнить запрос", anatomy(tile, now, after.error).detail)
     }
 

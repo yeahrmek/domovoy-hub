@@ -45,7 +45,7 @@ class PanelCopyTest {
         val lamps = Flat.bulbs.tiles.take(2).map { it.copy(isOn = false, lastUpdated = ru.domovoy.core.Reading.Never) }
         val group = bulbGroup(lamps)
         assertEquals("0 из 2", promoted(group))
-        assertEquals("Время неизвестно", bulbGroupLine(group, Flat.NOW))
+        assertEquals("", bulbGroupLine(group, Flat.NOW))
         assertEquals(2, group.lamps.size)
         assertEquals(0, group.brokenOut.size)
         assertEquals("Нет данных", bulbGroupLine(bulbGroup(emptyList()), Flat.NOW))
@@ -69,8 +69,8 @@ class PanelCopyTest {
             humidity = 41.0,
             humidityLastUpdated = Reading.At(Flat.NOW.minusSeconds(3 * 86_400)),
         )
-        assertEquals("Нет данных · 3 дн. назад", statusLine(measuredHumidity, Flat.NOW))
-        assertEquals("Выключено · Нет данных · Время неизвестно", statusLine(unread.copy(isOn = false), Flat.NOW))
+        assertEquals("Нет данных", statusLine(measuredHumidity, Flat.NOW))
+        assertEquals("Нет данных", statusLine(unread.copy(isOn = false), Flat.NOW))
     }
 
     @Test

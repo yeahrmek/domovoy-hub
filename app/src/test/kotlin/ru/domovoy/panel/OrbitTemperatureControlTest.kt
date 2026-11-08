@@ -134,7 +134,7 @@ class OrbitTemperatureControlTest {
         compose.setContent {
             MaterialTheme { OrbitTemperatureControl("ac", null, bounds, true, sent::add) }
         }
-        compose.onNodeWithText("Нет данных", useUnmergedTree = true).assertExists()
+        compose.onNodeWithText("—", useUnmergedTree = true).assertExists()
         assertTrue(dial().fetchSemanticsNode().config[SemanticsProperties.StateDescription].contains("Нет данных"))
 
         dial().performSemanticsAction(SemanticsActions.SetProgress) { it(24f) }

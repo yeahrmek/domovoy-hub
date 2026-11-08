@@ -28,29 +28,65 @@ This section describes the native implementation. The historical design record b
 reasoning behind the earlier mosaic and its physical checks; it is not evidence that the current
 redesign has been installed or physically validated.
 
-Home includes every room of the configured household by default. An existing explicit favourites
-selection remains in effect. Its card order is saved in encrypted local preferences after the
-first Yandex and Tuya poll attempts. Poll response order and renamed devices do not rearrange
-existing cards; new cards append, and returning cards recover their saved order. The first layout
-uses the existing card formats and stable device keys. Home light groups keep their membership
-when a power reading becomes unknown. Group power commands target only lamps with known states.
+The direct-sorting build was installed and opened on the tablet on 2026-11-08. The local capture
+`app/build/outputs/card-reordering/tablet-direct-sort.png` confirms the screen has no edit toolbar;
+it can be removed after this UI change is accepted. Upward dragging across offscreen source items
+is covered by Compose regression tests; this capture does not validate live device integrations.
+Live-preview captures in the same build directory (`preview-*.png`, `home-dragging*.png`) can also
+be removed after this UI change is accepted.
 
-- Home gives the thermostat and curtain full-width cards. Light strips, light-group summaries,
-  dimmable lamps and recuperators use two-column Home cards. Non-dimmable compact lamps retain
-  their compact format. Groups expand their individual lamps directly below the summary row.
-  Room sections retain their capability-based formats; an empty grid slot remains absent.
-- Rows grow to their tallest card, and text can wrap. Cards use a 12 dp radius, 6 dp outer inset
-  and 20 dp content padding. Home is taller than the browser concept because it includes real
-  controls, bounds, ages and feedback. Touch targets remain at least 64 dp.
+Drag smoothness checks (2026-11-08): steady motion within one slot no longer recomposes the panel;
+unchanged drag start and finish also avoid recomposition. Movement, lift order and landing use
+graphics or placement updates; neighbour and landing animations use non-bouncy springs. Edge
+scrolling follows display frames with gradual acceleration. Movement activity signals are sampled
+every 250 ms, while press and release remain immediate.
+A short tap requests a fresh read after release; long presses and scrolling only extend active use
+and do not add forced vendor reads. Scheduled polls and command confirmation reads continue normally.
+Native diagnostics are retained as `smoothness-*.txt` and `smoothness-*.png` in the same build directory.
+Some intermediate runs had a smaller device inventory while Yandex was loading, so their frame
+percentages are not a controlled comparison with the original run. With the full inventory restored,
+the last five identical within-slot drags (`smoothness-no-drag-refresh-gfx.txt`) recorded 12 missed
+frame deadlines versus 23 initially; the 95th percentile fell from 48 to 32 ms, while long outliers
+remained. This is a short smoke measurement, not a sustained frame-rate guarantee. Two cross-card
+drag/return pairs were also checked on the tablet and the original order restored.
+The dedicated test binary results are in
+`app/build/test-results/smoothness-testDebugUnitTest/`. These artifacts can be removed after the
+smoothness change is accepted.
+
+- Home starts with breezers, climate controls, lights, curtains, then the vacuum and other devices.
+  The default selection includes every room of the configured household. An explicitly saved
+  favourites list still controls membership. After the first Yandex and Tuya poll attempts,
+  card order is saved automatically as sections load;
+  later arrivals append, and returning cards recover their saved order. Renaming or reordering
+  the vendor inventory does not rearrange existing cards. Home light groups retain their membership
+  when power readings become unknown; unknown values display a dash and disable unsupported actions.
+  The curtain stays full width at its chosen position. Other cards use two independent columns,
+  falling back to one below 600 dp of effective width after font scaling. Home and rooms use the
+  same card layout, content heights and controls. Expanded devices stay below their summary.
+- Breezers form one summary on Home and one per room. Tapping expands individual devices with
+  their power, speed and climate controls. Group power affects available devices with known power
+  states and waits for pending commands. Failed devices remain in the group.
+- Holding a card starts dragging within its section; a short tap still opens the device or app.
+  A green outlined slot shows the destination; neighbouring cards animate to their preview positions
+  while the dragged card stays under the finger. Only release saves the preview; cancellation restores
+  the original order. There is no separate edit mode or edit toolbar. Dragging near a scroll edge scrolls the panel;
+  the source item stays mounted until release or cancellation, even outside the viewport.
+  Favourite and up/down alternatives remain available through card accessibility actions.
+  Favourite membership and each section's order survive restarts in encrypted local preferences.
+  Devices remain in their rooms when removed from Home; outages do not change favourite membership.
+- Cards, including the vacuum launcher, share a quiet outline, a 12 dp radius and 6 dp outer inset.
+  Control cards use 16 dp content padding and a
+  48 dp device illustration in the identity/power header. Touch targets remain at least 64 dp.
 - The thermostat uses a 210 dp circular target with vendor bounds and precision. Its card has no
   plus/minus buttons. Its centre still opens details. On narrow screens, the dial stacks
   below the identity and status. Without advertised bounds, the card shows a value without
   inventing adjustment. The full 270-degree arc uses the same light-to-rich peach scale, with a 16 dp
   round marker for a known target and no marker for an unknown reading.
 - Curtain close/open actions send the vendor minimum and maximum; the labelled slider sits
-  between them. Supported light-strip and individual-lamp cards expose brightness adjustment.
-  A light group has a lit/total count, group power and an expand/collapse action. Colour, scenes
-  and advanced modes stay in details. Recuperator speed controls require an available device.
+  between them. Percent sliders on cards omit printed bounds; brightness shows its setting label and large
+  current or draft value above the slider. Details retain the bounds. A light group has a lit/total
+  count, group power and a disclosure arrow with an accessible expand/collapse action and state.
+  Colour, scenes and advanced modes stay in details. Recuperator speed controls require an available device.
 - Every horizontal range control has a 16 dp light-to-rich peach gradient rail over an 18 dp outlined
   bed. Oval is the default knob (48 × 28 dp); Round is the real preview alternative (34 × 34 dp).
   Both retain a 64 dp touch height. The full gradient is visible without progress fill, ticks or
@@ -61,13 +97,14 @@ when a power reading becomes unknown. Group power commands target only lamps wit
   devices remain usable. Group power waits for pending lamps in that group. Command failures
   stay local, and an unconfirmed draft returns to the reported value after confirmation ends.
 - A room suffix is removed from a card title only when it matches that card's room. Full vendor
-  names remain in details. Each Home card names its room. Shared polling failures are explained
-  once per section; local failures and silently stale updates remain visible on affected cards.
-  Device reading age remains distinct from successful polling age. Every device remains in its
-  room section, including when a shared outage limits the favourite-room contents of Home.
+  names remain in details. Cards name their room. Failures use a red outline and a dash; unknown
+  values use a dash. Detailed reasons remain in device sheets and accessibility descriptions.
+  Shared failures no longer repeat explanatory banners for sections with cards. A provider that
+  fails before loading any device shows its name and a red dash. Internal reading and polling ages
+  remain separate.
 - Power uses a 56 dp visible rounded square inside a 64 dp touch target. Mint denotes confirmed
   on; off and disabled controls remain distinguishable. The Aqara lock has no write action.
-- Device details show the same app mark, verified capabilities and reading ages. They retain the
+- Device details show the same app mark, verified capabilities and current readings. They retain the
   mounted panel beneath a scrim, fit up to 94% of the panel height and scroll when necessary.
   System Back, outside tap and the explicit dismiss action close them; incoming calls also close
   them. No panel overlay changes Domonap's incoming-call priority.
@@ -929,8 +966,14 @@ existing file **silently writes nothing** and the analysis then measures the pre
 **Current as of N4:** tile identity is the untinted 80 dp realistic PNG art in
 `res/drawable-nodpi/`; the vector set below is the superseded implementation record. The unused
 AC, strip, bulb, intercom and vacuum identity vectors have been removed. Vectors remain for control
-and status symbols — power, curtain target position, fan speed and offline wifi. The unused door-lock
-and humidifier PNGs were also removed; neither has a tile.
+and status symbols — power, curtain target position, fan speed and offline wifi.
+
+The discovered-device cards and details also use hardware PNGs: lock, climate sensor, green Station
+Midi, television, wireless switch, smart socket and humidifier. Unfamiliar types use a neutral module
+illustration. The bedroom breezer uses AIRNANNY A7 artwork, including its room summary; mixed breezer
+groups keep the general illustration. This room-specific identity follows the owner's identification
+on 2026-11-01 and changes no integration or control behavior. Asset prompts and manufacturer references
+are recorded in [device-artwork-prompts.json](design/device-artwork-prompts.json).
 
 The original brief asked for a glyph on every tile. Before that implementation, there was no
 `Icon(` in `ru.domovoy`, and `app/src/main/res` held only `themes.xml` and `strings.xml`. A tile is recognised across a hallway by its shape and its glyph long before its name is

@@ -2,7 +2,6 @@ package ru.domovoy.panel
 
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import ru.domovoy.core.Reading
 import java.time.Instant
 
 /** Air conditioner state and target temperature. A failed poll retains the last readings visibly. */
@@ -61,18 +60,11 @@ fun AcTile(
     )
 }
 
-/** Power, target, and the oldest displayed reading age. Failures use the separate detail line. */
+/** Missing values remain explicit; known power is conveyed by the switch. */
 internal fun statusLine(
     tile: AcTileState,
     now: Instant,
 ): String = listOfNotNull(
-    power(tile.isOn),
+    "Нет данных".takeIf { tile.isOn == null },
     "Температура неизвестна".takeIf { tile.targetTemperature == null },
-    ageLine(oldest(tile.readings()), now),
 ).joinToString(" · ")
-
-/** Only readings with values contribute to age; absent values are already shown as unknown. */
-internal fun AcTileState.readings(): List<Reading> = listOfNotNull(
-    powerLastUpdated.takeIf { isOn != null },
-    temperatureLastUpdated.takeIf { targetTemperature != null },
-)

@@ -43,6 +43,9 @@ interface TuyaDevices {
     suspend fun setSpeed(deviceId: String, code: String): Result<Unit>
 }
 
+/** A configured device has no saved address and did not announce one on the local network. */
+class TuyaLanDeviceNotFoundException : IOException("Бризер не найден в локальной сети")
+
 /** Apartment-specific connection details, stored only in encrypted preferences. */
 @Serializable
 data class TuyaLanDevice(
@@ -126,7 +129,7 @@ class TuyaLanClient(
 
     private suspend fun <T> transaction(id: String, action: Session.() -> T): T = locks.getOrPut(id) { Mutex() }.withLock {
         val spec = configuration().firstOrNull { it.id == id } ?: error("Бризер не настроен")
-        val host = hosts[id] ?: spec.host ?: error("Бризер не найден в локальной сети")
+        val host = hosts[id] ?: spec.host ?: throw TuyaLanDeviceNotFoundException()
         val completed = withTimeoutOrNull(timeout.inWholeMilliseconds) {
             withContext(Dispatchers.IO) {
                 suspendCancellableCoroutine<T> { continuation ->

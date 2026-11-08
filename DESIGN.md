@@ -88,13 +88,14 @@ spacing:
   tile-outer: "6dp"
   tile-content: "20dp"
   home-content-gap: "8dp"
+  home-content-padding: "16dp"
   navigation-horizontal: "24dp"
   navigation-vertical: "12dp"
   navigation-gap: "8dp"
   sheet-gap: "16dp"
   sheet-content: "24dp"
 components:
-  home-card: {rounded: "{rounded.tile}", padding: "{spacing.tile-content}"}
+  home-card: {rounded: "{rounded.tile}", padding: "{spacing.home-content-padding}"}
   power-touch-target: {size: "64dp"}
   power-disc: {size: "56dp", rounded: "{rounded.power}"}
   temperature-dial: {size: "210dp"}
@@ -120,7 +121,7 @@ The application follows Android’s light/dark setting: neutral White in light m
 
 - Real adjustment on the device card, with full capabilities still available in details.
 - Fixed branded navigation above the scrolling Home and room sections.
-- Large readings, explicit command feedback and separate reading and polling ages.
+- Device illustrations, large readings and explicit command feedback; no reading or connection time labels.
 
 The surface-specific layout and acceptance limits are recorded in [Orbit](docs/design/orbit-mint.md). [PanelTheme.kt](app/src/main/kotlin/ru/domovoy/PanelTheme.kt) owns the native colour and typography values.
 
@@ -130,9 +131,9 @@ Filled power and Home buttons use lime `#B3DF5A` with dark `#283D12` glyphs in b
 
 Promoted readings, including the thermostat target, use on-surface. Lime identifies active controls and selected navigation. All horizontal range rails and the circular thermostat use the same light-to-rich peach scale, from tertiary-fixed to tertiary-fixed-dim. Peach and lavender do not colour device readings. The app mark uses the selected lime and peach palette. White and grey surface roles separate the page, cards and details; the dark scheme uses graphite surfaces. Context and range labels use on-surface-variant; control outlines use outline, while quiet card borders and dividers use outline-variant.
 
-Home cards normally use surface-container. Device failures may use error-container; stale or shared failures add an error outline. Room cards retain their neutral state ramp from unknown to off, failing and on. Power is accented only when the state is confirmed on.
+Home cards normally use surface-container. Device failures may use error-container; stale or shared failures add an error outline. Home and room controls share the same surfaces and sizing. Power is accented only when the state is confirmed on.
 
-**The Separate Error Rule.** Failures use the separate pink-red error role and explanatory text; peach is an accent, not an error colour. Shared polling failure preserves the last known device state; a failed command stays local to that device.
+**The Separate Error Rule.** Card failures use the separate pink-red error role and a dash; details and accessibility descriptions retain the reason. Unknown readings use a dash. Shared polling failure preserves the last known device state; a failed command stays local to that device.
 
 The user selected neutral **White** from the [light-theme previews](app/src/test/kotlin/ru/domovoy/panel/LightThemePreviewTest.kt). The earlier **Porcelain** and **Silver** alternatives remain test-only palettes; they are not a runtime theme switcher.
 
@@ -144,9 +145,11 @@ Manrope is bundled locally in regular, medium, semibold and bold weights; its OF
 
 The reference device is a portrait wall tablet with approximately 753 × 1204 dp of content space. Navigation stays above the scrolling grid: the app mark and name return Home, the header shows local time, and the next row contains Home, Domonap and the room picker.
 
-Home gives the thermostat a full-width card with its identity and status beside the circular control. The curtain is full-width with its value on the right and a slider between close/open actions. Light strips, light-group summaries, dimmable lamps and recuperators use two-column Home cards; compact lamps without dimming keep their compact format. Grouped lamps expand directly below their summary row. Every card names its room. The thermostat stacks below its identity on narrow screens; rows otherwise grow to the tallest neighbour. Empty grid slots remain absent.
+Home starts with grouped breezers, climate controls, lights, curtains, then the vacuum and other devices. The curtain is full width at its chosen position. Other cards use two independent columns and their own content heights, with the thermostat retaining its 210 dp dial. Below 600 dp of effective width after font scaling, cards use one column. Home and rooms share this layout. Expanded lamps and breezers stay below their own summary.
 
-Actual cards are taller than the browser concept because the native implementation includes real controls, bounds, ages and feedback. Scrolling is expected. Room sections retain their capability-based formats. There is no fixed card height that may clip text or controls.
+Control cards use 16 dp content padding, 8 dp content gaps, a 48 dp device illustration and 64 dp touch targets. Short cards do not stretch to their neighbours. Reading and connection times remain internal.
+
+Holding a card starts dragging it within its section, with edge scrolling and no separate edit mode. A green outlined slot shows its preview position while neighbouring cards slide aside. The dragged card follows the finger through graphics-layer translation. Neighbours use retargetable non-bouncy springs. Releasing commits the shown order and settles the floating card into its slot; cancellation settles it back into the original arrangement. The source stays mounted throughout the gesture, including while it is outside the viewport. Favourite and up/down alternatives remain available as accessibility actions on the card. Favourite membership and section orders persist in encrypted local preferences. Outages do not change favourites; every device remains available in its room.
 
 ## Elevation & Depth
 
@@ -160,12 +163,13 @@ Cards share the tile radius. Power has a rounded square visible surface inside a
 
 - **Home thermostat:** a working 210 dp target dial built from advertised temperature bounds and precision, plus power. Its full 270-degree arc runs light-to-rich peach from the minimum at 135 degrees to the maximum at 405 degrees; a 16 dp round marker locates the target. An unknown reading has no marker. There are no plus/minus buttons on the card. Without advertised bounds, show the reading without inventing adjustment.
 - **Curtain:** promoted neutral position, vendor-bounded slider and close/open actions using the actual minimum and maximum.
-- **Lighting:** power and brightness adjustment when supported. Room light groups expose their lit/total count, group power and expansion; expanded dimmable lamps expose their own brightness slider. Colours, scenes and other advanced modes remain in details.
-- **Recuperator:** power, climate readings and available speed controls. Offline/device-error cards show the problem without offering unsupported speed adjustment.
-- **Power:** switch semantics, a lime confirmed-on state and a neutral off state. Pending controls remain visibly disabled.
-- **Horizontal range control:** local draft, setting label, vendor range and unit, a conventional round or oval knob and a 64 dp touch area. The whole 16 dp rail has a continuous light-to-rich peach gradient over an 18 dp outlined bed; it has no selected-value fill, ticks or grip marks. The knob has a 1.5 dp outline. Oval is the default; Round is an alternative in the real Compose preview. Brightness and curtain opening retain their own labels and units; the colour scale applies to all sliders without relabelling them as temperatures. Cards have no plus/minus buttons. Device sheets retain optional step controls using vendor precision.
+- **Lighting:** power and brightness adjustment when supported. Room light groups show one small labelled icon per lamp instead of a lit/total count. Each icon directly toggles its lamp and shows confirmed power, pending commands, unknown readings or errors. Group power and the header disclosure remain available; expanded dimmable lamps expose their own brightness slider. Icons retain 64 dp touch targets and wrap with font scaling. Colours, scenes and other advanced modes remain in details.
+- **Breezer group:** one labelled hardware icon per unit shows confirmed power, unknown power or its own connection failure. Icons open individual details; the header disclosure expands full cards. The compact captions use 14 sp type with 18 sp line height and preserve 64 dp touch targets; cells grow and wrap with system font scaling. Individual errors do not colour the whole summary.
+- **Recuperator:** power, climate readings and available speed controls. Home uses text-only speed buttons without a separate section title or repeated fan icons. Offline/device-error cards show the problem without offering unsupported speed adjustment.
+- **Power:** switch semantics, a lime confirmed-on state and a neutral off state. Pending controls remain visibly disabled. A linked wall switch omits routine power words on its card; the power button carries that state.
+- **Horizontal range control:** local draft, setting label and unit. Percent sliders on cards omit printed bounds; brightness pairs the label with the large current or draft value, showing a dash for an unknown reading. Details retain the printed vendor range. All controls use a conventional round or oval knob and a 64 dp touch area. The whole 16 dp rail has a continuous light-to-rich peach gradient over an 18 dp outlined bed; it has no selected-value fill, ticks or grip marks. The knob has a 1.5 dp outline. Oval is the default; Round is an alternative in the real Compose preview. Brightness and curtain opening retain their own labels and units; the colour scale applies to all sliders without relabelling them as temperatures. Cards have no plus/minus buttons. Device sheets retain optional step controls using vendor precision.
 - **Navigation and brand:** the app mark, lime Home action, Domonap shortcut and room menu. An unavailable Domonap app is disabled and explained. [PanelBrand](app/src/main/kotlin/ru/domovoy/panel/PanelBrand.kt) chooses the official light/dark mark by the app theme, independently of Android's night setting.
-- **Details:** the same brand, full vendor name, current readings and their ages, verified capabilities and a dismiss action. System Back and outside tap dismiss; incoming calls close details and yield to Domonap.
+- **Details:** the same brand, full vendor name, current readings, verified capabilities and a dismiss action. System Back and outside tap dismiss; incoming calls close details and yield to Domonap.
 
 **The Confirmed Command Rule.** Dragging previews a local draft and sends one command when the gesture finishes. Pending disables controls for that device, while other devices remain usable; group power waits for the affected group.
 
@@ -175,7 +179,7 @@ Cards share the tile radius. Power has a rounded square visible surface inside a
 - **Do** retain the correct setting name and unit on every range control, including brightness and curtain opening.
 - **Do** place working controls on Home when the device advertises the capability and bounds.
 - **Do** preserve vendor ranges, precision and units in dials, sliders and end actions.
-- **Do** keep reading age distinct from successful service polling.
+- **Do** retain reading timestamps internally for state validation without printing time labels.
 - **Do** keep wall touch targets at least 64 dp and allow text and rows to grow.
 - **Do** use the app mark in the header and device sheets without tinting it.
 

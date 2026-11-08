@@ -1,7 +1,8 @@
 # Yandex Smart Home
 
 **Scope:** every device in the configured household is discovered automatically. Lights, strips,
-curtains and air conditioners have dedicated controls; other types have read-only cards and sheets.
+curtains and air conditioners have dedicated controls; sockets expose advertised power controls.
+Other types have read-only cards and sheets.
 The automatic-discovery section below describes current behavior; the older measurements and
 integration notes retain their original observations.
 
@@ -18,10 +19,11 @@ the response *means* are still open.
 ### Missing Home devices checked 2026-11-08
 
 A read-only live inventory returned 36 devices in the configured household, including the curtain
-and one humidifier in Спальня. Discovery retained them, but the initial Home selection only included
-Коридор and Зал. Home now defaults to every room in the configured household. A second humidifier,
-in Спальня взрослая, belongs to another household and remains excluded by the household filter.
-No device commands were sent for this inventory check.
+and one humidifier in Спальня. They were discovered correctly but excluded from the initial Home
+selection, which only included Коридор and Зал. Home now defaults to cards from every room;
+explicitly edited favourites remain user choices. A second humidifier, in Спальня взрослая, belongs
+to another household and remains excluded by the configured household filter. No device commands
+were sent. ADB listed no connected tablet, so installation and the physical screen were not checked.
 
 ### Inventory replacement
 
@@ -31,7 +33,8 @@ inventory, reading ages and successful-poll timestamp, with a visible failure.
 
 The live read on 2026-10-31 returned 35 devices in the configured household; 24 had dedicated tiles.
 The client now retains every type. Lights, strips, curtains and air conditioners keep their verified
-controls; all other types receive read-only cards and detail sheets. This includes previously hidden
+controls; sockets now expose power as described below, while remaining types receive read-only cards
+and detail sheets. This includes previously hidden
 speakers, switches, the vacuum and humidifier, plus the climate sensor, door lock and three intercom
 relays. Mi Home and Domonap launchers remain available for their native app features.
 
@@ -48,6 +51,50 @@ humidity, battery level, signal level, door/open, button and serviceability; mis
 unknown. Numeric units and each property's `last_updated` are retained. Other capabilities such as
 lock/event-history are not interpreted. Detail sheets display individual ages; cards use the oldest
 of their displayed readings. Unknown types with no readable state still have a named card.
+
+## Grouped intercom entries (2026-11-01)
+
+Domonap's `devices.types.openable` entry endpoints share one expandable «Домофоны» group per room,
+like lights and breezers. Its summary shows their last reported door readings: «Все закрыты» only when every entry reports closed
+with a known timestamp, «Есть открытая дверь» when any entry reports opened or ajar, and an unknown
+reading otherwise. Missing readings and an explicitly offline entry cannot produce an all-closed
+summary. A failed shared poll retains the last group and marks it as not updating.
+
+Tapping the summary expands or collapses the original entry cards in place. Each child card opens
+its own readings; their separate timestamps remain in the group state. Home and room groups expand
+independently. The room-based group identity survives inventory reordering and entry removal;
+a successful empty inventory removes it. Favourite membership and card positions migrate from the original entries to the group.
+The duplicate room launcher card is hidden while the persistent Domonap shortcut remains in the
+header. No power or door-release action is exposed for the group, and incoming-call handling is
+unchanged. Validation uses recorded fixtures and local UI tests; no intercom command or real call
+was used for this grouping change.
+
+## Wardrobe switch and iron socket (2026-11-01)
+
+The current read exposes «Верхняя кнопка» and «Нижняя кнопка» as separate `devices.types.switch`
+endpoints of one YNDX-00534 wireless switch, as confirmed by the owner. Neither advertises
+`devices.capabilities.on_off`: both report `event/button` (`click`, `double_click`, `long_press`),
+and the lower endpoint also reports battery and signal properties. The panel combines this exact,
+unambiguous pair in Гардероб into one «Выключатель» card, retaining separate key events and their
+timestamps in details. Incomplete or ambiguous pairs remain separate. No synthetic power command
+or button press is sent for the wireless switch.
+
+The owner confirmed that the switch controls the wardrobe light in the bedroom. Its card and details
+therefore also expose the existing light's power action when exactly one bulb is reported in Гардероб.
+The displayed power state, pending state and command errors come from that bulb; the command targets
+the bulb through the existing verified light path. The switch's own key events and battery remain in
+details. Lights in Спальня or other rooms are not included, and multiple wardrobe bulbs do not result
+in an arbitrary target being chosen.
+
+«Утюг» is a YNDX-0007 socket with a retrievable `on_off/on` capability and voltage, power and current
+measurements. Socket cards and details expose power only when the device reports this capability.
+Commands use the existing Yandex action endpoint, block repeated presses while pending, and refresh
+the shared inventory before showing a changed state. Errors remain local to that socket. Locks,
+intercom relays and other discovered types retain their read-only behavior.
+
+The fixture `app/src/test/resources/yandex/switch_socket.json` records these observed capabilities,
+events and measurements with fake identifiers. This check used a live read only; socket commands
+and confirmation/error behavior were tested against MockWebServer, without switching the real iron.
 
 ## Adaptive polling (2026-10-31)
 

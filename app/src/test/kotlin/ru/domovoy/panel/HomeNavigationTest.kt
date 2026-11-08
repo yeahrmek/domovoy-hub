@@ -6,22 +6,26 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.click
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.isHeading
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.unit.dp
 import com.github.takahirom.roborazzi.captureRoboImage
 import kotlinx.coroutines.runBlocking
@@ -63,7 +67,7 @@ class HomeNavigationTest {
         compose.setContent { Panel(scroll = scroll) }
         compose.onNodeWithText("Комнаты").performClick()
         compose.onNodeWithContentDescription("Перейти: Спальня").performClick()
-        compose.onNodeWithText("Спальня", useUnmergedTree = true).assertIsDisplayed().assert(
+        compose.onNode(hasText("Спальня") and isHeading(), useUnmergedTree = true).assertIsDisplayed().assert(
             SemanticsMatcher.expectValue(SemanticsProperties.Heading, Unit),
         )
         assertTrue(compose.runOnIdle { scroll.firstVisibleItemIndex } > 0)
@@ -81,10 +85,11 @@ class HomeNavigationTest {
         val bounds = tile.getUnclippedBoundsInRoot()
         val dial = compose.onNode(hasContentDescription("Температура") and hasAnyAncestor(hasContentDescription("Настроить: Кондиционер, Зал")) and home).assertIsDisplayed().getUnclippedBoundsInRoot()
         assertTrue(kotlin.math.abs((dial.bottom - dial.top).value - 210f) < 0.5f)
-        assertTrue(bounds.bottom - bounds.top >= 250.dp && bounds.bottom - bounds.top < 304.dp)
+        assertTrue(bounds.bottom - bounds.top >= 250.dp && bounds.bottom - bounds.top < 350.dp)
+        assertTrue(bounds.right - bounds.left < 400.dp)
         compose.onNodeWithContentDescription("Увеличить температуру").assertDoesNotExist()
         compose.onNodeWithContentDescription("Уменьшить температуру").assertDoesNotExist()
-        tile.performClick()
+        tile.performTouchInput { click(Offset(32.dp.toPx(), 32.dp.toPx())) }
         compose.onNodeWithText("Температура").assertIsDisplayed()
         compose.onNodeWithContentDescription("Увеличить").assertIsDisplayed()
     }
@@ -146,12 +151,13 @@ class HomeNavigationTest {
                 )
             }
         }
-        compose.onNodeWithText("Показать лампы").performClick()
-        compose.onNodeWithText(lamp.name).assertIsDisplayed()
-        compose.onAllNodes(SemanticsMatcher.keyIsDefined(SemanticsProperties.ProgressBarRangeInfo)).assertCountEquals(1)
+        val home = hasAnyAncestor(hasTestTag("section:Главная"))
+        compose.onNode(hasContentDescription("Показать лампы: Свет, Коридор") and home).performClick()
+        compose.onNode(hasContentDescription("Настроить: ${lamp.name}, ${lamp.room}") and home).assertIsDisplayed()
+        compose.onAllNodes(SemanticsMatcher.keyIsDefined(SemanticsProperties.ProgressBarRangeInfo) and home).assertCountEquals(1)
         compose.onRoot().captureRoboImage("src/test/screenshots/panel-home-expanded-dimmer.png")
 
-        compose.onNodeWithText(lamp.name).performClick()
+        compose.onNode(hasContentDescription("Настроить: ${lamp.name}, ${lamp.room}") and home).performClick()
 
         compose.onNodeWithContentDescription("Яркость").assertIsDisplayed()
     }

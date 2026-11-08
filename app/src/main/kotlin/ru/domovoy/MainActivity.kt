@@ -5,6 +5,7 @@ import android.os.Bundle
 import android.util.Log
 import android.view.accessibility.AccessibilityManager
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.fillMaxSize
@@ -22,6 +23,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
@@ -29,6 +31,7 @@ import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.lifecycleScope
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 import kotlinx.coroutines.channels.BufferOverflow.DROP_OLDEST
@@ -40,12 +43,17 @@ import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
 import ru.domovoy.core.KnownRecuperators
 import ru.domovoy.core.TokenStore
+import ru.domovoy.integrations.domonap.CallState
 import ru.domovoy.integrations.domonap.domonapCalls
 import ru.domovoy.integrations.tuya.TuyaLanClient
 import ru.domovoy.integrations.tuya.TuyaLanDevice
 import ru.domovoy.integrations.tuya.TuyaLanNetwork
 import ru.domovoy.integrations.tuya.tuyaLanDevices
 import ru.domovoy.integrations.yandex.YandexClient
+import ru.domovoy.kiosk.KioskSettings
+import ru.domovoy.kiosk.PanelAuthentication
+import ru.domovoy.kiosk.PanelKiosk
+import ru.domovoy.kiosk.lockTaskChanges
 import ru.domovoy.panel.AdaptivePolling
 import ru.domovoy.panel.CardPreferencesStore
 import ru.domovoy.panel.PanelRooms
@@ -74,6 +82,23 @@ private const val SECRETS_FILE = "domovoy-secrets"
 
 class MainActivity : ComponentActivity() {
     private val foreground = MutableStateFlow(false)
+    private lateinit var kiosk: PanelKiosk
+    private var accessOpen by mutableStateOf(false)
+
+    override fun onResume() {
+        super.onResume()
+        kiosk.resume()
+    }
+
+    override fun onUserLeaveHint() {
+        super.onUserLeaveHint()
+        kiosk.userLeft()
+    }
+
+    override fun onDestroy() {
+        kiosk.destroy()
+        super.onDestroy()
+    }
 
     override fun onStart() {
         super.onStart()
@@ -82,6 +107,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onStop() {
         foreground.value = false
+        kiosk.background()
         super.onStop()
     }
 
@@ -99,6 +125,19 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        val authentication = PanelAuthentication(this)
+        kiosk = PanelKiosk(this, authentication::request, authentication::cancel)
+        lifecycleScope.launch {
+            domonapCalls.state.collect { call ->
+                if (call == CallState.Active) {
+                    accessOpen = false
+                    kiosk.onCallStarted()
+                } else {
+                    kiosk.onCallEnded()
+                }
+            }
+        }
+        lifecycleScope.launch { lockTaskChanges.collect { kiosk.refresh() } }
         val secrets = secrets(applicationContext)
         setContent {
             MaterialTheme(
@@ -106,7 +145,38 @@ class MainActivity : ComponentActivity() {
                 typography = panelTypography,
             ) {
                 Surface {
-                    Panel(secrets, interactions, foreground)
+                    val protection by kiosk.state.collectAsState()
+                    // Keep the Home task alive; sheets and menus retain their own Back handlers.
+                    BackHandler(enabled = protection.enabled) { }
+                    Panel(
+                        secrets,
+                        interactions,
+                        foreground,
+                        onPanelAccess = {
+                            kiosk.refresh()
+                            accessOpen = domonapCalls.state.value != CallState.Active
+                        },
+                        accessMessage = protection.error ?: if (protection.enabled && !protection.locked) {
+                            protection.problem ?: "Защита панели сейчас не действует. Откройте «Защита» и проверьте настройки."
+                        } else {
+                            null
+                        },
+                        openApp = kiosk::openApp,
+                    )
+                    if (accessOpen) {
+                        KioskSettings(
+                            state = protection,
+                            onEnable = {
+                                accessOpen = false
+                                kiosk.enable()
+                            },
+                            onExit = {
+                                accessOpen = false
+                                kiosk.exit()
+                            },
+                            onDismiss = { accessOpen = false },
+                        )
+                    }
                 }
             }
         }
@@ -150,7 +220,14 @@ private fun encryptedPrefs(context: Context) = EncryptedSharedPreferences.create
 )
 
 @Composable
-private fun Panel(secrets: PanelSecrets, touches: MutableSharedFlow<Unit>, foreground: StateFlow<Boolean>) {
+private fun Panel(
+    secrets: PanelSecrets,
+    touches: MutableSharedFlow<Unit>,
+    foreground: StateFlow<Boolean>,
+    onPanelAccess: () -> Unit,
+    accessMessage: String?,
+    openApp: (String, (String?) -> Unit) -> Unit,
+) {
     val context = LocalContext.current
     val cardStore = remember(context) { CardPreferencesStore(runCatching { encryptedPrefs(context) }.getOrNull()) }
     var cardPreferences by remember(cardStore) { mutableStateOf(cardStore.load()) }
@@ -198,6 +275,7 @@ private fun Panel(secrets: PanelSecrets, touches: MutableSharedFlow<Unit>, foreg
     val acState by acs.state.collectAsState()
     val stripState by strips.state.collectAsState()
     val discoveredState by poll.discovered.state.collectAsState()
+    val deviceRefresh by poll.refreshState.collectAsState()
     val recuperatorState by recuperators.state.collectAsState()
     var now by remember { mutableStateOf(Instant.now()) }
     val scope = rememberCoroutineScope()
@@ -274,10 +352,34 @@ private fun Panel(secrets: PanelSecrets, touches: MutableSharedFlow<Unit>, foreg
             .onFocusChanged { if (it.hasFocus) touches.tryEmit(Unit) }
             .pointerInput(Unit) {
                 awaitPointerEventScope {
+                    var lastActivityAt: Long? = null
+                    var pressedAt = 0L
+                    var pressPosition = Offset.Zero
+                    var moved = false
                     while (true) {
                         val event = awaitPointerEvent(PointerEventPass.Initial)
-                        touches.tryEmit(Unit)
-                        poll.polling.touch(refresh = event.type == PointerEventType.Press)
+                        val time = event.changes.firstOrNull()?.uptimeMillis ?: 0L
+                        // Movement extends active use; press and release are signalled immediately.
+                        if (event.type != PointerEventType.Move || lastActivityAt == null || time - lastActivityAt >= 250L) {
+                            lastActivityAt = time
+                            touches.tryEmit(Unit)
+                        }
+                        if (event.type == PointerEventType.Press) {
+                            if (event.changes.count { it.pressed } == 1) {
+                                pressedAt = time
+                                pressPosition = event.changes.first { it.pressed }.position
+                                moved = false
+                            } else {
+                                moved = true
+                            }
+                        }
+                        if (event.changes.any { (it.position - pressPosition).getDistanceSquared() > viewConfiguration.touchSlop * viewConfiguration.touchSlop }) {
+                            moved = true
+                        }
+                        if (event.type == PointerEventType.Release && event.changes.none { it.pressed }) {
+                            // Sorting and scrolling do not request extra vendor reads during the gesture.
+                            if (!moved && time - pressedAt in 0 until viewConfiguration.longPressTimeoutMillis) poll.polling.touch()
+                        }
                     }
                 }
             },
@@ -285,6 +387,10 @@ private fun Panel(secrets: PanelSecrets, touches: MutableSharedFlow<Unit>, foreg
         openSheet = openSheet,
         roomPickerOpen = roomPickerOpen,
         launcherErrors = launcherErrors,
+        onPanelAccess = onPanelAccess,
+        accessMessage = accessMessage,
+        deviceRefresh = deviceRefresh,
+        onRefreshDevices = { scope.launch { poll.refreshDevices() } },
         cardPreferences = cardPreferences,
         onCardPreferencesChange = { value ->
             cardPreferences = value
@@ -330,6 +436,10 @@ private fun Panel(secrets: PanelSecrets, touches: MutableSharedFlow<Unit>, foreg
             touches.tryEmit(Unit)
             scope.launch { tiles.toggle(id) }
         },
+        onToggleDiscovered = { id ->
+            touches.tryEmit(Unit)
+            scope.launch { poll.discovered.toggle(id) }
+        },
         onSetBulbBrightness = { id, percent ->
             touches.tryEmit(Unit)
             scope.launch { tiles.setBrightness(id, percent) }
@@ -344,8 +454,9 @@ private fun Panel(secrets: PanelSecrets, touches: MutableSharedFlow<Unit>, foreg
         },
         onOpenApp = { packageName ->
             touches.tryEmit(Unit)
-            val failure = openVendorApp(context, packageName)
-            launcherErrors = if (failure == null) launcherErrors - packageName else launcherErrors + (packageName to failure)
+            openApp(packageName) { failure ->
+                launcherErrors = if (failure == null) launcherErrors - packageName else launcherErrors + (packageName to failure)
+            }
         },
     )
 }

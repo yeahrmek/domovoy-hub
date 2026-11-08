@@ -620,3 +620,37 @@ The tablet VPN stayed enabled with its original settings. Its restriction on exp
 binding is handled by following normal system routes; the independent reply counter is handled
 by the client. No VPN exclusion was applied. Appliance restart recovery, intercom calls during a
 LAN command, and operation with internet disconnected were not physically exercised here.
+
+
+## Isolated bedroom failure and group summary — 2026-11-01
+
+The installed panel returned fresh readings for the hall, study and both children's rooms.
+The bedroom entry alone failed: the process log records «Бризер не найден в локальной сети»
+before opening a device socket. This is the saved Tuya entry with no discovered address,
+not a failed cloud subscription or a failure of the four responding units.
+
+The owner confirmed that the bedroom appliance has been replaced by an ATMEEX AIRNANNY A7,
+currently controlled only through Atmeex. A read-only Yandex inventory check found no breather
+candidate in the configured household. Changing its illustration had not connected this new
+appliance: runtime still uses the saved Tuya configuration. The AIRNANNY connection remains
+unconfigured; no Atmeex endpoint, protocol, or successful integration is assumed here.
+
+The summary previously promoted the first device's error to a whole-group error and replaced
+all power states with a dash whenever any power was unknown. It now shows one compact, labelled
+hardware icon per device. Power on/off, a reachable unit with unknown power, missing updates,
+pending commands and connection failures remain distinct. Individual failure colours only that
+unit's indicator; a shared poll failure still marks the group. Each indicator opens its own
+readings without issuing a command. Group power uses only units with known power and no read
+failure, and is disabled during a shared outage or pending group command.
+
+A missing LAN address now has a typed failure with the safe UI reason «Бризер не найден в
+локальной сети» rather than the generic request-failure label. Unstructured exception messages
+remain hidden. Fixture tests cover the partial failure, unknown power, shared outage, cached
+states and group commands. Live diagnosis used reads only; no appliance state was changed.
+
+
+The UI update was installed on the wall tablet after all 641 unit/UI tests, `ktlintCheck`, Android
+lint and `assembleDebug` passed. After the first poll, the four responding units showed off and
+only the bedroom entry showed no connection. Tapping its compact icon opened its own details
+with the precise missing-LAN-device reason. Group expansion/collapse and device actions remain
+separate touch targets. No physical power or speed command was issued during this verification.

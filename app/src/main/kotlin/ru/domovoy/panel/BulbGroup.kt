@@ -77,8 +77,8 @@ internal fun lampCount(group: BulbGroup): String {
     return "$count $noun"
 }
 
-/** The promoted count carries power; supporting text only gives the vendor reading's age. */
+/** The promoted count carries the group state without a separate freshness line. */
 internal fun bulbGroupLine(
     group: BulbGroup,
     now: Instant,
-): String = group.oldest?.let { sheetAge(it, now) } ?: "Нет данных"
+): String = if (group.lamps.isEmpty()) "Нет данных" else ""

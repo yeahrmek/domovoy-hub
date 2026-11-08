@@ -7,6 +7,42 @@ the guesses further down wherever they disagree. **No Domonap endpoint has been 
 below about the *backend* comes from a third-party Home Assistant integration, not from Domonap. Do
 not invent endpoints on top of it.
 
+## APK investigation and preview candidate (2026-10-31)
+
+Static inspection of Domonap **9852** changes the interpretation of the earlier call capture:
+`IncomingDomofonCallViewModel` deliberately calls `disconnectTelecomWhenRegistered()` when its
+screen opens. A `LOCAL` Telecom disconnect is a normal handoff to the app's own SIP UI;
+`CallOrchestrator` does not stop SIP on this cause. Therefore the earlier section titled
+"It worked, and it killed the call" establishes a system Telecom disconnect, **not by itself an
+intercom/SIP disconnect**. The old timestamps remain observations; actual video/audio survival in
+that capture was not established.
+
+A separate failure path is real: if the preview cannot resolve its call push, `clearAndFinish()`
+stops `TelephonyService`, whose destruction tears down SIP. The normal preview intent carries only
+the call ID and relies on cached call data. An experimental APK now opens the existing preview
+after a real `TelecomCall.Registered`, with the complete matching Parcelable push, and rechecks
+the current call before launching. It never adds an answer/reject/door-release action and preserves
+the vendor's Telecom-to-SIP handoff. The hook runs after the vendor's ended-call check.
+
+The candidate passed 11 JVM behavior checks, independent DEX verification (one changed vendor
+method), signatures/alignment, and an offline Android 13 emulator test: a delayed synthetic incoming
+Telecom call opened the preview over the launcher, and the foreground call service survived the
+normal `LOCAL` handoff. No additional background-launch permission was needed in that emulator.
+The synthetic fixture had no SIP credentials or live video URL, so this is **not** a real-call
+video/audio result or proof of Samsung background behavior.
+
+The tablet has the earlier **portrait-only** APK modification installed, with the welcome screen
+physically verified as full-height. The new automatic-preview candidate is **prepared, not installed
+on the tablet**; the user deferred the real call test. Local ignored artifacts, the deliverable
+five-APK archive, and a read-only capture script are under
+`.toolchain/domonap-autovideo-20261031/`. The candidate has the same local signing certificate as the
+installed portrait build and can be updated in place; do not uninstall it for this update.
+
+Remaining validation: sign in, update the candidate while no call is active, ring the actual
+intercom with the panel in front, observe live preview without automatic answer/door release,
+then manually answer and check two-way audio and ordinary end/reject behavior. Screen-off/locked
+behavior needs its own real test. Do not interpret Telecom `LOCAL` alone as failure.
+
 ## Recorded on the tablet (2026-08-15)
 
 Read off the actual panel tablet — Samsung SM-T875 (`gts7l`), Android 13 / API 33 — with the app

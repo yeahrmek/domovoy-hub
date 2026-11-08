@@ -50,7 +50,7 @@ class AcTilesTest {
         assertEquals(false, tile.isOn)
         assertEquals(18.0, tile.targetTemperature)
         assertEquals(Bounds(min = 16.0, max = 32.0, precision = 1.0), tile.bounds)
-        assertEquals("Выключено · 81 дн. назад", statusLine(tile, now(hours = 2)))
+        assertEquals("", statusLine(tile, now(hours = 2)))
     }
 
     @Test
@@ -153,7 +153,7 @@ class AcTilesTest {
         val tile = acs.state.value.tiles.single { it.id == "ac-01" }
         assertNull(tile.targetTemperature)
         // A missing temperature has no age; use the reported power timestamp.
-        assertEquals("Выключено · Температура неизвестна · 2 ч назад", statusLine(tile, now(hours = 2)))
+        assertEquals("Температура неизвестна", statusLine(tile, now(hours = 2)))
     }
 
     @Test
@@ -166,7 +166,7 @@ class AcTilesTest {
 
         val tile = acs.state.value.tiles.single { it.id == "ac-01" }
         assertNull(tile.isOn)
-        assertEquals("Нет данных · 81 дн. назад", statusLine(tile, now(hours = 2)))
+        assertEquals("Нет данных", statusLine(tile, now(hours = 2)))
     }
 
     @Test
@@ -180,7 +180,7 @@ class AcTilesTest {
         poll.refresh()
 
         val tile = acs.state.value.tiles.single { it.id == "ac-01" }
-        assertEquals("Выключено · 81 дн. назад", statusLine(tile, now(hours = 2)))
+        assertEquals("", statusLine(tile, now(hours = 2)))
     }
 
     @Test
@@ -277,7 +277,7 @@ class AcTilesTest {
         assertNotNull(after.error)
         assertEquals(before, after.tiles)
         val tile = after.tiles.single { it.id == "ac-01" }
-        assertEquals("Выключено · 81 дн. назад", statusLine(tile, now(hours = 2)))
+        assertEquals("", statusLine(tile, now(hours = 2)))
         assertEquals(
             "Не удалось выполнить запрос",
             anatomy(tile, now(hours = 2), after.error).detail,

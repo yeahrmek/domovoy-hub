@@ -27,11 +27,15 @@ The 210 dp thermostat retains its circular control. Its full 270-degree arc runs
 
 The fixed header contains the app mark, the Domovoy name and local time. Home, Domonap and the room picker remain above the scrolling device grid. The same mark identifies device details.
 
-The thermostat is full-width. Its identity, room, power, status and ages sit beside a 210 dp circular target control. The card has no decrease/increase buttons. Dragging the arc previews a target locally and commits once on release. Accessibility adjustment uses the same target command; precise step buttons remain in the device sheet. The range and precision come from the device; no bounds means no invented dial. On narrow screens, the control stacks below its identity.
+The full-width curtain comes first, with device art, name, room and position above the close/slider/open row. End actions send the vendor minimum or maximum. On narrow cards or at large text sizes, the slider gets its own row above the two end buttons.
 
-The curtain is full-width, with its promoted value to the right of the name and room. Close, a labelled slider and open share one row. End actions send the vendor minimum or maximum. Brightness sliders and power remain on the light-strip and supported individual-lamp cards. Groups use two-column Home summaries with a lit/total count, group power and expandable lamps; dimmable lamps have their own controls after expansion. Compact lamps without dimming retain their compact format. Recuperators have two-column Home cards with power and speed adjustment when available. Advanced modes, scenes and colour controls remain in details.
+Other Home cards use two independent columns. Their heights follow their own content rather than their neighbour's height; short light summaries and errors reserve no empty control space. Below an effective width of 600 dp after font scaling, the cards form one column. Expanded lamps stay directly below their group in the same column.
 
-Cards grow with real controls, bounds, feedback and text, so the native Home is taller and scrolls more than the browser concept. Do not compress the controls to force the whole inventory into one viewport.
+The thermostat occupies one column and keeps its 210 dp circular target control and 64 dp power touch target. Its illustration shares the identity/power header above the centred dial. In a wider card, the identity header sits to the left of the dial. Dragging the arc previews locally and commits once on release. The range and precision come from the device; no bounds means no invented dial. Precise step buttons remain in details.
+
+Home device illustrations share the identity/power header. Lighting pairs its setting label with the large current or draft brightness above one slider. Recuperators show climate readings, text-only speed buttons and humidity, without a separate speed title or repeated icons. Groups show a lit/total count, power and a disclosure arrow; accessibility retains the expand/collapse action and state. Lock and intercom cards keep one main state without secondary state labels. Advanced modes, scenes and colours remain in details.
+
+Home cards use 16 dp content padding and 8 dp between content groups. Home device illustrations are 48 dp. Controls retain their 64 dp touch targets. Percent sliders on cards omit printed bounds; details retain them. Labels and values wrap when needed. Room grids reduce their column count with available width and font scaling, and have no reserved card minimum heights. Reading and connection times are not displayed on cards or in details; failures and pending commands remain visible.
 
 ## Commands and state
 

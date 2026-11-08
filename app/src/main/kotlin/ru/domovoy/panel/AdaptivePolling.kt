@@ -54,12 +54,12 @@ class AdaptivePolling(
         wake.trySend(Unit)
     }
 
-    /** A command confirmation must start after that command, even if an older read is in flight. */
-    suspend fun refresh(force: Boolean = false) {
-        if (!allowed()) return
+    /** Forced reads start after the request; null means polling was paused or another read served it. */
+    suspend fun refresh(force: Boolean = false): Boolean? {
+        if (!allowed()) return null
         val before = revision
-        mutex.withLock {
-            if (!allowed() || (!force && revision != before)) return
+        return mutex.withLock {
+            if (!allowed() || (!force && revision != before)) return@withLock null
             val success = coroutineScope {
                 val job = currentCoroutineContext().job
                 activeRead = job
@@ -75,6 +75,7 @@ class AdaptivePolling(
             revision++
             mutableInterval.value = cadence()
             wake.trySend(Unit)
+            success
         }
     }
 

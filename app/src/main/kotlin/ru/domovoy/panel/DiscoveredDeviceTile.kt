@@ -1,7 +1,28 @@
 package ru.domovoy.panel
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.unit.dp
 import ru.domovoy.R
 import ru.domovoy.core.Device
 import ru.domovoy.core.Reading
@@ -15,53 +36,147 @@ internal fun DiscoveredDeviceTile(
     now: Instant,
     modifier: Modifier = Modifier,
     error: String? = null,
+    commandError: String? = null,
+    pending: Boolean = false,
     showRoom: Boolean = false,
+    controlledLight: BulbTileState? = null,
+    onToggle: () -> Unit = {},
     onOpen: () -> Unit,
 ) {
+    if (tile.vendorType == "devices.types.sensor.climate") {
+        ClimateSensorRow(tile, modifier, showRoom, commandError ?: error, onOpen)
+        return
+    }
     val readings = discoveredReadings(tile)
     val primary = readings.firstOrNull()
-    val age = oldest(readings.take(2).map { it.reading })?.let { sheetAge(it, now) }
+    val door = tile.vendorType == "devices.types.openable" || tile.vendorType == "devices.types.openable.door_lock"
+    val pairedSwitch = "upper_button" in tile.events && "lower_button" in tile.events
+    val light = switchLight(tile, listOfNotNull(controlledLight))
+    val isOn = if (light != null) light.isOn else tile.onOff?.isOn
+    val paint = paint(isOn, ownError = commandError, groupError = error)
     TileCard(
         anatomy = TileAnatomy(
             art = discoveredArt(tile),
             action = null,
             name = tile.name,
-            promoted = primary?.value,
-            status = listOfNotNull(primary?.label, age).joinToString(" · ").ifEmpty { "Нет показаний · Время неизвестно" },
-            detail = readings.drop(1).firstOrNull()?.let { "${it.label}: ${it.value}" },
+            promoted = if (light != null) "Нет данных".takeIf { light.isOn == null } else primary?.value.takeUnless { pairedSwitch },
+            status = when {
+                light != null -> ""
+                pairedSwitch -> primary?.let { "${it.label}: ${it.value}" }.orEmpty()
+                (door || canTogglePower(tile)) && primary != null -> ""
+                else -> primary?.label ?: "Нет показаний"
+            },
+            detail = commandError ?: error ?: if (door || light != null) null else readings.drop(1).firstOrNull()?.let { "${it.label}: ${it.value}" },
             room = tile.room,
         ),
-        paint = paint(tile.onOff?.isOn, ownError = null, groupError = error),
+        paint = paint,
         modifier = modifier,
+        pending = pending,
         showRoom = showRoom,
-        format = TileFormat.Reading,
+        format = if (pairedSwitch) TileFormat.Compact else TileFormat.Reading,
         onClick = onOpen,
+        toggle = {
+            if (canTogglePower(tile) || light != null) {
+                TilePowerButton(tile.name, tile.room, isOn == true, paint.mood, onToggle, enabled = !pending)
+            }
+        },
     )
 }
 
-/** No write actions are exposed, including for locks and intercom relays advertised as on/off. */
-internal fun sheet(tile: Device, now: Instant, error: String?): TileSheet = TileSheet(
-    id = tile.id,
-    name = tile.name,
-    room = tile.room,
-    art = discoveredArt(tile),
-    readings = discoveredReadings(tile).map { SheetReading(it.label, it.value, sheetAge(it.reading, now)) }.ifEmpty { listOf(SheetReading("Состояние", "Нет показаний", "Время неизвестно")) },
-    actions = emptySet(),
-    isOn = tile.onOff?.isOn,
-    level = null,
-    notUpdating = error,
-)
+/** Read-only climate readings share one slim row; smaller containers wrap below the identity. */
+@Composable
+private fun ClimateSensorRow(
+    tile: Device,
+    modifier: Modifier,
+    showRoom: Boolean,
+    error: String?,
+    onOpen: () -> Unit,
+) {
+    Card(
+        onClick = onOpen,
+        modifier = modifier.fillMaxWidth().padding(6.dp).semantics {
+            if (error != null) stateDescription = error
+        },
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+        border = BorderStroke(1.dp, if (error != null) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.outlineVariant),
+    ) {
+        BoxWithConstraints(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+            val inline = maxWidth / LocalDensity.current.fontScale >= 600.dp
+            val identity: @Composable () -> Unit = {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TileDeviceArt(discoveredArt(tile), Modifier.size(48.dp))
+                    Column {
+                        Text(tile.name, style = MaterialTheme.typography.titleMedium)
+                        if (showRoom) {
+                            Text(tile.room ?: "Без комнаты", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                }
+            }
+            val readings: @Composable () -> Unit = {
+                Row(horizontalArrangement = Arrangement.spacedBy(24.dp), verticalAlignment = Alignment.CenterVertically) {
+                    listOf("temperature", "humidity").forEach { instance ->
+                        Column {
+                            Text(propertyLabel(instance), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            val property = tile.properties[instance]
+                            Text(
+                                property?.let { propertyValue(it.value, it.unit) }?.takeUnless { it == "Нет данных" } ?: "—",
+                                style = MaterialTheme.typography.headlineSmall,
+                            )
+                        }
+                    }
+                    if (error != null) {
+                        Text("—", color = MaterialTheme.colorScheme.error, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
+                    }
+                }
+            }
+            if (inline) {
+                Row(Modifier.fillMaxWidth().heightIn(min = MIN_TOUCH), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    Column(Modifier.weight(1f)) { identity() }
+                    readings()
+                }
+            } else {
+                Column(Modifier.fillMaxWidth().heightIn(min = MIN_TOUCH), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    identity()
+                    readings()
+                }
+            }
+        }
+    }
+}
+
+/** Power controls a socket or the wardrobe switch's linked lamp; entry devices remain read-only. */
+internal fun sheet(tile: Device, now: Instant, error: String?, controlledLight: BulbTileState? = null): TileSheet {
+    val light = switchLight(tile, listOfNotNull(controlledLight))
+    val deviceReadings = discoveredReadings(tile).map { SheetReading(it.label, it.value, sheetAge(it.reading, now)) }
+    val readings = listOfNotNull(light?.let { SheetReading("Свет гардероба", power(it.isOn), sheetAge(it.lastUpdated, now)) }) +
+        deviceReadings
+    return TileSheet(
+        id = tile.id,
+        name = tile.name,
+        room = tile.room,
+        art = discoveredArt(tile),
+        readings = readings.ifEmpty { listOf(SheetReading("Состояние", "Нет показаний", "Время неизвестно")) },
+        actions = if (canTogglePower(tile) || light != null) setOf(SheetAction.Power) else emptySet(),
+        isOn = if (light != null) light.isOn else tile.onOff?.isOn,
+        level = null,
+        notUpdating = error,
+    )
+}
 
 /** Properties precede capabilities: a door contact is not the last relay command. */
 private data class DiscoveredReading(val label: String, val value: String, val reading: Reading)
 
 private fun discoveredReadings(tile: Device): List<DiscoveredReading> = buildList {
-    tile.events.toSortedMap(compareBy<String> { if (it == "door" || it == "open") 0 else 1 }.thenBy { it }).forEach { (instance, event) ->
+    if (canTogglePower(tile)) tile.onOff?.let { add(DiscoveredReading("Питание", power(it.isOn), it.lastUpdated)) }
+    tile.events.toSortedMap(compareBy<String> { if (it == "door" || it == "open" || it == "upper_button") 0 else 1 }.thenBy { it }).forEach { (instance, event) ->
         add(DiscoveredReading(propertyLabel(instance), eventValue(event.value), event.lastUpdated))
     }
     tile.properties.toSortedMap(
         compareBy<String> {
             when (it) {
+                "power" -> if (canTogglePower(tile)) -1 else 3
                 "temperature" -> 0
                 "humidity" -> 1
                 "battery_level" -> 2
@@ -71,7 +186,7 @@ private fun discoveredReadings(tile: Device): List<DiscoveredReading> = buildLis
     ).forEach { (instance, property) ->
         add(DiscoveredReading(propertyLabel(instance), propertyValue(property.value, property.unit), property.lastUpdated))
     }
-    tile.onOff?.let { add(DiscoveredReading("Питание", power(it.isOn), it.lastUpdated)) }
+    if (!canTogglePower(tile)) tile.onOff?.let { add(DiscoveredReading("Питание", power(it.isOn), it.lastUpdated)) }
     tile.ranges.forEach { (instance, range) ->
         add(DiscoveredReading(propertyLabel(instance), propertyValue(range.value, range.unit), range.lastUpdated))
     }
@@ -108,16 +223,20 @@ private fun propertyLabel(instance: String): String = when (instance) {
     "door", "open" -> "Дверь"
     "serviceability" -> "Исправность"
     "button" -> "Кнопка"
+    "upper_button" -> "Верхняя клавиша"
+    "lower_button" -> "Нижняя клавиша"
     "motion" -> "Движение"
     "noise" -> "Шум"
     "voice_activity" -> "Голос"
     else -> capabilityLabel(instance)
 }
 
-private fun eventValue(value: String?): String = when (value) {
+internal fun eventValue(value: String?): String = when (value) {
     null -> "Нет данных"
     "opened" -> "Открыта"
     "closed" -> "Закрыта"
+    "all_closed" -> "Все закрыты"
+    "some_open" -> "Есть открытая дверь"
     "ajar" -> "Приоткрыта"
     "locked" -> "Заперта"
     "ok" -> "В порядке"
@@ -132,11 +251,16 @@ private fun eventValue(value: String?): String = when (value) {
     else -> capabilityLabel(value)
 }
 
-/** Existing hardware art is reused where it describes the device; other types use a neutral glyph. */
-private fun discoveredArt(tile: Device): Int = when {
-    tile.vendorType == "devices.types.vacuum_cleaner" -> R.drawable.device_art_vacuum
-    tile.vendorType == "devices.types.openable" -> R.drawable.device_art_intercom
-    tile.vendorType == "devices.types.openable.door_lock" -> R.drawable.ic_device_lock
-    tile.vendorType?.startsWith("devices.types.sensor") == true -> R.drawable.ic_device_sensor
-    else -> R.drawable.ic_device_generic
+/** Cards and details share hardware art; unfamiliar models retain a neutral device illustration. */
+private fun discoveredArt(tile: Device): Int = when (tile.vendorType) {
+    "devices.types.vacuum_cleaner" -> R.drawable.device_art_vacuum
+    "devices.types.openable" -> R.drawable.device_art_intercom
+    "devices.types.openable.door_lock" -> R.drawable.device_art_door_lock
+    "devices.types.sensor.climate" -> R.drawable.device_art_climate_sensor
+    "devices.types.smart_speaker.yandex.station.cucumber" -> R.drawable.device_art_station_midi_green
+    "devices.types.media_device.tv", "devices.types.media_device.tv.yandex.magritte" -> R.drawable.device_art_television
+    "devices.types.switch" -> R.drawable.device_art_switch
+    "devices.types.socket" -> R.drawable.device_art_socket
+    "devices.types.humidifier" -> R.drawable.device_art_humidifier
+    else -> R.drawable.device_art_generic
 }

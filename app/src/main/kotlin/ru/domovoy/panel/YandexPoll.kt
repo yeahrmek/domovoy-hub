@@ -1,7 +1,15 @@
 package ru.domovoy.panel
 
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import ru.domovoy.integrations.yandex.YandexClient
 import java.time.Instant
+
+data class DeviceRefreshState(
+    val refreshing: Boolean = false,
+    val updated: Boolean = false,
+    val error: String? = null,
+)
 
 /**
  * The panel's one read of the Yandex house.
@@ -32,10 +40,27 @@ class YandexPoll(
     val curtains = CurtainTiles(client) { polling.refresh(force = true) }
     val acs = AcTiles(client) { polling.refresh(force = true) }
     val strips = LightStripTiles(client) { polling.refresh(force = true) }
-    val discovered = DiscoveredDevices()
+    val discovered = DiscoveredDevices(client) { polling.refresh(force = true) }
     val polling = AdaptivePolling(now = now) { readOnce() }
+    private val mutableRefreshState = MutableStateFlow(DeviceRefreshState())
+    val refreshState = mutableRefreshState.asStateFlow()
 
     suspend fun refresh() = polling.refresh()
+
+    /** Explicit discovery bypasses the polling delay and replaces the inventory on success. */
+    suspend fun refreshDevices() {
+        if (mutableRefreshState.value.refreshing) return
+        mutableRefreshState.value = DeviceRefreshState(refreshing = true)
+        try {
+            mutableRefreshState.value = when (polling.refresh(force = true)) {
+                true -> DeviceRefreshState(updated = true)
+                false -> DeviceRefreshState(error = bulbs.state.value.error)
+                null -> DeviceRefreshState()
+            }
+        } finally {
+            mutableRefreshState.value = mutableRefreshState.value.copy(refreshing = false)
+        }
+    }
 
     /**
      * Reads the house once and hands the same answer to every group. On failure every group goes

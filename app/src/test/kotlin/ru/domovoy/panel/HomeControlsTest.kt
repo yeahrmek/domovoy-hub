@@ -4,17 +4,23 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.click
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasContentDescription
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
-import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performSemanticsAction
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.unit.dp
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -42,7 +48,7 @@ class HomeControlsTest {
         compose.setContent {
             Panel(acs = Flat.acs.copy(tiles = listOf(Flat.acs.tiles.first())), onTemperature = { id, value -> sent = id to value })
         }
-        compose.onNode(hasContentDescription("Температура") and hasAnyAncestor(hasContentDescription("Настроить: Кондиционер, Зал"))).assertIsDisplayed().performSemanticsAction(SemanticsActions.SetProgress) { it(26f) }
+        home(hasContentDescription("Температура") and hasAnyAncestor(hasContentDescription("Настроить: Кондиционер, Зал"))).performScrollTo().assertIsDisplayed().performSemanticsAction(SemanticsActions.SetProgress) { it(26f) }
         assertEquals("ac-01" to 26.0, sent)
         assertNull(open.value)
     }
@@ -51,7 +57,7 @@ class HomeControlsTest {
     fun `curtain position slider sends the home command without opening details`() {
         var sent: Pair<String, Double>? = null
         compose.setContent { Panel(curtains = Flat.curtains, onOpen = { id, value -> sent = id to value }) }
-        compose.onNode(hasContentDescription("Открытие") and hasAnyAncestor(hasContentDescription("Настроить: Штора, Зал"))).assertIsDisplayed().performSemanticsAction(SemanticsActions.SetProgress) { it(75f) }
+        home(hasContentDescription("Открытие") and hasAnyAncestor(hasContentDescription("Настроить: Штора, Зал"))).performScrollTo().assertIsDisplayed().performSemanticsAction(SemanticsActions.SetProgress) { it(75f) }
         assertEquals("curtain-01" to 75.0, sent)
         assertNull(open.value)
     }
@@ -62,7 +68,7 @@ class HomeControlsTest {
         compose.setContent {
             Panel(strips = Flat.strips.copy(tiles = listOf(Flat.strips.tiles.first())), onBrightness = { id, value -> sent = id to value })
         }
-        compose.onNode(hasContentDescription("Яркость") and hasAnyAncestor(hasContentDescription("Настроить: Лента, Коридор"))).assertIsDisplayed().performSemanticsAction(SemanticsActions.SetProgress) { it(35f) }
+        home(hasContentDescription("Яркость") and hasAnyAncestor(hasContentDescription("Настроить: Лента, Коридор"))).performScrollTo().assertIsDisplayed().performSemanticsAction(SemanticsActions.SetProgress) { it(35f) }
         assertEquals("strip-01" to 35.0, sent)
         assertNull(open.value)
     }
@@ -70,7 +76,7 @@ class HomeControlsTest {
     @Test
     fun `pending brightness command blocks further home adjustments`() {
         compose.setContent { Panel(strips = Flat.strips.copy(tiles = listOf(Flat.strips.tiles.first()), pending = setOf("strip-01"))) }
-        compose.onNode(hasContentDescription("Яркость") and hasAnyAncestor(hasContentDescription("Настроить: Лента, Коридор"))).assertIsNotEnabled()
+        home(hasContentDescription("Яркость") and hasAnyAncestor(hasContentDescription("Настроить: Лента, Коридор"))).assertIsNotEnabled()
     }
 
     @Test
@@ -79,7 +85,8 @@ class HomeControlsTest {
         compose.setContent {
             Panel(recuperators = Flat.recuperators.copy(tiles = listOf(Flat.recuperators.tiles.first())), onSpeed = { id, speed -> sent = id to speed })
         }
-        compose.onNodeWithText("Высокая").assertIsDisplayed().performClick()
+        expandBreezers()
+        home(hasText("Высокая")).performScrollTo().assertIsDisplayed().performClick()
         assertEquals("xfj-01" to FanSpeed.High, sent)
         assertNull(open.value)
     }
@@ -90,9 +97,10 @@ class HomeControlsTest {
         compose.setContent {
             Panel(recuperators = Flat.recuperators.copy(tiles = listOf(Flat.recuperators.tiles.first().copy(isOn = power.value))))
         }
-        compose.onNodeWithText("Высокая").assertIsNotEnabled()
+        expandBreezers()
+        home(hasText("Высокая")).assertIsNotEnabled()
         compose.runOnIdle { power.value = null }
-        compose.onNodeWithText("Высокая").assertIsNotEnabled()
+        home(hasText("Высокая")).assertIsNotEnabled()
     }
 
     @Test
@@ -100,7 +108,7 @@ class HomeControlsTest {
         val lamps = Flat.bulbs.tiles.take(2).mapIndexed { i, tile -> tile.copy(room = "Зал", isOn = i == 0) }
         val sent = mutableListOf<String>()
         compose.setContent { Panel(bulbs = Flat.bulbs.copy(tiles = lamps), onToggleBulb = { sent += it }) }
-        compose.onNodeWithContentDescription("Питание: Свет, Зал").performClick()
+        home(hasContentDescription("Питание: Свет, Зал")).performClick()
         assertEquals(listOf(lamps[1].id), sent)
         assertNull(open.value)
     }
@@ -110,46 +118,47 @@ class HomeControlsTest {
         val lamp = Flat.bulbs.tiles[1].copy(room = "Зал", isOn = true, brightnessPercent = 40.0)
         var sent: Pair<String, Double>? = null
         compose.setContent { Panel(bulbs = Flat.bulbs.copy(tiles = listOf(lamp)), onBulbBrightness = { id, value -> sent = id to value }) }
-        compose.onNodeWithText("Показать лампы").performClick()
-        compose.onNodeWithContentDescription("Яркость").performSemanticsAction(SemanticsActions.SetProgress) { it(80f) }
+        home(hasContentDescription("Показать лампы: Свет, Зал")).performClick()
+        home(hasContentDescription("Яркость")).performSemanticsAction(SemanticsActions.SetProgress) { it(80f) }
         assertEquals(lamp.id to 80.0, sent)
         assertNull(open.value)
     }
 
     @Test
-    fun `home retains old power age beside a freshly reported temperature`() {
+    fun `home and details omit old power time beside a fresh temperature`() {
         val tile = Flat.acs.tiles.first().copy(powerLastUpdated = Reading.At(Flat.NOW.minusSeconds(172800)), temperatureLastUpdated = Reading.At(Flat.NOW))
         compose.setContent { Panel(acs = Flat.acs.copy(tiles = listOf(tile), lastPolledAt = Flat.NOW)) }
-        assertHomeAge("Настроить: ${tile.name}, ${tile.room}", "2 дн. назад")
+        assertNoReadingTime("Настроить: ${tile.name}, ${tile.room}", "2 дн. назад")
     }
 
     @Test
-    fun `home shows unknown power time beside freshly reported strip brightness`() {
+    fun `home and details omit unknown power time beside fresh strip brightness`() {
         val tile = Flat.strips.tiles.first().copy(powerLastUpdated = Reading.Never, brightnessLastUpdated = Reading.At(Flat.NOW), color = null)
         compose.setContent { Panel(strips = Flat.strips.copy(tiles = listOf(tile), lastPolledAt = Flat.NOW)) }
-        assertHomeAge("Настроить: ${tile.name}, ${tile.room}", "Время неизвестно")
+        assertNoReadingTime("Настроить: ${tile.name}, ${tile.room}", "Время неизвестно")
     }
 
     @Test
-    fun `home retains the recuperator humidity age beside fresh temperature`() {
+    fun `home and details omit the recuperator humidity age`() {
         val tile = Flat.recuperators.tiles.first().copy(humidityLastUpdated = Reading.At(Flat.NOW.minusSeconds(259200)), temperatureLastUpdated = Reading.At(Flat.NOW))
         compose.setContent { Panel(recuperators = Flat.recuperators.copy(tiles = listOf(tile), lastPolledAt = Flat.NOW)) }
-        assertHomeAge("Настроить: ${tile.name}, ${tile.room}", "3 дн. назад")
+        expandBreezers()
+        assertNoReadingTime("Настроить: ${tile.name}, ${tile.room}", "3 дн. назад")
     }
 
     @Test
-    fun `home bulb group shows unknown time for a known power value`() {
+    fun `home bulb group and lamp details omit unknown reading time`() {
         val lamp = Flat.bulbs.tiles.first().copy(room = "Зал", lastUpdated = Reading.Never)
         compose.setContent { Panel(bulbs = Flat.bulbs.copy(tiles = listOf(lamp), lastPolledAt = Flat.NOW)) }
-        assertHomeAge("Показать лампы: Свет, Зал", "Время неизвестно")
+        assertNoReadingTime("Показать лампы: Свет, Зал", "Время неизвестно", "Настроить: ${lamp.name}, ${lamp.room}")
     }
 
     @Test
-    fun `expanded home lamp retains older power age beside fresh brightness`() {
+    fun `expanded home lamp and details omit older power age`() {
         val lamp = Flat.bulbs.tiles[1].copy(room = "Зал", isOn = true, lastUpdated = Reading.At(Flat.NOW.minusSeconds(172800)), brightnessLastUpdated = Reading.At(Flat.NOW), color = null)
         compose.setContent { Panel(bulbs = Flat.bulbs.copy(tiles = listOf(lamp), lastPolledAt = Flat.NOW)) }
-        compose.onNodeWithText("Показать лампы").performClick()
-        assertHomeAge("Настроить: ${lamp.name}, ${lamp.room}", "2 дн. назад")
+        home(hasContentDescription("Показать лампы: Свет, Зал")).performClick()
+        assertNoReadingTime("Настроить: ${lamp.name}, ${lamp.room}", "2 дн. назад")
     }
 
     @Test
@@ -162,8 +171,24 @@ class HomeControlsTest {
         ).assertDoesNotExist()
     }
 
-    private fun assertHomeAge(card: String, age: String) {
-        compose.onNode(hasContentDescription(card) and hasText("Значение: $age")).assertIsDisplayed()
+    private fun assertNoReadingTime(card: String, age: String, groupedLamp: String? = null) {
+        home(hasContentDescription(card)).performScrollTo().assertIsDisplayed()
+        compose.onNode(
+            hasText(age, substring = true) and hasAnyAncestor(hasContentDescription(card)),
+            useUnmergedTree = true,
+        ).assertDoesNotExist()
+        compose.onNodeWithText("Связь:", substring = true).assertDoesNotExist()
+        home(hasContentDescription(card)).performTouchInput { click(Offset(32.dp.toPx(), 32.dp.toPx())) }
+        if (groupedLamp != null) home(hasContentDescription(groupedLamp)).performScrollTo().performClick()
+        compose.onNodeWithText("Готово").assertIsDisplayed()
+        compose.onNodeWithText(age).assertDoesNotExist()
+        compose.onNodeWithText("Только что").assertDoesNotExist()
+    }
+
+    private fun home(matcher: SemanticsMatcher) = compose.onNode(matcher and hasAnyAncestor(hasTestTag("section:Главная")))
+
+    private fun expandBreezers() {
+        home(hasContentDescription("Показать бризеры: Бризеры, Зал")).performScrollTo().performClick()
     }
 
     @Composable

@@ -3,8 +3,10 @@ package ru.domovoy.panel
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -33,7 +35,6 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import ru.domovoy.R
 import ru.domovoy.core.Bounds
@@ -51,6 +52,8 @@ internal fun LevelControl(
     label: String = "Уровень",
     unit: String = "%",
     thumbShape: LevelThumbShape = LevelThumbShape.Oval,
+    showBounds: Boolean = true,
+    prominentValue: Boolean = false,
 ) {
     val reported = (value ?: bounds.min).toFloat()
     var dragged by remember(id, bounds) { mutableFloatStateOf(reported) }
@@ -82,20 +85,21 @@ internal fun LevelControl(
         )
     }
     Column(modifier = modifier) {
-        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                label,
-                style = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier.weight(1f),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            val valueText = if (dragging) {
-                "${levelNumber(bounds.snap(dragged.toDouble()))} $unit"
+        FlowRow(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Text(label, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.alignByBaseline())
+            val valueText = if (prominentValue && value == null && !dragging) {
+                "—"
+            } else if (dragging || prominentValue) {
+                "${levelNumber(bounds.snap(dragged.toDouble()))}${if (prominentValue && unit == "%") "%" else " $unit"}"
             } else {
                 "${levelNumber(bounds.min)}–${levelNumber(bounds.max)} $unit"
             }
-            Text(valueText, style = MaterialTheme.typography.labelSmall)
+            if (showBounds || prominentValue || dragging) {
+                Text(valueText, style = if (prominentValue) MaterialTheme.typography.displaySmall else MaterialTheme.typography.labelSmall, modifier = Modifier.alignByBaseline())
+            }
         }
         if (stepButtons) {
             Row(verticalAlignment = Alignment.CenterVertically) {

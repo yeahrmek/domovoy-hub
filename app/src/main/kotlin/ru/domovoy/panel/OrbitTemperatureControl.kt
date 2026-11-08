@@ -175,8 +175,8 @@ internal fun OrbitTemperatureControl(
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text("Задано", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Text(
-                shown?.let { "${dialNumber(it)} $unit" } ?: "Нет данных",
-                style = if (shown == null) MaterialTheme.typography.titleMedium else MaterialTheme.typography.displaySmall,
+                shown?.let { "${dialNumber(it)} $unit" } ?: "—",
+                style = MaterialTheme.typography.displaySmall,
                 color = MaterialTheme.colorScheme.onSurface,
             )
         }

@@ -71,7 +71,7 @@ class RecuperatorTilesTest {
         // One age, and the oldest of the four datapoints this tile shows: the switch and the speed
         // have not moved in three days while the humidity is 26 s old. The tile under-claims its
         // freshness rather than quoting the newest of them — see StalenessTest.
-        assertEquals("Выключено · Скорость не задана · 3 дн. назад", statusLine(tile, now(minutes = 0)))
+        assertEquals("Скорость не задана", statusLine(tile, now(minutes = 0)))
     }
 
     @Test
@@ -120,7 +120,7 @@ class RecuperatorTilesTest {
         val tile = poll.recuperators.state.value.tiles.single { it.id == "xfj-01" }
         assertNull(climateLine(tile))
         // The tile is still there, and the line that carries its staleness is untouched.
-        assertEquals("Выключено · Скорость не задана · 3 дн. назад", statusLine(tile, now(minutes = 0)))
+        assertEquals("Скорость не задана", statusLine(tile, now(minutes = 0)))
     }
 
     @Test
@@ -184,7 +184,7 @@ class RecuperatorTilesTest {
 
         val tile = poll.recuperators.state.value.tiles.single { it.id == "xfj-01" }
         assertEquals(listOf(FanSpeed.High), tile.speeds)
-        assertEquals("Выключено · Высокая · 3 дн. назад", statusLine(tile, now(minutes = 0)))
+        assertEquals("Высокая", statusLine(tile, now(minutes = 0)))
     }
 
     @Test
@@ -202,7 +202,7 @@ class RecuperatorTilesTest {
 
         val tile = poll.recuperators.state.value.tiles.single { it.id == "xfj-01" }
         assertEquals(listOf(FanSpeed.Low, FanSpeed.High), tile.speeds)
-        assertEquals("Выключено · Низкая + Высокая · 3 дн. назад", statusLine(tile, now(minutes = 0)))
+        assertEquals("Низкая + Высокая", statusLine(tile, now(minutes = 0)))
     }
 
     @Test
@@ -216,7 +216,7 @@ class RecuperatorTilesTest {
         poll.refresh()
 
         val tile = poll.recuperators.state.value.tiles.single { it.id == "xfj-01" }
-        assertEquals("Выключено · Нет данных · 3 дн. назад", statusLine(tile, now(minutes = 0)))
+        assertEquals("Нет данных", statusLine(tile, now(minutes = 0)))
     }
 
     @Test
@@ -231,7 +231,7 @@ class RecuperatorTilesTest {
 
         val tile = poll.recuperators.state.value.tiles.single { it.id == "xfj-01" }
         assertNull(tile.isOn)
-        assertEquals("Нет данных · Скорость не задана · 3 дн. назад", statusLine(tile, now(minutes = 0)))
+        assertEquals("Нет данных · Скорость не задана", statusLine(tile, now(minutes = 0)))
     }
 
     @Test
@@ -249,7 +249,7 @@ class RecuperatorTilesTest {
         // read `offline · unknown · low + medium + high · 3 d ago` — five facts about a device that
         // is not there, 39 characters of them on a 251 dp tile that holds about 24. What survives
         // is the state and its age; what the panel is failing to read is on the line below.
-        assertEquals("Нет связи · 3 дн. назад", statusLine(tile, now(minutes = 0)))
+        assertEquals("Нет связи", statusLine(tile, now(minutes = 0)))
     }
 
     @Test
@@ -287,7 +287,7 @@ class RecuperatorTilesTest {
         assertEquals(before.isOn, after.isOn)
         assertEquals(before.powerLastUpdated, after.powerLastUpdated)
         assertEquals(before.speeds, after.speeds)
-        assertEquals("Выключено · Скорость не задана · 3 дн. назад", statusLine(after, now(minutes = 0)))
+        assertEquals("Скорость не задана", statusLine(after, now(minutes = 0)))
         assertEquals(
             "Не удалось выполнить запрос",
             anatomy(after, now(minutes = 0), groupError = null).detail,

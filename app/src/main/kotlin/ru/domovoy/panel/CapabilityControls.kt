@@ -172,10 +172,11 @@ internal fun FanSpeedControls(
     selected: List<FanSpeed>,
     enabled: Boolean,
     onSetSpeed: (FanSpeed) -> Unit,
+    compact: Boolean = false,
 ) {
     if (speeds.isEmpty()) return
-    ControlSection("Скорость") {
-        Row(modifier = Modifier.fillMaxWidth().selectableGroup(), horizontalArrangement = Arrangement.spacedBy(CONTROL_GAP)) {
+    val buttons: @Composable () -> Unit = {
+        Row(modifier = Modifier.fillMaxWidth().selectableGroup().semantics { contentDescription = "Скорость вентилятора" }, horizontalArrangement = Arrangement.spacedBy(CONTROL_GAP)) {
             speeds.forEach { speed ->
                 CapabilityButton(
                     label = capabilityLabel(speed.label),
@@ -184,10 +185,12 @@ internal fun FanSpeedControls(
                     enabled = enabled,
                     onClick = { onSetSpeed(speed) },
                     modifier = Modifier.weight(1f),
+                    showIcon = !compact,
                 )
             }
         }
     }
+    if (compact) buttons() else ControlSection("Скорость", buttons)
 }
 
 @Composable
@@ -250,6 +253,7 @@ private fun CapabilityButton(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     toggleState: ToggleableState? = null,
+    showIcon: Boolean = true,
 ) {
     val container =
         if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHighest
@@ -267,14 +271,16 @@ private fun CapabilityButton(
             .then(interaction)
             .padding(horizontal = CONTROL_PADDING, vertical = 10.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(4.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterVertically),
     ) {
-        Icon(
-            painter = painterResource(glyph),
-            contentDescription = null,
-            tint = content.copy(alpha = if (enabled) 1f else 0.45f),
-            modifier = Modifier.size(CONTROL_ICON),
-        )
+        if (showIcon) {
+            Icon(
+                painter = painterResource(glyph),
+                contentDescription = null,
+                tint = content.copy(alpha = if (enabled) 1f else 0.45f),
+                modifier = Modifier.size(CONTROL_ICON),
+            )
+        }
         Text(text = label, style = MaterialTheme.typography.labelMedium, color = content)
     }
 }

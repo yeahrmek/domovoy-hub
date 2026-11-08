@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.sizeIn
@@ -39,6 +38,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import ru.domovoy.R
@@ -80,9 +80,16 @@ internal fun TileCard(
     onAction: () -> Unit = {},
 ) {
     val shape = RoundedCornerShape(TILE_CORNER)
-    val outer = modifier.fillMaxWidth().padding(TILE_PADDING).heightIn(min = format.minimumHeight.dp)
+    val failing = paint.groupFailing || paint.mood == TileMood.Failing
+    val outer = modifier.fillMaxWidth().padding(TILE_PADDING).semantics {
+        if (failing) {
+            stateDescription = anatomy.detail ?: anatomy.status.ifBlank { "Нет обновлений" }
+        } else if (cardText(anatomy.status) != anatomy.status) {
+            stateDescription = anatomy.status
+        }
+    }
     val colors = tileColors(paint.mood)
-    val border = groupFailureBorder(paint)
+    val border = groupFailureBorder(paint) ?: BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
     if (onClick == null) {
         Card(modifier = outer, shape = shape, colors = colors, border = border) {
             TileBody(anatomy, paint, showRoom, pending, hasLevel, format, toggle, level, onAction)
@@ -129,12 +136,24 @@ private fun TileBody(
         }
         PromotedValue(anatomy.promoted ?: "—".takeIf { format == TileFormat.Reading || format == TileFormat.Control })
         if (hasLevel) level()
-        StatusText(if (pending) "Ждём подтверждения…" else anatomy.status, announce = pending)
-        anatomy.detail?.let { StatusText(it, announce = paint.groupFailing || paint.mood == TileMood.Failing) }
+        val failing = paint.groupFailing || paint.mood == TileMood.Failing
+        val status = if (pending) {
+            "Ждём подтверждения…"
+        } else if (failing) {
+            ""
+        } else {
+            cardText(anatomy.status)
+        }
+        if (status.isNotBlank() && !(status == "—" && anatomy.promoted == null)) StatusText(status, announce = pending)
+        if (failing) {
+            if (anatomy.promoted != null || format !in listOf(TileFormat.Reading, TileFormat.Control)) StatusText("—", announce = true)
+        } else {
+            anatomy.detail?.let { StatusText(cardText(it)) }
+        }
     }
 }
 
-/** Status and age can wrap together; technical details stay in the sheet. */
+/** Status and command feedback can wrap; reading times stay in the sheet. */
 @Composable
 private fun StatusText(text: String, announce: Boolean = false) {
     Text(
@@ -287,10 +306,12 @@ internal fun PromotedValue(
 ) {
     if (value != null) {
         Text(
-            text = value,
+            text = cardText(value),
             style = MaterialTheme.typography.displaySmall,
             color = color,
-            modifier = modifier,
+            modifier = modifier.semantics {
+                if (cardText(value) != value) stateDescription = value
+            },
         )
     }
 }
@@ -300,7 +321,7 @@ private val GROUP_FAILURE_OUTLINE = 3.dp
 
 /** Group failures add a border while retaining the tile’s device state. */
 @Composable
-private fun groupFailureBorder(paint: TilePaint): BorderStroke? = if (paint.groupFailing) {
+private fun groupFailureBorder(paint: TilePaint): BorderStroke? = if (paint.groupFailing || paint.mood == TileMood.Failing) {
     BorderStroke(GROUP_FAILURE_OUTLINE, MaterialTheme.colorScheme.error)
 } else {
     null
@@ -328,3 +349,11 @@ private fun tileOnAccent(): Color = MaterialTheme.colorScheme.onPrimaryFixed
 
 /** Reserve at least 64 dp for tile controls. */
 internal fun Modifier.touchable(): Modifier = sizeIn(minWidth = MIN_TOUCH, minHeight = MIN_TOUCH)
+
+/** Compact card copy; full readings and failure reasons remain available in details. */
+internal fun cardText(text: String): String = text
+    .replace("Нет данных", "—")
+    .replace("Нет показаний", "—")
+    .replace("Температура неизвестна", "—")
+    .replace("Не удалось выполнить запрос", "—")
+    .replace("— · —", "—")

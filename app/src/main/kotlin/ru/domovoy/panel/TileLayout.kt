@@ -16,13 +16,13 @@ internal const val WIDE_SPAN = 4
 internal const val NARROW_SPAN = 3
 
 /** Formats form separate rows, from detailed controls down to simple launch actions. */
-internal enum class TileFormat(val minimumHeight: Int, val columns: Int) {
-    Featured(304, 1),
-    Wide(216, 1),
-    Control(304, 2),
-    Reading(240, 3),
-    Compact(216, 4),
-    Launcher(144, 2),
+internal enum class TileFormat(val minimumWidth: Int, val columns: Int) {
+    Featured(300, 1),
+    Wide(300, 1),
+    Control(300, 2),
+    Reading(248, 3),
+    Compact(184, 4),
+    Launcher(240, 2),
 }
 
 internal fun tileFormat(anatomy: TileAnatomy, hasLevel: Boolean): TileFormat = when {
@@ -163,7 +163,7 @@ internal fun promoted(tile: AcTileState): String? {
     return if (tile.unit == CELSIUS_UNIT) "$target °C" else "$target"
 }
 
-/** The last known position, with an age on the status line and sheet. See [confirmedPosition]. */
+/** The last known position; the sheet retains its timestamp. See [confirmedPosition]. */
 internal fun promoted(tile: CurtainTileState): String? = position(tile)?.let { percentOpen(it.percent) }
 
 private fun percentOpen(position: Double): String = "${position.roundToInt()}%"
@@ -191,7 +191,7 @@ internal fun position(tile: CurtainTileState): CurtainPosition? = when {
 
 /**
  * Curtains do not report external movement, so only a recent command supports a promoted position.
- * Older commands remain visible with their age on the status line and sheet. See docs/yandex.md.
+ * Older commands remain secondary values, with their timestamps in details. See docs/yandex.md.
  */
 internal fun confirmedPosition(
     tile: CurtainTileState,
@@ -220,7 +220,15 @@ internal fun promoted(group: BulbGroup): String = "${group.on} из ${group.lamp
 internal fun art(tile: AcTileState): Int = R.drawable.device_art_air_conditioner
 
 @DrawableRes
-internal fun art(tile: RecuperatorTileState): Int = R.drawable.device_art_recuperator
+internal fun art(tile: RecuperatorTileState): Int = if (tile.room?.trim().equals("Спальня", ignoreCase = true)) {
+    R.drawable.device_art_airnanny_a7
+} else {
+    R.drawable.device_art_recuperator
+}
+
+/** A single-model group shows that hardware; a mixed group keeps the general breezer illustration. */
+@DrawableRes
+internal fun art(tiles: List<RecuperatorTileState>): Int = tiles.map(::art).distinct().singleOrNull() ?: R.drawable.device_art_recuperator
 
 @DrawableRes
 internal fun art(tile: BulbTileState): Int = if (tile.isOn == true) {
@@ -349,11 +357,10 @@ internal data class TileAnatomy(
     val name: String,
     /** The wall-distance value; null keeps the slot empty. */
     val promoted: String?,
-    /** Power or position and the oldest displayed reading age; fresh readings omit their age. */
+    /** Optional supporting state; power controls and promoted values carry routine state. */
     val status: String,
     /**
      * A poll failure takes precedence over the secondary reading or gesture hint.
-     * Its reading age is included in [status].
      */
     val detail: String?,
     /** Room context shown when a tile is presented outside its own room section. */
@@ -399,7 +406,7 @@ internal fun anatomy(
     detail = error,
 )
 
-/** Promote only a fresh position; keep older positions with their age on the status line. */
+/** Promote only a fresh position; label older commands as the last known position. */
 internal fun anatomy(
     tile: CurtainTileState,
     now: Instant,

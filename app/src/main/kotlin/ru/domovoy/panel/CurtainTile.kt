@@ -39,6 +39,7 @@ fun CurtainTile(
                     id = tile.id,
                     value = sliderStart(tile, bounds.min).toDouble(),
                     bounds = bounds,
+                    showBounds = false,
                     label = "Открытие",
                     unit = "%",
                     enabled = !pending,
@@ -58,15 +59,8 @@ internal fun sliderStart(
     min: Double,
 ): Float = (position(tile)?.percent ?: min).toFloat()
 
-/** Position and age come from the same latest command. Unknown positions have no age. */
+/** Older commands remain secondary values; reading times are available in details. */
 internal fun statusLine(
     tile: CurtainTileState,
     now: Instant,
-): String {
-    val position = position(tile)
-    if (confirmedPosition(tile, now) != null && position != null) return sheetAge(position.reading, now)
-    return listOfNotNull(
-        promoted(tile) ?: "Нет данных",
-        ageLine(position?.reading, now),
-    ).joinToString(" · ")
-}
+): String = if (confirmedPosition(tile, now) != null) "" else promoted(tile)?.let { "Последнее: $it" } ?: "Нет данных"

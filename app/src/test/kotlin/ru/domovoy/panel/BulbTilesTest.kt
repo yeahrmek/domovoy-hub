@@ -55,7 +55,7 @@ class BulbTilesTest {
         assertEquals(true, tile.isOn)
         // last_updated 1784883564 read two hours later.
         val now = Instant.ofEpochSecond(1_784_883_564 + 2 * 3600)
-        assertEquals("Включено · 2 ч назад", statusLine(tile, now))
+        assertEquals("", statusLine(tile, now))
     }
 
     @Test
@@ -165,7 +165,7 @@ class BulbTilesTest {
 
         val tile = tiles.state.value.tiles.single { it.id == "light-04" }
         assertEquals(Reading.Never, tile.lastUpdated)
-        assertEquals("Включено · Время неизвестно", statusLine(tile, Instant.ofEpochSecond(1_786_790_000)))
+        assertEquals("", statusLine(tile, Instant.ofEpochSecond(1_786_790_000)))
     }
 
     @Test
@@ -185,7 +185,7 @@ class BulbTilesTest {
         assertEquals(before, kept)
         val now = Instant.ofEpochSecond(1_784_883_564 + 2 * 3600)
         // Keep values and ages; show the poll failure on the second line.
-        assertEquals("Включено · 2 ч назад", statusLine(kept, now))
+        assertEquals("", statusLine(kept, now))
         assertEquals("Не удалось выполнить запрос", anatomy(kept, now, after.error).detail)
     }
 

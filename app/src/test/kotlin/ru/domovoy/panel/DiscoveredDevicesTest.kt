@@ -34,19 +34,23 @@ class DiscoveredDevicesTest {
             val poll = YandexPoll(server.yandexClient()) { now }
 
             poll.refresh()
-            assertEquals(5, poll.discovered.state.value.tiles.size)
+            assertEquals(4, poll.discovered.state.value.tiles.size)
+            assertEquals(1, poll.discovered.state.value.tiles.count { it.vendorType == "devices.types.switch" })
             poll.refresh()
             val arrived = poll.discovered.state.value
-            assertEquals(5, arrived.tiles.size)
-            assertEquals(setOf("Датчик климата", "Умный замок", "Домофон"), arrived.tiles.map { it.name }.toSet())
+            assertEquals(3, arrived.tiles.size)
+            assertEquals(3, arrived.intercomGroups.values.single().size)
+            assertEquals(setOf("Датчик климата", "Умный замок", "Домофоны"), arrived.tiles.map { it.name }.toSet())
             assertEquals(now, arrived.lastPolledAt)
             assertTrue(poll.bulbs.state.value.tiles.isEmpty())
             poll.refresh()
             assertEquals(arrived.tiles, poll.discovered.state.value.tiles)
+            assertEquals(arrived.intercomGroups, poll.discovered.state.value.intercomGroups)
             assertEquals(now, poll.discovered.state.value.lastPolledAt)
             assertEquals("Не удалось выполнить запрос", poll.discovered.state.value.error)
             poll.refresh()
             assertTrue(poll.discovered.state.value.tiles.isEmpty())
+            assertTrue(poll.discovered.state.value.intercomGroups.isEmpty())
             assertNull(poll.discovered.state.value.error)
             assertEquals(4, server.requestCount)
         }

@@ -182,7 +182,7 @@ private fun SheetHeading(
     }
 }
 
-/** One reading with its label, value and age. */
+/** One reading with its label and value. */
 @Composable
 private fun SheetReadingRow(reading: SheetReading, color: ColorSetting? = null) {
     Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -201,12 +201,6 @@ private fun SheetReadingRow(reading: SheetReading, color: ColorSetting? = null) 
             Spacer(Modifier.width(12.dp))
         }
         Text(text = reading.value, style = MaterialTheme.typography.headlineSmall)
-        Spacer(modifier = Modifier.weight(1f))
-        Text(
-            text = reading.age,
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
     }
 }
 

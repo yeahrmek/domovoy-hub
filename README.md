@@ -16,3 +16,8 @@ your visitor without hunting for a phone.
 ## Status
 
 Early work in progress. Not affiliated with Yandex, Aqara, Tuya, Xiaomi or Domonap.
+
+## Protected panel
+
+The panel can run as a Device Owner kiosk with system PIN or fingerprint confirmation for exit
+and manual app launches. See [setup, recovery and device checks](docs/kiosk.md).

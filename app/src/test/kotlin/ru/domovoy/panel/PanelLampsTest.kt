@@ -3,10 +3,31 @@ package ru.domovoy.panel
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertIsOff
+import androidx.compose.ui.test.assertIsOn
+import androidx.compose.ui.test.assertWidthIsAtLeast
+import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasContentDescription
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.dp
+import com.github.takahirom.roborazzi.captureRoboImage
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -14,21 +35,13 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 import ru.domovoy.core.Reading
+import ru.domovoy.panelDarkScheme
 import ru.domovoy.panelLightScheme
 import ru.domovoy.panelTypography
+import java.io.File
+import kotlin.test.assertEquals
 
-/**
- * What the lights group does when somebody touches it — the one thing about it that is Compose state
- * rather than a pure function, and therefore the one thing [BulbGroupTest] cannot reach.
- *
- * Seven lamps in Спальня, with Home explicitly empty, so they appear
- * once on the wall and the counts below are unambiguous. Nothing else is polled, so the whole panel
- * is a heading, a group tile and — when it is open — seven named tiles, all of which compose inside
- * the wall's own 1204 dp without scrolling.
- *
- * Driven against the real [PanelRooms] at the tablet's own width, for the reason [PanelScrollTest]
- * gives: a fake grid would be a test of the fake.
- */
+/** Individual power controls and group disclosure on the real room and Home layouts. */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [36], qualifiers = "w753dp-h1204dp-port-340dpi")
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -37,32 +50,97 @@ class PanelLampsTest {
     val compose = createComposeRule()
 
     @Test
-    fun `a room's lamps are one tile, and the tile says how many`() {
-        // The wall a person walks up to: one card for seven devices, saying seven and saying five
-        // of them are lit. What it does not say is which is which — that is what the tap is for,
-        // and it is the only thing behind it.
+    fun `a room's lamps show individual power icons instead of a count`() {
         compose.setContent { Panel() }
 
         compose.onNodeWithText("Свет").assertIsDisplayed()
-        compose.onNodeWithText("5 из 7").assertIsDisplayed()
-        compose.onNodeWithText("Лампа 1").assertDoesNotExist()
-        compose.onNodeWithText("Лампа 7").assertDoesNotExist()
+        compose.onNodeWithText("5 из 7").assertDoesNotExist()
+        (1..7).forEach { icon(it).assertIsDisplayed().assertWidthIsAtLeast(64.dp).assertHeightIsAtLeast(64.dp) }
+        icon(1).assertIsOn()
+        icon(7).assertIsOff()
+        expandedLamp(1).assertDoesNotExist()
+        compose.onRoot().captureRoboImage(File("build/outputs/lamp-icons/group-light.png"))
     }
 
     @Test
+    fun `each icon toggles only its lamp using confirmed power and leaves the group collapsed`() {
+        val bulbs = mutableStateOf(sevenLamps)
+        val commands = mutableListOf<String>()
+        compose.setContent { Panel(bulbs.value, onToggle = { commands += it }) }
+        icon(1).assertIsOn().performClick()
+        icon(7).assertIsOff().performClick()
+        assertEquals(listOf("light-01", "light-07"), commands)
+        icon(1).assertIsOn()
+        icon(7).assertIsOff()
+        expandedLamp(1).assertDoesNotExist()
+        compose.runOnIdle {
+            bulbs.value = sevenLamps.copy(tiles = sevenLamps.tiles.map { it.copy(isOn = it.id == "light-07") })
+        }
+        icon(1).assertIsOff()
+        icon(7).assertIsOn()
+    }
+
+    @Test
+    fun `pending disables only its own lamp while a command error remains local and retryable`() {
+        compose.setContent { Panel(sevenLamps.copy(pending = setOf("light-01"), commandErrors = mapOf("light-02" to "Нет ответа"))) }
+        icon(1).assertIsNotEnabled()
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "Ждём подтверждения"))
+        icon(2).assertIsEnabled()
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "Ошибка команды: Нет ответа"))
+        icon(7).assertIsEnabled().assertIsOff()
+        compose.onRoot().captureRoboImage(File("build/outputs/lamp-icons/pending-error.png"))
+    }
+
+    @Test
+    fun `stopped polling marks every icon and disables cached power controls`() {
+        compose.setContent { Panel(sevenLamps.copy(error = "Нет сети", lastPolledAt = Flat.NOW.minusSeconds(3600))) }
+        (1..7).forEach {
+            icon(it).assertIsNotEnabled()
+                .assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "Нет обновления"))
+        }
+    }
+
+    @Test
+    fun `home preserves unknown power and keeps other lamps operable in dark mode`() {
+        compose.setContent {
+            Panel(
+                sevenLamps.copy(tiles = sevenLamps.tiles.map { if (it.id == "light-01") it.copy(isOn = null) else it }),
+                dark = true,
+                preferences = CardPreferences(favourites = listOf("lamps:Спальня")),
+            )
+        }
+        homeIcon(1).assertIsNotEnabled()
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "Нет данных"))
+        homeIcon(7).assertIsEnabled().assertIsOff()
+        compose.onRoot().captureRoboImage(File("build/outputs/lamp-icons/home-dark.png"))
+    }
+
+    @Test
+    @Config(qualifiers = "w360dp-h800dp-port-340dpi")
+    fun `small screen and large text wrap the controls without shrinking touch targets`() {
+        compose.setContent { Panel(fontScale = 1.5f) }
+        (1..7).forEach { icon(it).assertIsDisplayed().assertWidthIsAtLeast(64.dp).assertHeightIsAtLeast(64.dp) }
+        compose.onRoot().captureRoboImage(File("build/outputs/lamp-icons/narrow-large-text.png"))
+    }
+
+    private fun icon(number: Int) = compose.onNodeWithContentDescription("Питание лампы: Лампа $number, Спальня")
+
+    private fun homeIcon(number: Int) = compose.onNode(
+        hasContentDescription("Питание лампы: Лампа $number, Спальня") and hasAnyAncestor(hasTestTag("section:Главная")),
+    )
+
+    private fun expandedLamp(number: Int) = compose.onNodeWithContentDescription("Настроить: Лампа $number, Спальня")
+
+    @Test
     fun `tapping the group opens the seven, each with its own name`() {
-        // Which lamp is which was not recoverable from the row of discs at all, at any number of
-        // taps. It is one tap now, and what arrives is an ordinary tile per lamp — name, age and a
-        // switch of its own.
         compose.setContent { Panel() }
 
         compose.onNodeWithText("Свет").performClick()
 
-        compose.onNodeWithText("Лампа 1").assertIsDisplayed()
-        compose.onNodeWithText("Лампа 7").assertIsDisplayed()
-        // And the group tile is still there above them, still carrying the count and the age: the
-        // tile is not replaced by what it opens.
-        compose.onNodeWithText("Свет").assertIsDisplayed()
+        expandedLamp(1).assertIsDisplayed()
+        expandedLamp(7).performScrollTo().assertIsDisplayed()
+        // The summary stays mounted above the expanded controls.
+        compose.onNodeWithText("Свет").performScrollTo().assertIsDisplayed()
     }
 
     @Test
@@ -70,10 +148,10 @@ class PanelLampsTest {
         compose.setContent { Panel() }
 
         compose.onNodeWithText("Свет").performClick()
-        compose.onNodeWithText("Лампа 1").assertIsDisplayed()
+        expandedLamp(1).assertIsDisplayed()
         compose.onNodeWithText("Свет").performClick()
 
-        compose.onNodeWithText("Лампа 1").assertDoesNotExist()
+        expandedLamp(1).assertDoesNotExist()
     }
 
     @Test
@@ -111,22 +189,30 @@ class PanelLampsTest {
     )
 
     @Composable
-    private fun Panel(bulbs: BulbPanelState = sevenLamps) {
-        MaterialTheme(colorScheme = panelLightScheme, typography = panelTypography) {
-            Surface {
-                PanelRooms(
-                    cardPreferences = CardPreferences(favourites = emptyList()),
-                    // Keep Home empty so this fixture exercises the room light group only.
-                    acs = AcPanelState(lastPolledAt = Flat.NOW),
-                    curtains = CurtainPanelState(lastPolledAt = Flat.NOW),
-                    strips = LightStripPanelState(lastPolledAt = Flat.NOW),
-                    recuperators = RecuperatorPanelState(lastPolledAt = Flat.NOW),
-                    bulbs = bulbs,
-                    launchers = emptyList(),
-                    now = Flat.NOW,
-                    yandexInterval = Flat.YANDEX_INTERVAL,
-                    tuyaInterval = Flat.TUYA_INTERVAL,
-                )
+    private fun Panel(
+        bulbs: BulbPanelState = sevenLamps,
+        dark: Boolean = false,
+        fontScale: Float = 1f,
+        preferences: CardPreferences = CardPreferences(favourites = emptyList()),
+        onToggle: (String) -> Unit = {},
+    ) {
+        CompositionLocalProvider(LocalDensity provides Density(LocalDensity.current.density, fontScale)) {
+            MaterialTheme(colorScheme = if (dark) panelDarkScheme else panelLightScheme, typography = panelTypography) {
+                Surface {
+                    PanelRooms(
+                        cardPreferences = preferences,
+                        acs = AcPanelState(lastPolledAt = Flat.NOW),
+                        curtains = CurtainPanelState(lastPolledAt = Flat.NOW),
+                        strips = LightStripPanelState(lastPolledAt = Flat.NOW),
+                        recuperators = RecuperatorPanelState(lastPolledAt = Flat.NOW),
+                        bulbs = bulbs,
+                        launchers = emptyList(),
+                        now = Flat.NOW,
+                        yandexInterval = Flat.YANDEX_INTERVAL,
+                        tuyaInterval = Flat.TUYA_INTERVAL,
+                        onToggleBulb = onToggle,
+                    )
+                }
             }
         }
     }

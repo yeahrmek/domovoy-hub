@@ -54,7 +54,7 @@ class BulbGroupTest {
 
         assertEquals("1 лампа", lampCount(group))
         assertEquals("1 из 1", promoted(group))
-        assertEquals("Только что", bulbGroupLine(group, now))
+        assertEquals("", bulbGroupLine(group, now))
     }
 
     @Test
@@ -68,7 +68,7 @@ class BulbGroupTest {
         assertEquals(7, group.lamps.size)
         assertEquals("7 ламп", lampCount(group))
         assertEquals("5 из 7", promoted(group))
-        assertEquals("Только что", bulbGroupLine(group, now))
+        assertEquals("", bulbGroupLine(group, now))
     }
 
     @Test
@@ -82,7 +82,7 @@ class BulbGroupTest {
         val group = bulbGroup(lamps)
 
         assertEquals(Reading.At(now.minusSeconds(7 * 86_400)), group.oldest)
-        assertEquals("7 дн. назад", bulbGroupLine(group, now))
+        assertEquals("", bulbGroupLine(group, now))
     }
 
     @Test
@@ -97,7 +97,7 @@ class BulbGroupTest {
         val group = bulbGroup(bulbs)
 
         assertEquals(Reading.At(now.minusSeconds(7 * 86_400)), group.oldest)
-        assertEquals("7 дн. назад", bulbGroupLine(group, now))
+        assertEquals("", bulbGroupLine(group, now))
     }
 
     @Test
@@ -115,7 +115,7 @@ class BulbGroupTest {
 
         assertEquals(listOf("light-04", "light-21"), group.lamps.map { it.id })
         assertEquals(Reading.Never, group.oldest)
-        assertEquals("Время неизвестно", bulbGroupLine(group, now))
+        assertEquals("", bulbGroupLine(group, now))
     }
 
     @Test
@@ -132,7 +132,7 @@ class BulbGroupTest {
         val group = bulbGroup(bulbs)
 
         assertEquals(1, group.on)
-        assertEquals("Только что", bulbGroupLine(group, now))
+        assertEquals("", bulbGroupLine(group, now))
     }
 
     @Test
@@ -173,7 +173,7 @@ class BulbGroupTest {
             anatomy(group, now, error = null, notUpdating = true, open = false).detail,
         )
         // Either way the lamps and their age are untouched on the line above.
-        assertEquals("Только что", bulbGroupLine(group, now))
+        assertEquals("", bulbGroupLine(group, now))
     }
 
     @Test

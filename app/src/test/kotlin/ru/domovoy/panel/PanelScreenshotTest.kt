@@ -213,6 +213,16 @@ class PanelScreenshotTest {
     }
 
     @Test
+    @Config(qualifiers = "w393dp-h851dp-port-340dpi")
+    fun `home on a narrow screen with larger text`() {
+        capture("panel-home-narrow", panelLightScheme) {
+            CompositionLocalProvider(LocalDensity provides Density(LocalDensity.current.density, fontScale = 1.3f)) {
+                Panel()
+            }
+        }
+    }
+
+    @Test
     @Config(qualifiers = "w1204dp-h753dp-land-340dpi")
     fun `home in landscape`() {
         capture("panel-home-landscape", panelLightScheme) { Panel() }
@@ -445,7 +455,7 @@ class PanelScreenshotTest {
         action = null,
         name = name,
         promoted = "22 °C",
-        status = "Включён · 2 ч назад",
+        status = "",
         detail = null,
     )
 }
