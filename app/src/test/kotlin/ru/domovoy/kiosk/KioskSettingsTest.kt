@@ -2,13 +2,17 @@ package ru.domovoy.kiosk
 
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.unit.Density
+import com.github.takahirom.roborazzi.captureRoboImage
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -55,6 +59,47 @@ class KioskSettingsTest {
     }
 
     @Test
+    fun `allowed apps are reachable without leaving protection`() {
+        val opened = mutableListOf<String>()
+        compose.setContent {
+            MaterialTheme(colorScheme = panelLightScheme, typography = panelTypography) {
+                KioskSettings(KioskState(enabled = true, locked = true), {}, {}, {}, onOpenApp = { opened += it })
+            }
+        }
+        kioskApps.forEach { (packageName, name) ->
+            compose.onNodeWithText(name).performScrollTo().assertIsDisplayed().performClick()
+            assertEquals(packageName, opened.last())
+        }
+        compose.onNodeWithText("Domonap").performScrollTo()
+        compose.onRoot().captureRoboImage("build/outputs/kiosk/allowed-apps-light.png")
+    }
+
+    @Test
+    @Config(qualifiers = "w360dp-h800dp-port-340dpi")
+    fun `a launch failure becomes visible after scrolling the app list with larger text`() {
+        val error = mutableStateOf<String?>(null)
+        val failure = "Не удалось открыть приложение. Проверьте, что оно установлено и включено, затем повторите попытку."
+        compose.setContent {
+            CompositionLocalProvider(LocalDensity provides Density(LocalDensity.current.density, fontScale = 1.3f)) {
+                MaterialTheme(colorScheme = panelLightScheme, typography = panelTypography) {
+                    KioskSettings(
+                        KioskState(enabled = true, locked = true, error = error.value),
+                        {},
+                        {},
+                        {},
+                        onOpenApp = { error.value = failure },
+                    )
+                }
+            }
+        }
+        compose.onNodeWithText("Галерея").performScrollTo().performClick()
+        compose.onNodeWithText(failure).assertIsDisplayed()
+        compose.onNodeWithText("Галерея").performScrollTo().performClick()
+        compose.onNodeWithText(failure).assertIsDisplayed()
+        compose.onRoot().captureRoboImage("build/outputs/kiosk/launch-error-narrow.png")
+    }
+
+    @Test
     @Config(qualifiers = "w360dp-h800dp-port-340dpi")
     fun `setup and action labels remain reachable on a narrow screen with larger text`() {
         compose.setContent {
@@ -66,5 +111,7 @@ class KioskSettingsTest {
         }
         compose.onNodeWithText("Включить защиту").assertIsDisplayed()
         compose.onNodeWithText("Закрыть").assertIsDisplayed()
+        compose.onNodeWithText("Галерея").performScrollTo().assertIsDisplayed()
+        compose.onRoot().captureRoboImage("build/outputs/kiosk/allowed-apps-narrow.png")
     }
 }

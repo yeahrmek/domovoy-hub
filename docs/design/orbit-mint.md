@@ -37,6 +37,8 @@ Home device illustrations share the identity/power header. Lighting pairs its se
 
 Home cards use 16 dp content padding and 8 dp between content groups. Home device illustrations are 48 dp. Controls retain their 64 dp touch targets. Percent sliders on cards omit printed bounds; details retain them. Labels and values wrap when needed. Room grids reduce their column count with available width and font scaling, and have no reserved card minimum heights. Reading and connection times are not displayed on cards or in details; failures and pending commands remain visible.
 
+Small device illustrations use a light-lime confirmed-on dot instead of overlaid power or connectivity glyphs. Bulb illustrations have no dot; the lit art conveys power.
+
 ## Commands and state
 
 Card controls call the existing device command paths. The redesign adds no vendor endpoint or network protocol. Dial and slider gestures hold a local draft and send once after completion; pending blocks duplicate commands on the affected device. Other devices remain usable. Group power waits while a lamp in that group is pending.

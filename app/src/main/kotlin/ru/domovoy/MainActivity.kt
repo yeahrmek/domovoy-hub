@@ -1,6 +1,7 @@
 package ru.domovoy
 
 import android.content.Context
+import android.os.Build
 import android.os.Bundle
 import android.util.Log
 import android.view.accessibility.AccessibilityManager
@@ -140,6 +141,7 @@ class MainActivity : ComponentActivity() {
         lifecycleScope.launch { lockTaskChanges.collect { kiosk.refresh() } }
         val secrets = secrets(applicationContext)
         setContent {
+            var appLaunchError by remember { mutableStateOf<String?>(null) }
             MaterialTheme(
                 colorScheme = if (isSystemInDarkTheme()) panelDarkScheme else panelLightScheme,
                 typography = panelTypography,
@@ -153,6 +155,7 @@ class MainActivity : ComponentActivity() {
                         interactions,
                         foreground,
                         onPanelAccess = {
+                            appLaunchError = null
                             kiosk.refresh()
                             accessOpen = domonapCalls.state.value != CallState.Active
                         },
@@ -165,7 +168,7 @@ class MainActivity : ComponentActivity() {
                     )
                     if (accessOpen) {
                         KioskSettings(
-                            state = protection,
+                            state = protection.copy(error = appLaunchError ?: protection.error),
                             onEnable = {
                                 accessOpen = false
                                 kiosk.enable()
@@ -175,6 +178,12 @@ class MainActivity : ComponentActivity() {
                                 kiosk.exit()
                             },
                             onDismiss = { accessOpen = false },
+                            onOpenApp = { packageName ->
+                                kiosk.openApp(packageName) { failure ->
+                                    appLaunchError = failure
+                                    if (failure == null) accessOpen = false
+                                }
+                            },
                         )
                     }
                 }
@@ -466,7 +475,17 @@ internal fun openVendorApp(
     context: Context,
     packageName: String,
 ): String? {
-    val intent = context.packageManager.getLaunchIntentForPackage(packageName) ?: return "Приложение недоступно"
+    val intent = context.packageManager.getLaunchIntentForPackage(packageName)
+    if (intent == null) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return "Приложение недоступно"
+        // Android 13 can launch a known package without granting package-query visibility.
+        return runCatching {
+            context.packageManager.getLaunchIntentSenderForPackage(packageName).sendIntent(context, 0, null, null, null)
+        }.fold(
+            onSuccess = { null },
+            onFailure = { "Приложение недоступно" },
+        )
+    }
     return runCatching { context.startActivity(intent) }.fold(
         onSuccess = { null },
         onFailure = { failure ->

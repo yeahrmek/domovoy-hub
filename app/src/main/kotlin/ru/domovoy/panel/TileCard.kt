@@ -182,38 +182,30 @@ internal fun TileDeviceArt(
     )
 }
 
-/** Device art keeps its appearance; state adds an accent dot or error-coloured offline glyph. */
+/** Confirmed power adds a lime dot; lit bulb art already conveys its state. */
 @Composable
-private fun TileArt(
+internal fun TileArt(
     @DrawableRes art: Int,
     mood: TileMood,
+    modifier: Modifier = Modifier,
 ) {
-    Box(modifier = Modifier.size(ART_ROW)) {
-        TileDeviceArt(art, Modifier.size(ART_ROW))
-        when {
-            TileMark.Lit in marks(mood) ->
-                Box(
-                    modifier =
-                    Modifier.align(Alignment.TopEnd).size(MARK_SIZE).clip(CircleShape)
-                        .background(tileAccent()),
-                )
-
-            TileMark.Offline in marks(mood) ->
-                Icon(
-                    painter = painterResource(R.drawable.ic_wifi_off),
-                    contentDescription = null,
-                    modifier = Modifier.align(Alignment.TopEnd).size(MARK_GLYPH_SIZE),
-                    tint = MaterialTheme.colorScheme.error,
-                )
+    Box(modifier = modifier.size(48.dp)) {
+        TileDeviceArt(art, Modifier.size(48.dp))
+        if (mood == TileMood.On && art != R.drawable.device_art_bulb_on && art != R.drawable.device_art_bulb_off) {
+            DeviceOnDot(Modifier.align(Alignment.TopEnd))
         }
     }
 }
 
-/** How big the on dot is where it sits on the device art. */
-private val MARK_SIZE = 12.dp
-
-/** The offline glyph needs more space than the dot for its strike-through to remain legible. */
-private val MARK_GLYPH_SIZE = 28.dp
+/** A light lime centre with a readable edge in either theme. */
+@Composable
+internal fun DeviceOnDot(modifier: Modifier = Modifier) {
+    Box(
+        modifier.size(8.dp)
+            .background(MaterialTheme.colorScheme.primaryFixedDim, CircleShape)
+            .border(1.dp, MaterialTheme.colorScheme.primary, CircleShape),
+    )
+}
 
 /** The secondary button’s visible disc sits inside the reserved control box. */
 private val ACTION_BUTTON_SIZE = 40.dp
