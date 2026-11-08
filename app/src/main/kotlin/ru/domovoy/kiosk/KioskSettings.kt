@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -24,6 +25,7 @@ internal fun KioskSettings(
     onExit: () -> Unit,
     onDismiss: () -> Unit,
     onOpenApp: (String) -> Unit = {},
+    onRemoveOwner: () -> Unit = {},
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -50,6 +52,16 @@ internal fun KioskSettings(
                     }
                     Text("Входящие звонки Domonap доступны без PIN-кода. Включение защиты и выход подтверждаются PIN-кодом блокировки экрана планшета.")
                     state.problem?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                    if (state.deviceOwner) {
+                        Text("Приложения, данные и PIN-код сохранятся. После снятия прав выберите домашний экран в настройках Android. Повторное включение потребует настройки через компьютер.")
+                        TextButton(
+                            onClick = onRemoveOwner,
+                            colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                            modifier = Modifier.fillMaxWidth().heightIn(min = 64.dp),
+                        ) {
+                            Text("Снять управление планшетом")
+                        }
+                    }
                 }
             }
         },

@@ -64,19 +64,19 @@ internal fun BulbGroupControls(group: BulbGroup, state: BulbPanelState, sharedFa
                 Box(Modifier.size(40.dp), contentAlignment = Alignment.Center) {
                     TileDeviceArt(art(lamp), Modifier.size(36.dp))
                 }
-                Text(
-                    when {
-                        pending -> "Ждём"
-                        commandError != null -> "Ошибка"
-                        sharedFailure -> "Нет обновл."
-                        lamp.isOn == null -> "Нет данных"
-                        lamp.isOn -> "Вкл"
-                        else -> "Выкл"
-                    },
-                    style = labelStyle,
-                    color = tint,
-                    textAlign = TextAlign.Center,
-                )
+                if (pending || failing || lamp.isOn == null) {
+                    Text(
+                        when {
+                            pending -> "Ждём"
+                            commandError != null -> "Ошибка"
+                            sharedFailure -> "Нет обновл."
+                            else -> "Нет данных"
+                        },
+                        style = labelStyle,
+                        color = tint,
+                        textAlign = TextAlign.Center,
+                    )
+                }
                 Text(lamp.name, style = labelStyle, textAlign = TextAlign.Center, maxLines = 2, overflow = TextOverflow.Ellipsis)
             }
         }

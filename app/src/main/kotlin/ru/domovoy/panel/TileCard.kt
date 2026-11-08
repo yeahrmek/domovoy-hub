@@ -6,12 +6,12 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.sizeIn
@@ -53,7 +53,7 @@ internal val MIN_TOUCH = 64.dp
 private val TILE_PADDING = 6.dp
 
 /** Inside the card, on all four sides. One padding, on every tile, whatever its span. */
-private val TILE_CONTENT_PADDING = 20.dp
+private val TILE_CONTENT_PADDING = 16.dp
 
 /** Main controls remain easy to reach while simple cards omit absent content. */
 private val ART_ROW = MIN_TOUCH
@@ -114,25 +114,25 @@ private fun TileBody(
     level: @Composable () -> Unit,
     onAction: () -> Unit,
 ) {
-    Column(modifier = Modifier.fillMaxWidth().padding(TILE_CONTENT_PADDING)) {
+    Column(modifier = Modifier.fillMaxWidth().padding(TILE_CONTENT_PADDING), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(
-            modifier = Modifier.fillMaxWidth().height(ART_ROW),
+            modifier = Modifier.fillMaxWidth().heightIn(min = ART_ROW),
             verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             TileArt(anatomy.art, paint.mood)
-            Spacer(modifier = Modifier.weight(1f))
-
-            Box(modifier = Modifier.touchable(), contentAlignment = Alignment.Center) { toggle() }
-
+            Column(Modifier.weight(1f)) {
+                Text(text = anatomy.name, style = MaterialTheme.typography.titleMedium)
+                if (showRoom) {
+                    Text(
+                        text = anatomy.room ?: "Без комнаты",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+            toggle()
             TileActionButton(anatomy.action, onAction, enabled = !pending)
-        }
-        Text(text = anatomy.name, style = MaterialTheme.typography.titleMedium)
-        if (showRoom) {
-            Text(
-                text = anatomy.room ?: "Без комнаты",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
         }
         PromotedValue(anatomy.promoted ?: "—".takeIf { format == TileFormat.Reading || format == TileFormat.Control })
         if (hasLevel) level()
@@ -173,16 +173,22 @@ private val DEVICE_ART_SIZE = 80.dp
 internal fun TileDeviceArt(
     @DrawableRes art: Int,
     modifier: Modifier = Modifier,
+    active: Boolean = false,
 ) {
-    Image(
-        painter = painterResource(art),
-        contentDescription = null,
-        modifier = modifier.size(DEVICE_ART_SIZE),
-        contentScale = ContentScale.Fit,
-    )
+    Box(modifier = modifier.size(DEVICE_ART_SIZE)) {
+        Image(
+            painter = painterResource(art),
+            contentDescription = null,
+            modifier = Modifier.matchParentSize(),
+            contentScale = ContentScale.Fit,
+        )
+        if (art == R.drawable.device_art_humidifier && active) {
+            HumidifierWorkingEffects(Modifier.matchParentSize())
+        }
+    }
 }
 
-/** Confirmed power adds a lime dot; lit bulb art already conveys its state. */
+/** Confirmed power adds a lime dot unless the hardware illustration conveys its state. */
 @Composable
 internal fun TileArt(
     @DrawableRes art: Int,
@@ -190,8 +196,8 @@ internal fun TileArt(
     modifier: Modifier = Modifier,
 ) {
     Box(modifier = modifier.size(48.dp)) {
-        TileDeviceArt(art, Modifier.size(48.dp))
-        if (mood == TileMood.On && art != R.drawable.device_art_bulb_on && art != R.drawable.device_art_bulb_off) {
+        TileDeviceArt(art, Modifier.size(48.dp), active = mood == TileMood.On)
+        if (mood == TileMood.On && art != R.drawable.device_art_bulb_on && art != R.drawable.device_art_bulb_off && art != R.drawable.device_art_humidifier) {
             DeviceOnDot(Modifier.align(Alignment.TopEnd))
         }
     }

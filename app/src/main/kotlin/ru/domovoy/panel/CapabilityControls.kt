@@ -8,6 +8,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -134,6 +135,33 @@ internal fun ModeControls(
                 }
             }
         }
+}
+
+/** Humidifier intensity wraps on narrow cards instead of hiding the last advertised mode. */
+@Composable
+internal fun HumidifierModeControls(
+    modes: Map<String, Mode>,
+    onSetMode: (String, String) -> Unit,
+    enabled: Boolean,
+) {
+    modes["fan_speed"]?.let { mode ->
+        FlowRow(
+            modifier = Modifier.fillMaxWidth().selectableGroup().semantics { contentDescription = "Интенсивность увлажнения" },
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            mode.available.forEach { value ->
+                CapabilityButton(
+                    label = capabilityLabel(value),
+                    glyph = R.drawable.ic_mode_fan,
+                    selected = mode.current == value,
+                    enabled = enabled,
+                    onClick = { onSetMode("fan_speed", value) },
+                    showIcon = false,
+                )
+            }
+        }
+    }
 }
 
 @Composable

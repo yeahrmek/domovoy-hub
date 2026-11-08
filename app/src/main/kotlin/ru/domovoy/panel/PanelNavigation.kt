@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -50,49 +51,45 @@ internal fun PanelNavigation(
 ) {
     Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         BoxWithConstraints(Modifier.fillMaxWidth()) {
+            val effectiveWidth = maxWidth / LocalDensity.current.fontScale
             val brand: @Composable () -> Unit = {
                 TextButton(
                     onClick = onHome,
                     contentPadding = PaddingValues(0.dp),
                     modifier = Modifier.heightIn(min = MIN_TOUCH).semantics { contentDescription = "На главную" },
                 ) {
-                    PanelBrand()
+                    PanelBrand(compact = effectiveWidth < 500.dp)
                 }
             }
-            val refresh: @Composable () -> Unit = {
-                if (onRefreshDevices != null) {
-                    TextButton(
-                        onClick = onRefreshDevices,
-                        enabled = !refreshingDevices,
-                        modifier = Modifier.heightIn(min = MIN_TOUCH),
-                    ) {
-                        Text(if (refreshingDevices) "Обновляем устройства…" else "Обновить устройства")
+            val utilities: @Composable () -> Unit = {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (time != null) {
+                        Text(time, style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    if (onRefreshDevices != null) {
+                        PanelIconButton(
+                            R.drawable.ic_refresh,
+                            if (refreshingDevices) "Обновляем устройства…" else "Обновить устройства",
+                            onRefreshDevices,
+                            busy = refreshingDevices,
+                        )
+                    }
+                    if (onPanelAccess != null) {
+                        PanelIconButton(R.drawable.ic_shield, "Защита", onPanelAccess)
                     }
                 }
             }
-            val compactHeader = maxWidth / LocalDensity.current.fontScale < if (onRefreshDevices == null) 320.dp else 600.dp
-            if (compactHeader) {
+            val headerMinimum = if (onRefreshDevices != null || onPanelAccess != null) 360.dp else 280.dp
+            if (effectiveWidth < headerMinimum) {
                 Column(Modifier.fillMaxWidth()) {
                     brand()
-                    FlowRow(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = if (onRefreshDevices == null) Arrangement.End else Arrangement.SpaceBetween,
-                        itemVerticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        refresh()
-                        if (time != null) {
-                            Text(time, style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.primary)
-                        }
-                    }
+                    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterEnd) { utilities() }
                 }
             } else {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     brand()
                     Spacer(Modifier.weight(1f))
-                    refresh()
-                    if (time != null) {
-                        Text(time, style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.primary)
-                    }
+                    utilities()
                 }
             }
         }
@@ -109,10 +106,9 @@ internal fun PanelNavigation(
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primaryFixedDim, contentColor = MaterialTheme.colorScheme.onPrimaryFixed),
                     shape = RoundedCornerShape(10.dp),
                     contentPadding = PaddingValues(horizontal = 18.dp),
-                    modifier = Modifier.heightIn(min = MIN_TOUCH),
+                    modifier = Modifier.size(MIN_TOUCH),
                 ) {
-                    Icon(painterResource(R.drawable.ic_home_outline), contentDescription = null, modifier = Modifier.size(24.dp))
-                    Text("Дом", modifier = Modifier.padding(start = 10.dp))
+                    Icon(painterResource(R.drawable.ic_home_outline), contentDescription = "Дом", modifier = Modifier.size(26.dp))
                 }
                 if (intercom != null) {
                     TextButton(
@@ -120,21 +116,15 @@ internal fun PanelNavigation(
                         enabled = intercom.openable,
                         shape = RoundedCornerShape(10.dp),
                         contentPadding = PaddingValues(horizontal = 14.dp),
-                        modifier = Modifier.heightIn(min = MIN_TOUCH).semantics { contentDescription = "Открыть домофон" },
+                        modifier = Modifier.heightIn(min = MIN_TOUCH).widthIn(min = MIN_TOUCH).semantics { contentDescription = "Открыть домофон" },
                     ) {
                         Icon(painterResource(R.drawable.ic_intercom_outline), contentDescription = null, modifier = Modifier.size(24.dp))
-                        Text(if (intercom.openable) "Домофон" else "Домофон: нет приложения", modifier = Modifier.padding(start = 10.dp))
+                        if (wide || !intercom.openable) {
+                            Text(if (intercom.openable) "Домофон" else "Домофон: нет приложения", modifier = Modifier.padding(start = 10.dp))
+                        }
                     }
                 }
                 if (wide) Spacer(Modifier.weight(1f))
-                if (onPanelAccess != null) {
-                    TextButton(
-                        onClick = onPanelAccess,
-                        modifier = Modifier.heightIn(min = MIN_TOUCH),
-                    ) {
-                        Text("Защита")
-                    }
-                }
                 Box {
                     TextButton(
                         onClick = { onRoomsOpen(true) },

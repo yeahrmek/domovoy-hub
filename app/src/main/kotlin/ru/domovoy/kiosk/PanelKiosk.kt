@@ -17,6 +17,8 @@ import ru.domovoy.MainActivity
 import ru.domovoy.integrations.domonap.CallState
 import ru.domovoy.integrations.domonap.DomonapCallListener
 import ru.domovoy.integrations.domonap.domonapCalls
+import ru.domovoy.integrations.xiaomi.MI_HOME_PACKAGE
+import ru.domovoy.integrations.xiaomi.miHomeDeviceIntent
 import ru.domovoy.openVendorApp
 
 /** The household apps available without leaving protection. */
@@ -33,6 +35,7 @@ internal val kioskApps = mapOf(
 internal data class KioskState(
     val enabled: Boolean = false,
     val locked: Boolean = false,
+    val deviceOwner: Boolean = false,
     val problem: String? = null,
     val error: String? = null,
 )
@@ -88,6 +91,7 @@ internal class PanelKiosk(
     fun refresh() {
         mutableState.value = state.value.copy(
             locked = activity.getSystemService(ActivityManager::class.java).lockTaskModeState == ActivityManager.LOCK_TASK_MODE_LOCKED,
+            deviceOwner = dpm.isDeviceOwnerApp(activity.packageName),
             problem = availabilityProblem(),
         )
     }
@@ -141,7 +145,46 @@ internal class PanelKiosk(
         }
     }
 
+    @Suppress("DEPRECATION")
+    fun removeOwner() {
+        authorize("Снять управление планшетом") { failure ->
+            if (failure != null) {
+                mutableState.value = state.value.copy(error = failure)
+            } else {
+                attempt {
+                    check(dpm.isDeviceOwnerApp(activity.packageName)) { "Панель уже не управляет планшетом" }
+                    releasePolicy()
+                    dpm.getUserRestrictions(admin).keySet().toList().forEach { dpm.clearUserRestriction(admin, it) }
+                    check(dpm.getUserRestrictions(admin).isEmpty) { "Не удалось снять ограничения управления" }
+                    // Persist the ordinary mode before giving up the privileges needed to restore it.
+                    check(preferences.edit().putBoolean("enabled", false).commit()) { "Не удалось сохранить отключение защиты" }
+                    mutableState.value = state.value.copy(enabled = false)
+                    dpm.clearDeviceOwnerApp(activity.packageName)
+                    check(!dpm.isDeviceOwnerApp(activity.packageName)) { "Права управления остались активны" }
+                    // Android finishes disabling the admin through an asynchronous ordered broadcast.
+                    activity.startActivity(Intent(Settings.ACTION_HOME_SETTINGS))
+                }
+            }
+            refresh()
+        }
+    }
+
     fun openApp(packageName: String, result: (String?) -> Unit) {
+        openApp(packageName, result) { openVendorApp(activity, packageName) }
+    }
+
+    fun openVacuum(deviceId: String, result: (String?) -> Unit) {
+        openApp(MI_HOME_PACKAGE, result) {
+            if (deviceId.isBlank()) {
+                "Пылесос не настроен. Откройте Mi Home через меню «Защита»."
+            } else {
+                activity.startActivity(miHomeDeviceIntent(deviceId))
+                null
+            }
+        }
+    }
+
+    private fun openApp(packageName: String, result: (String?) -> Unit, launch: () -> String?) {
         if (packageName !in kioskApps) {
             result("Приложение не разрешено")
             return
@@ -155,7 +198,7 @@ internal class PanelKiosk(
                 check(availabilityProblem() == null) { "Защита панели недоступна" }
                 dpm.setLockTaskPackages(admin, allowedPackages)
             }
-            openVendorApp(activity, packageName)
+            launch()
         } catch (failure: Exception) {
             Log.w("PanelKiosk", "vendor launch failed", failure)
             "Не удалось открыть приложение"
@@ -246,6 +289,9 @@ internal class PanelKiosk(
         if (dpm.isDeviceOwnerApp(activity.packageName)) {
             dpm.clearPackagePersistentPreferredActivities(admin, activity.packageName)
             dpm.setLockTaskPackages(admin, emptyArray())
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                dpm.setLockTaskFeatures(admin, DevicePolicyManager.LOCK_TASK_FEATURE_NONE)
+            }
         }
     }
 

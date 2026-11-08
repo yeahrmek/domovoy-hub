@@ -1,5 +1,6 @@
 package ru.domovoy.panel
 
+import androidx.annotation.DrawableRes
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -32,6 +33,7 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -54,6 +56,8 @@ internal fun LevelControl(
     thumbShape: LevelThumbShape = LevelThumbShape.Oval,
     showBounds: Boolean = true,
     prominentValue: Boolean = false,
+    @DrawableRes labelIcon: Int? = null,
+    showLabel: Boolean = true,
 ) {
     val reported = (value ?: bounds.min).toFloat()
     var dragged by remember(id, bounds) { mutableFloatStateOf(reported) }
@@ -89,7 +93,11 @@ internal fun LevelControl(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Text(label, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.alignByBaseline())
+            if (labelIcon != null) {
+                Icon(painterResource(labelIcon), contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(24.dp).align(Alignment.CenterVertically).testTag("level-label-icon"))
+            } else if (showLabel) {
+                Text(label, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.alignByBaseline())
+            }
             val valueText = if (prominentValue && value == null && !dragging) {
                 "—"
             } else if (dragging || prominentValue) {

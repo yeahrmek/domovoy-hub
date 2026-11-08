@@ -96,6 +96,8 @@ class DiscoveredDevicesUiTest {
         val humidity = compose.onNode(hasText("40.9%") and onHome, useUnmergedTree = true).getUnclippedBoundsInRoot()
         assertTrue(humidity.left > temperature.right)
         assertTrue(humidity.top == temperature.top)
+        compose.onNodeWithText("Температура").assertDoesNotExist()
+        compose.onNodeWithText("Влажность").assertDoesNotExist()
         compose.onNode(hasText("Датчик климата") and onHome).performClick()
         compose.onNodeWithText("Батарея").assertExists()
         compose.onNodeWithText("100%").assertExists()

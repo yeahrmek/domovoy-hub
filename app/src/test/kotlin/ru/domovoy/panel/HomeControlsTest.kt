@@ -63,6 +63,18 @@ class HomeControlsTest {
     }
 
     @Test
+    fun `curtain icon actions send vendor endpoints and keep wall sized targets`() {
+        var sent: Pair<String, Double>? = null
+        compose.setContent { Panel(curtains = Flat.curtains, onOpen = { id, value -> sent = id to value }) }
+        val curtain = hasAnyAncestor(hasContentDescription("Настроить: Штора, Зал"))
+        home(hasContentDescription("Закрыть штору") and curtain).performScrollTo().performClick()
+        assertEquals("curtain-01" to Flat.curtains.tiles.first().bounds!!.min, sent)
+        home(hasContentDescription("Открыть штору") and curtain).performClick()
+        assertEquals("curtain-01" to Flat.curtains.tiles.first().bounds!!.max, sent)
+        assertNull(open.value)
+    }
+
+    @Test
     fun `strip brightness is adjustable on home without opening details`() {
         var sent: Pair<String, Double>? = null
         compose.setContent {

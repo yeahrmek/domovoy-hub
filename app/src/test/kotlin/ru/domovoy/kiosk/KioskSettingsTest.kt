@@ -59,6 +59,35 @@ class KioskSettingsTest {
     }
 
     @Test
+    fun `full removal is a separate action available to the current device owner`() {
+        var removals = 0
+        compose.setContent {
+            MaterialTheme(colorScheme = panelLightScheme, typography = panelTypography) {
+                KioskSettings(
+                    KioskState(deviceOwner = true),
+                    {},
+                    {},
+                    {},
+                    onRemoveOwner = { removals++ },
+                )
+            }
+        }
+        compose.onNodeWithText("Снять управление планшетом").performScrollTo().assertIsDisplayed().performClick()
+        assertEquals(1, removals)
+        compose.onRoot().captureRoboImage("build/outputs/kiosk/remove-owner-light.png")
+    }
+
+    @Test
+    fun `a panel without ownership does not offer owner removal`() {
+        compose.setContent {
+            MaterialTheme(colorScheme = panelDarkScheme, typography = panelTypography) {
+                KioskSettings(KioskState(), {}, {}, {})
+            }
+        }
+        compose.onNodeWithText("Снять управление планшетом").assertDoesNotExist()
+    }
+
+    @Test
     fun `allowed apps are reachable without leaving protection`() {
         val opened = mutableListOf<String>()
         compose.setContent {

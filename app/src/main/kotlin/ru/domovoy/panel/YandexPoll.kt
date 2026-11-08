@@ -2,6 +2,7 @@ package ru.domovoy.panel
 
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import ru.domovoy.integrations.xiaomi.XiaomiLanClient
 import ru.domovoy.integrations.yandex.YandexClient
 import java.time.Instant
 
@@ -28,6 +29,7 @@ data class DeviceRefreshState(
  */
 class YandexPoll(
     private val client: YandexClient,
+    xiaomi: XiaomiLanClient? = null,
     /**
      * The panel's clock, and the only reason this class has one: a group is stale when nothing has
      * *read* it lately, and the read is what happens here. Injectable so a test can say when.
@@ -40,7 +42,7 @@ class YandexPoll(
     val curtains = CurtainTiles(client) { polling.refresh(force = true) }
     val acs = AcTiles(client) { polling.refresh(force = true) }
     val strips = LightStripTiles(client) { polling.refresh(force = true) }
-    val discovered = DiscoveredDevices(client) { polling.refresh(force = true) }
+    val discovered = DiscoveredDevices(client, xiaomi, now) { polling.refresh(force = true) }
     val polling = AdaptivePolling(now = now) { readOnce() }
     private val mutableRefreshState = MutableStateFlow(DeviceRefreshState())
     val refreshState = mutableRefreshState.asStateFlow()

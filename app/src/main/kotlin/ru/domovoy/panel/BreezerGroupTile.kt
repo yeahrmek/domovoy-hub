@@ -114,20 +114,19 @@ private fun BreezerStatusIcon(tile: RecuperatorTileState, state: RecuperatorPane
             TileDeviceArt(art(tile), Modifier.size(36.dp))
             if (status == "Включён") DeviceOnDot(Modifier.align(Alignment.TopEnd))
         }
-        Text(
-            when (status) {
-                "Включён" -> "Вкл"
-                "Выключен" -> "Выкл"
-                "Ждём подтверждения" -> "Ждём"
-                "Ошибка команды" -> "Ошибка"
-                "Нет обновления" -> "Нет обновл."
-                else -> status
-            },
-            style = labelStyle,
-            color = tint,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.heightIn(min = 36.dp * fontScale),
-        )
+        if (status !in listOf("Включён", "Выключен")) {
+            Text(
+                when (status) {
+                    "Ждём подтверждения" -> "Ждём"
+                    "Ошибка команды" -> "Ошибка"
+                    "Нет обновления" -> "Нет обновл."
+                    else -> status
+                },
+                style = labelStyle,
+                color = tint,
+                textAlign = TextAlign.Center,
+            )
+        }
         Text(
             when (tile.room) {
                 "Маленькая детская" -> "Мал. детская"

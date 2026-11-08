@@ -164,7 +164,7 @@ private fun SheetHeading(
     onDismiss: () -> Unit,
 ) {
     Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        TileDeviceArt(sheet.art)
+        TileDeviceArt(sheet.art, active = sheet.isOn == true && sheet.notUpdating == null)
         Spacer(modifier = Modifier.width(SHEET_GAP))
         Column(modifier = Modifier.weight(1f)) {
             sheet.room?.let { room ->

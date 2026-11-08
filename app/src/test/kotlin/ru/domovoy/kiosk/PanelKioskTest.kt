@@ -9,15 +9,21 @@ import android.content.Intent
 import android.content.pm.ActivityInfo
 import android.content.pm.ApplicationInfo
 import android.content.pm.ResolveInfo
+import android.os.Bundle
+import android.os.UserManager
 import android.provider.Settings
 import org.junit.After
+import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
+import org.robolectric.shadows.ShadowDevicePolicyManager
+import org.robolectric.util.ReflectionHelpers
 import ru.domovoy.integrations.domonap.DomonapCallListener
+import java.lang.reflect.Proxy
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
@@ -43,8 +49,33 @@ class PanelKioskTest {
         "com.sec.android.gallery3d",
     )
     private var callActive = false
+    private var deferAdminRemoval = false
+    private var policyAtOwnerRemoval: Pair<Set<String>, Int>? = null
     private val authentication = mutableListOf<(String?) -> Unit>()
     private val kiosk = PanelKiosk(activity, { _, result -> authentication.add(result) }, {}, { callActive }).also { it.resume() }
+
+    @Before
+    fun ownerService() {
+        // Robolectric does not model these two system-service methods.
+        val serviceType = Class.forName("android.app.admin.IDevicePolicyManager")
+        val original = ReflectionHelpers.getField<Any?>(dpm, "mService")
+        val service = Proxy.newProxyInstance(serviceType.classLoader, arrayOf(serviceType)) { _, method, args ->
+            when (method.name) {
+                "getUserRestrictions" -> Bundle(activity.getSystemService(UserManager::class.java).userRestrictions).apply {
+                    keySet().toList().filterNot { getBoolean(it) }.forEach(::remove)
+                }
+                "clearDeviceOwner" -> {
+                    check(args!![0] == activity.packageName)
+                    policyAtOwnerRemoval = dpm.getLockTaskPackages(admin).toSet() to dpm.getLockTaskFeatures(admin)
+                    ReflectionHelpers.setStaticField(ShadowDevicePolicyManager::class.java, "deviceOwner", null)
+                    if (!deferAdminRemoval) dpm.removeActiveAdmin(admin)
+                    null
+                }
+                else -> if (original != null) method.invoke(original, *(args ?: emptyArray())) else error(method.name)
+            }
+        }
+        ReflectionHelpers.setField(dpm, "mService", service)
+    }
 
     @After
     fun close() {
@@ -189,6 +220,93 @@ class PanelKioskTest {
         assertTrue("com.google.android.googlequicksearchbox" in dpm.getLockTaskPackages(admin))
         assertEquals(allowedApps, dpm.getLockTaskPackages(admin).toSet())
         assertEquals(1, authentication.size)
+    }
+
+    @Test
+    fun `full removal requires fresh credentials and clears owner without deleting panel data`() {
+        prepareOwner()
+        val retained = activity.getSharedPreferences("retained-test-data", Activity.MODE_PRIVATE)
+        retained.edit().putString("marker", "keep-me").commit()
+        dpm.addUserRestriction(admin, UserManager.DISALLOW_CONFIG_WIFI)
+        kiosk.enable()
+        authentication.single()(null)
+
+        kiosk.removeOwner()
+        assertEquals(2, authentication.size)
+        assertTrue(dpm.isDeviceOwnerApp(activity.packageName))
+        authentication.last()(null)
+
+        assertFalse(dpm.isDeviceOwnerApp(activity.packageName))
+        assertFalse(dpm.isAdminActive(admin))
+        assertFalse(shadowOf(activity).isLockTask)
+        assertFalse(kiosk.state.value.enabled)
+        assertEquals(emptySet<String>() to DevicePolicyManager.LOCK_TASK_FEATURE_NONE, policyAtOwnerRemoval)
+        assertFalse(kiosk.state.value.deviceOwner)
+        assertFalse(activity.getSystemService(UserManager::class.java).hasUserRestriction(UserManager.DISALLOW_CONFIG_WIFI))
+        assertEquals("keep-me", retained.getString("marker", null))
+        assertEquals(Settings.ACTION_HOME_SETTINGS, shadowOf(activity).nextStartedActivity.action)
+        kiosk.resume()
+        assertFalse(kiosk.state.value.enabled)
+        assertFalse(shadowOf(activity).isLockTask)
+    }
+
+    @Test
+    fun `cancelled owner removal keeps both ownership and kiosk restrictions`() {
+        prepareOwner()
+        kiosk.enable()
+        authentication.single()(null)
+        kiosk.removeOwner()
+        assertEquals(2, authentication.size)
+        authentication.last()("Проверка отменена")
+        assertTrue(dpm.isDeviceOwnerApp(activity.packageName))
+        assertTrue(kiosk.state.value.enabled)
+        assertTrue(shadowOf(activity).isLockTask)
+        assertEquals(allowedApps, dpm.getLockTaskPackages(admin).toSet())
+    }
+
+    @Test
+    fun `a call invalidates an owner removal success that arrives later`() {
+        prepareOwner()
+        kiosk.removeOwner()
+        callActive = true
+        kiosk.onCallStarted()
+        callActive = false
+        authentication.single()(null)
+        assertTrue(dpm.isDeviceOwnerApp(activity.packageName))
+        assertNull(shadowOf(activity).nextStartedActivity)
+    }
+
+    @Test
+    fun `ownership can be removed while protection is already disabled`() {
+        prepareOwner()
+        kiosk.removeOwner()
+        authentication.single()(null)
+        assertFalse(dpm.isDeviceOwnerApp(activity.packageName))
+        assertFalse(kiosk.state.value.enabled)
+    }
+
+    @Test
+    fun `asynchronous admin disabling does not report a failed owner removal`() {
+        prepareOwner()
+        deferAdminRemoval = true
+        kiosk.removeOwner()
+        authentication.single()(null)
+        assertFalse(dpm.isDeviceOwnerApp(activity.packageName))
+        assertFalse(kiosk.state.value.enabled)
+        assertNull(kiosk.state.value.error)
+        assertEquals(Settings.ACTION_HOME_SETTINGS, shadowOf(activity).nextStartedActivity.action)
+        assertTrue(dpm.isAdminActive(admin))
+        dpm.removeActiveAdmin(admin)
+        assertFalse(dpm.isAdminActive(admin))
+    }
+
+    @Test
+    fun `owner removal refuses a device without a screen lock`() {
+        shadowOf(dpm).setDeviceOwner(admin)
+        kiosk.removeOwner()
+        assertTrue(authentication.isEmpty())
+        assertTrue(dpm.isDeviceOwnerApp(activity.packageName))
+        assertNotNull(kiosk.state.value.error)
     }
 
     @Test

@@ -1,5 +1,157 @@
 # Xiaomi (Mi Home / Xiaomi Home)
 
+## Direct vacuum launch and Mi Home notifications, 2026-11-08
+
+The vacuum tile opens the configured vacuum directly. The Mi Home button in **Защита** still
+opens the app normally and provides a fallback if its device entry changes.
+
+Verified on the Samsung SM-T875 (Android 13), using the installed Mi Home's own **Расширенные
+настройки → Добавить на рабочий стол** shortcut. The panel has no shortcut-host permission, so
+it uses the same explicit entry point rather than Android's `LauncherApps.startShortcut`:
+
+```kotlin
+Intent("com.xiaomi.smarthome.action.viewdevice")
+    .setComponent(ComponentName("com.xiaomi.smarthome", "com.xiaomi.smarthome.device.utils.DeviceLauncher2"))
+    .putExtra("device_id", configuredDeviceId)
+    .putExtra("source_tag", "short_cut")
+    .putExtra("user_model", "deerma.vacuum.a2506")
+    .putExtra("timestamp", System.currentTimeMillis())
+    .putExtra("from_main_activity", true)
+```
+
+`from_main_activity=true` is required by the installed handler. `device_mac` was omitted in the
+successful physical test. Starting from the Samsung home screen opened the loaded vacuum screen
+with its device name, charge, cleaning controls and station functions. No cleaning command was
+sent. This is a verified private app entry point, not a published Xiaomi API; an Mi Home update
+may change it. The identifier is kept in gitignored `local.properties` as
+`xiaomi.vacuum.device.id` and seeded into encrypted preferences without replacing a stored value.
+As with the existing vendor seeds, the value remains extractable from a locally built APK.
+
+The existing notification listener also reads active Android notifications from
+`com.xiaomi.smarthome`. A block above the panel's tiles displays the latest message, its original
+title/text and posting time. Tapping expands up to five current messages. The source is labelled
+**Mi Home**, because this app also reports other devices. Expanded notification text takes
+precedence over the short preview. Group summaries and empty messages are omitted. The panel
+never dismisses, modifies or opens the original notification and never derives a vacuum fault
+state from its wording. Removal only removes the displayed message; it does not mean a fault was
+resolved.
+
+Notification access was already granted on the tablet, and Mi Home's system notifications were
+allowed. No active Mi Home notification was present during the initial inspection. Messages seen
+only inside Mi Home or delivered only to a phone are not available through this path. Access and
+connection failures are shown separately; a failed reconnect preserves the previous messages as
+potentially outdated. A successful reconnect reads the current Android notification snapshot.
+Mi Home messages do not trigger the intercom-call state or launch another screen; the block is
+hidden during a detected Domonap call.
+
+Validation: all 778 JVM unit tests, `ktlintCheck`, Android `lint` and `assembleDebug` passed.
+The debug APK was installed on the Samsung with `adb install -r`, preserving application data;
+the installed APK hash matches the checked build. Tapping **Пылесос** in the updated panel
+opened the loaded vacuum screen with the actual room map and cleaning/station controls.
+Android reports the panel's notification
+listener as granted and bound. Light/dark notification captures with font scale 1.3 are under
+`app/build/outputs/mihome/`. Physical delivery of a new Mi Home push remains unverified.
+
+Private device evidence is under `app/build/mihome-investigation/`; sanitized direct-launch
+parameters are in `intent-probe/verified-intent.json`. The isolated verification outputs are under
+`app/build/mihome-verification/` and `build/mihome-verification/`. These generated files are
+disposable once this change has been reviewed and physical notification delivery has been
+confirmed. The latest private tablet UI hierarchy is at
+`/data/local/tmp/domovoy-mihome/window.xml`; it can be removed after the device checks finish.
+
+## Direct humidifier LAN control, 2026-11-08
+
+Both `deerma.humidifier.jsq5` units now have direct miIO/MIoT support in the panel. The existing
+Yandex card IDs, names and rooms are retained, including favourites. Device tokens, Xiaomi IDs and
+address hints are configured in gitignored `local.properties` as `xiaomi.local.devices`; the APK
+seeds them into the existing encrypted preference store without overwriting stored credentials.
+As with the other build-time credential seeds, they remain extractable from the APK.
+
+The exact device specification is
+`urn:miot-spec-v2:device:humidifier:0000A00E:deerma-jsq5:1`:
+
+| MIoT property | Meaning | Values |
+| --- | --- | --- |
+| service 2, property 1 | Power | Boolean |
+| service 2, property 2 | Fault | 0: normal; 1: insufficient water; 2: tank removed |
+| service 2, property 5 | Intensity | 1: low; 2: medium; 3: high; 4: humidity control |
+| service 2, property 6 | Target humidity | 40–80%, step 1% |
+| service 3, property 1 | Measured humidity | Percent |
+| service 3, property 7 | Measured temperature | Celsius |
+
+Live authenticated `get_properties` reads returned mode 4 on both devices, with targets 45% and
+60%. Thus Yandex's fourth intensity label, `turbo`, did not describe the native humidity-control
+mode. Direct cards use `Авто`. Selecting a target writes it and selects this native mode when
+needed; power is left unchanged. The target stays visible on the card, while intensity choices
+remain under the chevron. Details expose the same target control.
+
+Verified through a temporary USB-forwarded UDP relay on the wall tablet, with its VPN unchanged:
+45 → 46 → 45% and 60 → 61 → 60%. Each new target and restoration was confirmed with a fresh
+`get_properties` read, and power and mode were unchanged. Writes used `set_properties`, service 2,
+property 6, and the actual Xiaomi device ID. A single property-5 write of the current mode also
+returned code 0 on one unit. An earlier batch using placeholder IDs returned -4004 for the mode;
+the client therefore sends the configured real Xiaomi ID and validates each acknowledgement.
+Direct Mac UDP attempts failed; successful LAN checks were made from the tablet.
+
+Redacted excerpt of a live read (device identifier fields omitted):
+
+```json
+{"id":1,"result":[{"siid":2,"piid":5,"code":0,"value":4},{"siid":2,"piid":6,"code":0,"value":45}]}
+```
+
+The client uses UDP port 54321, an miIO handshake, token-derived AES/MD5 framing, a three-second
+request deadline and no automatic write retries. Each command is followed by a separate state
+read. Xiaomi polling runs independently of Yandex, including before Yandex's first successful
+read. A failed unit retains its last readings and gets its own error and polling timestamp.
+Foreground/intercom lifecycle rules also apply to this poller. Saved IPv4 address hints currently
+need updating if the router assigns different addresses; LAN rediscovery is not implemented.
+
+The token inventory at `.toolchain/xiaomi/devices.json` is user-provided local credential material;
+keep it for reconfiguration and remove it only when no longer needed. No Xiaomi account password
+or token is included in source or recorded fixtures. The physical checks above verify LAN command
+and readback behavior, not tablet APK installation, humidity convergence or reboot recovery.
+
+Sources: [device specification](https://miot-spec.org/miot-spec-v2/instance?type=urn:miot-spec-v2:device:humidifier:0000A00E:deerma-jsq5:1),
+[python-miio protocol](https://github.com/rytilahti/python-miio/blob/master/miio/protocol.py),
+[model implementation](https://github.com/rytilahti/python-miio/blob/master/miio/integrations/deerma/humidifier/airhumidifier_jsqs.py).
+
+Final validation: all 778 unit/UI tests, `ktlintCheck` and `assembleDebug` passed. Build outputs
+were isolated from concurrent Gradle work through a temporary init script; no tests were excluded.
+The APK is retained at `.toolchain/xiaomi/domovoy-xiaomi-debug.apk`, and JUnit XML evidence at
+`.toolchain/xiaomi/verification-results.zip`. Keep the APK until this version is installed or
+superseded, and the evidence until the next complete verification. Temporary probe files, the
+USB relay/forwarding, and isolated build/cache directories were removed. This task did not install
+an APK on the tablet.
+
+The Yandex-only behavior and earlier integration decisions below predate this direct connection.
+
+## Humidifier controls through Yandex, 2026-11-08
+
+The panel now uses the existing Yandex integration for both discovered humidifiers. The recorded
+`user_info.json` advertises power and `mode/fan_speed`: low, medium and high on one unit, plus turbo
+on the other. Cards and details expose only each unit's advertised controls. Temperature and
+humidity remain readings; neither unit advertises a writable humidity target. Commands use the
+existing Yandex action endpoint and reread the inventory after success, retaining the previous
+reading until confirmation. Pending commands disable that device's controls; command errors stay
+local to it. Mock-server and Compose tests verify these paths; physical humidifier response has
+not been tested for this change. The Mi Home vacuum launcher is unchanged.
+
+The levels are collapsed by default behind a chevron on the card; temperature, humidity and
+power remain visible. Expanding or collapsing the levels sends no device command, and the
+device name still opens details.
+
+A fresh read of `GET /v1.0/user/info` on 2026-11-08 returned `on_off/on` and `mode/fan_speed`
+with low, medium, high and turbo for both humidifiers. Their properties contain humidity and
+temperature. Neither advertises `range/humidity` or an automatic humidity mode, so the panel
+cannot expose the device's own target-humidity control through this integration. Direct Mi Home
+access is not configured; panel-side power automation has not been implemented.
+
+The user confirmed that the target is available in Mi Home only. Yandex's
+[Smart Climate documentation](https://alice.yandex.ru/support/ru/smart-home/smart-climate), checked
+on 2026-11-08, describes temperature regulation with heating devices, not humidity regulation.
+
+The earlier scope and integration investigation below predate these humidifier controls.
+
 **Scope:** the vacuum and the humidifier, via a **hosted Mi Home app widget** — there is no Xiaomi
 client in this project and no `integrations/xiaomi/` package. The widget shows real state because
 the Mi Home app feeds it, and its buttons work; the cost is that it sits in Xiaomi's design
