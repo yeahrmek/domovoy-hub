@@ -30,6 +30,7 @@ internal val kioskApps = mapOf(
     "com.sec.android.app.camera" to "Камера",
     "org.amnezia.vpn.family" to "Amnezia VPN",
     "com.sec.android.gallery3d" to "Галерея",
+    "com.yandex.iot" to "Дом с Алисой",
 )
 
 internal data class KioskState(
@@ -46,11 +47,13 @@ internal class PanelKiosk(
     private val authenticate: (String, (String?) -> Unit) -> Unit,
     private val cancelAuthentication: () -> Unit,
     private val callActive: () -> Boolean = { domonapCalls.state.value == CallState.Active },
+    /** Apps the household added to the header row; allowed like [kioskApps]. */
+    private val userApps: () -> Collection<String> = { emptyList() },
 ) {
     private val dpm = activity.getSystemService(DevicePolicyManager::class.java)
     private val keyguard = activity.getSystemService(KeyguardManager::class.java)
     private val admin = ComponentName(activity, PanelDeviceAdmin::class.java)
-    private val allowedPackages = (listOf(activity.packageName, "com.google.android.googlequicksearchbox") + kioskApps.keys).toTypedArray()
+    private fun allowedPackages() = (listOf(activity.packageName, "com.google.android.googlequicksearchbox") + kioskApps.keys + userApps()).distinct().toTypedArray()
     private val preferences = activity.getSharedPreferences("panel-kiosk", Activity.MODE_PRIVATE)
     private val mutableState = MutableStateFlow(KioskState(enabled = preferences.getBoolean("enabled", false)))
     val state = mutableState.asStateFlow()
@@ -68,7 +71,7 @@ internal class PanelKiosk(
             attempt {
                 if (callActive()) {
                     // Restore allowed packages without taking the foreground away from the call.
-                    dpm.setLockTaskPackages(admin, allowedPackages)
+                    dpm.setLockTaskPackages(admin, allowedPackages())
                 } else {
                     check(availabilityProblem() == null) { "Настройки защиты изменились" }
                     applyPolicy()
@@ -185,7 +188,7 @@ internal class PanelKiosk(
     }
 
     private fun openApp(packageName: String, result: (String?) -> Unit, launch: () -> String?) {
-        if (packageName !in kioskApps) {
+        if (packageName !in kioskApps && packageName !in userApps()) {
             result("Приложение не разрешено")
             return
         }
@@ -196,7 +199,7 @@ internal class PanelKiosk(
         val error = try {
             if (state.value.enabled) {
                 check(availabilityProblem() == null) { "Защита панели недоступна" }
-                dpm.setLockTaskPackages(admin, allowedPackages)
+                dpm.setLockTaskPackages(admin, allowedPackages())
             }
             launch()
         } catch (failure: Exception) {
@@ -274,9 +277,11 @@ internal class PanelKiosk(
             admin,
             DevicePolicyManager.LOCK_TASK_FEATURE_HOME or DevicePolicyManager.LOCK_TASK_FEATURE_NOTIFICATIONS or
                 DevicePolicyManager.LOCK_TASK_FEATURE_KEYGUARD or DevicePolicyManager.LOCK_TASK_FEATURE_GLOBAL_ACTIONS or
-                DevicePolicyManager.LOCK_TASK_FEATURE_BLOCK_ACTIVITY_START_IN_TASK,
+                DevicePolicyManager.LOCK_TASK_FEATURE_BLOCK_ACTIVITY_START_IN_TASK or
+                // Recents switches between allowlisted apps only; it needs HOME, set above.
+                DevicePolicyManager.LOCK_TASK_FEATURE_OVERVIEW,
         )
-        dpm.setLockTaskPackages(admin, allowedPackages)
+        dpm.setLockTaskPackages(admin, allowedPackages())
         val home = IntentFilter(Intent.ACTION_MAIN).apply {
             addCategory(Intent.CATEGORY_HOME)
             addCategory(Intent.CATEGORY_DEFAULT)

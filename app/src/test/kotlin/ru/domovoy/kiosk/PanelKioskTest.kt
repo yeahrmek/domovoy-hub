@@ -47,6 +47,7 @@ class PanelKioskTest {
         "com.sec.android.app.camera",
         "org.amnezia.vpn.family",
         "com.sec.android.gallery3d",
+        "com.yandex.iot",
     )
     private var callActive = false
     private var deferAdminRemoval = false
@@ -120,7 +121,8 @@ class PanelKioskTest {
         assertTrue(features and DevicePolicyManager.LOCK_TASK_FEATURE_NOTIFICATIONS != 0)
         assertTrue(features and DevicePolicyManager.LOCK_TASK_FEATURE_HOME != 0)
         assertTrue(features and DevicePolicyManager.LOCK_TASK_FEATURE_BLOCK_ACTIVITY_START_IN_TASK != 0)
-        assertEquals(0, features and DevicePolicyManager.LOCK_TASK_FEATURE_OVERVIEW)
+        // Recents switches between allowed apps only; the allowlist above is still the boundary.
+        assertTrue(features and DevicePolicyManager.LOCK_TASK_FEATURE_OVERVIEW != 0)
 
         dpm.setLockTaskPackages(admin, arrayOf("ru.domovoy", "com.android.settings"))
         val restored = PanelKiosk(activity, { _, _ -> error("restore needs no authentication") }, {}, { false })
@@ -512,5 +514,31 @@ class PanelKioskTest {
             Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER).setPackage(packageName),
             info,
         )
+    }
+
+    @Test
+    fun `an app added to the header row opens in protected mode without PIN`() {
+        prepareOwner()
+        val userApps = mutableListOf("com.example.notes")
+        val custom = PanelKiosk(activity, { _, result -> authentication.add(result) }, {}, { callActive }, { userApps }).also { it.resume() }
+        registerApp("com.example.notes")
+        custom.enable()
+        authentication.single()(null)
+
+        var failure: String? = "not launched"
+        custom.openApp("com.example.notes") { failure = it }
+
+        assertNull(failure)
+        assertEquals("com.example.notes", shadowOf(activity).nextStartedActivity.component?.packageName)
+        assertTrue("com.example.notes" in dpm.getLockTaskPackages(admin))
+        assertEquals(1, authentication.size)
+
+        userApps.clear()
+        custom.openApp("com.example.notes") { failure = it }
+        assertNotNull(failure)
+        custom.background()
+        custom.resume()
+        assertFalse("com.example.notes" in dpm.getLockTaskPackages(admin))
+        custom.destroy()
     }
 }

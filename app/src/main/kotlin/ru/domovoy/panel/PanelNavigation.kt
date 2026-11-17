@@ -1,11 +1,11 @@
 package ru.domovoy.panel
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -14,6 +14,8 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -25,13 +27,25 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
 import ru.domovoy.R
 
 /** The app brand and fixed shortcuts stay reachable while devices scroll underneath. */
@@ -44,6 +58,12 @@ internal fun PanelNavigation(
     onHome: () -> Unit,
     onRoom: (String) -> Unit,
     onOpenApp: (String) -> Unit,
+    /** One-tap household apps after the intercom, in a scrollable row; see [QuickAppStore]. */
+    apps: List<LauncherTileState> = emptyList(),
+    /** Opens the app picker from the "+" at the end of the row; null hides it. */
+    onAddApp: (() -> Unit)? = null,
+    /** Receives the new package order after a long-press drag. */
+    onReorderApps: (List<String>) -> Unit = {},
     time: String? = null,
     onPanelAccess: (() -> Unit)? = null,
     refreshingDevices: Boolean = false,
@@ -96,10 +116,10 @@ internal fun PanelNavigation(
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
         BoxWithConstraints {
             val wide = maxWidth / LocalDensity.current.fontScale >= 500.dp
-            FlowRow(
+            Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
                 Button(
                     onClick = onHome,
@@ -124,7 +144,11 @@ internal fun PanelNavigation(
                         }
                     }
                 }
-                if (wide) Spacer(Modifier.weight(1f))
+                if (apps.isEmpty() && onAddApp == null) {
+                    Spacer(Modifier.weight(1f))
+                } else {
+                    QuickAppRow(apps, onOpenApp, onAddApp, onReorderApps, Modifier.weight(1f))
+                }
                 Box {
                     TextButton(
                         onClick = { onRoomsOpen(true) },
@@ -154,5 +178,89 @@ internal fun PanelNavigation(
             }
         }
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+    }
+}
+
+/** Scrolls sideways when the apps outgrow the header; a long press picks one up to reorder it. */
+@Composable
+private fun QuickAppRow(
+    apps: List<LauncherTileState>,
+    onOpenApp: (String) -> Unit,
+    onAddApp: (() -> Unit)?,
+    onReorderApps: (List<String>) -> Unit,
+    modifier: Modifier,
+) {
+    var preview by remember(apps) { mutableStateOf(apps) }
+    var dragged by remember { mutableStateOf<String?>(null) }
+    var dragX by remember { mutableFloatStateOf(0f) }
+    val widths = remember { mutableStateMapOf<String, Int>() }
+    val spacing = with(LocalDensity.current) { 8.dp.toPx() }
+    val haptics = LocalHapticFeedback.current
+    LazyRow(modifier, horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+        items(preview, key = { it.packageName }) { app ->
+            val isDragged = dragged == app.packageName
+            TextButton(
+                onClick = { onOpenApp(app.packageName) },
+                enabled = app.openable,
+                shape = RoundedCornerShape(10.dp),
+                border = if (isDragged) BorderStroke(1.dp, MaterialTheme.colorScheme.outline) else null,
+                contentPadding = PaddingValues(horizontal = 14.dp),
+                modifier = Modifier
+                    .then(if (isDragged) Modifier.zIndex(1f) else Modifier.animateItem())
+                    .graphicsLayer { translationX = if (isDragged) dragX else 0f }
+                    .onSizeChanged { widths[app.packageName] = it.width }
+                    .heightIn(min = MIN_TOUCH)
+                    .widthIn(min = MIN_TOUCH)
+                    .semantics { contentDescription = "Открыть ${app.name}" }
+                    .pointerInput(app.packageName) {
+                        detectDragGesturesAfterLongPress(
+                            onDragStart = {
+                                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                dragged = app.packageName
+                                dragX = 0f
+                            },
+                            onDragEnd = {
+                                val order = preview.map { it.packageName }
+                                dragged = null
+                                dragX = 0f
+                                if (order != apps.map { it.packageName }) onReorderApps(order)
+                            },
+                            onDragCancel = {
+                                dragged = null
+                                dragX = 0f
+                                preview = apps
+                            },
+                        ) { change, amount ->
+                            change.consume()
+                            dragX += amount.x
+                            val index = preview.indexOfFirst { it.packageName == app.packageName }
+                            val next = preview.getOrNull(index + 1)
+                            val previous = preview.getOrNull(index - 1)
+                            // Swap once the dragged button covers half of its neighbour.
+                            if (next != null && dragX > (widths[next.packageName] ?: 0) / 2f + spacing) {
+                                dragX -= (widths[next.packageName] ?: 0) + spacing
+                                preview = preview.moved(index, index + 1)
+                            } else if (previous != null && dragX < -((widths[previous.packageName] ?: 0) / 2f + spacing)) {
+                                dragX += (widths[previous.packageName] ?: 0) + spacing
+                                preview = preview.moved(index, index - 1)
+                            }
+                        }
+                    },
+            ) {
+                Text(if (app.openable) app.name else "${app.name}: нет приложения")
+            }
+        }
+        if (onAddApp != null) {
+            item(key = "add") {
+                TextButton(
+                    onClick = onAddApp,
+                    shape = RoundedCornerShape(10.dp),
+                    contentPadding = PaddingValues(0.dp),
+                    modifier = Modifier.size(MIN_TOUCH).semantics { contentDescription = "Добавить приложение" },
+                ) {
+                    Icon(painterResource(R.drawable.ic_add), contentDescription = null, modifier = Modifier.size(24.dp))
+                }
+            }
+        }
     }
 }
