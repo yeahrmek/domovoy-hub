@@ -80,6 +80,10 @@ fun PanelRooms(
     bulbs: BulbPanelState,
     launchers: List<LauncherTileState>,
     now: Instant,
+    /** Header shortcuts to the most used household apps. */
+    quickApps: List<LauncherTileState> = emptyList(),
+    onAddQuickApp: (() -> Unit)? = null,
+    onReorderQuickApps: (List<String>) -> Unit = {},
     /** The interval the Yandex groups are polled on, which is what makes their readings stale. */
     yandexInterval: Duration,
     /** Tuya LAN polling has its own active and idle intervals. */
@@ -218,6 +222,9 @@ fun PanelRooms(
                 onHome = { scope.launch { returnToHome(scroll, openSheet) } },
                 onRoom = { room -> roomIndices[room]?.let { index -> scope.launch { scroll.scrollToItem(index) } } },
                 onOpenApp = onOpenApp,
+                apps = quickApps,
+                onAddApp = onAddQuickApp,
+                onReorderApps = onReorderQuickApps,
                 onPanelAccess = onPanelAccess,
                 refreshingDevices = deviceRefresh.refreshing,
                 onRefreshDevices = onRefreshDevices,
@@ -239,7 +246,7 @@ fun PanelRooms(
             accessMessage?.let { message ->
                 Text(message, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(horizontal = 16.dp).semantics { liveRegion = LiveRegionMode.Polite })
             }
-            intercom?.let { launcherErrors[it.packageName] }?.let { reason ->
+            (listOfNotNull(intercom) + quickApps).firstNotNullOfOrNull { launcherErrors[it.packageName] }?.let { reason ->
                 Text(reason, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(horizontal = 16.dp).semantics { liveRegion = LiveRegionMode.Polite })
             }
             // Full-span rows preserve the hoisted scroll state.

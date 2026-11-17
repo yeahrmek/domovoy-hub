@@ -69,10 +69,15 @@ import ru.domovoy.panel.AdaptivePolling
 import ru.domovoy.panel.CardPreferencesStore
 import ru.domovoy.panel.MiHomeMessages
 import ru.domovoy.panel.PanelRooms
+import ru.domovoy.panel.QuickAppPicker
+import ru.domovoy.panel.QuickAppStore
 import ru.domovoy.panel.TuyaPoll
 import ru.domovoy.panel.YandexPoll
 import ru.domovoy.panel.closeOnCall
+import ru.domovoy.panel.installedApps
+import ru.domovoy.panel.installedLabel
 import ru.domovoy.panel.launcherTiles
+import ru.domovoy.panel.quickApps
 import ru.domovoy.panel.recuperatorRooms
 import ru.domovoy.panel.resetAfterIdle
 import ru.domovoy.panel.returnToHome
@@ -148,7 +153,8 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val authentication = PanelAuthentication(this)
-        kiosk = PanelKiosk(this, authentication::request, authentication::cancel)
+        val quickAppStore = QuickAppStore(getSharedPreferences("panel-apps", MODE_PRIVATE))
+        kiosk = PanelKiosk(this, authentication::request, authentication::cancel, userApps = { quickAppStore.packages.value })
         lifecycleScope.launch {
             domonapCalls.state.collect { call ->
                 if (call == CallState.Active) {
@@ -175,6 +181,7 @@ class MainActivity : ComponentActivity() {
                         secrets,
                         interactions,
                         foreground,
+                        quickAppStore,
                         onPanelAccess = {
                             appLaunchError = null
                             kiosk.refresh()
@@ -271,6 +278,7 @@ private fun Panel(
     secrets: PanelSecrets,
     touches: MutableSharedFlow<Unit>,
     foreground: StateFlow<Boolean>,
+    quickAppStore: QuickAppStore,
     onPanelAccess: () -> Unit,
     accessMessage: String?,
     openApp: (String, (String?) -> Unit) -> Unit,
@@ -381,6 +389,20 @@ private fun Panel(
         remember(now) {
             launcherTiles { packageName -> context.packageManager.getLaunchIntentForPackage(packageName) != null }
         }
+    val quickPackages by quickAppStore.packages.collectAsState()
+    val headerApps =
+        remember(now, quickPackages) {
+            quickApps(quickPackages) { packageName -> installedLabel(context, packageName) }
+        }
+    var pickingApps by remember { mutableStateOf(false) }
+    if (pickingApps) {
+        QuickAppPicker(
+            installed = remember { runCatching { installedApps(context) }.getOrDefault(emptyList()) },
+            shown = quickPackages,
+            onToggle = quickAppStore::toggle,
+            onDismiss = { pickingApps = false },
+        )
+    }
 
     LaunchedEffect(poll, foreground) {
         poll.polling.run(foreground, domonapCalls.state)
@@ -406,6 +428,9 @@ private fun Panel(
         bulbs = state,
         discovered = discoveredState,
         launchers = launchers,
+        quickApps = headerApps,
+        onAddQuickApp = { pickingApps = true },
+        onReorderQuickApps = quickAppStore::reorder,
         now = now,
         yandexInterval = yandexInterval,
         tuyaInterval = tuyaInterval,

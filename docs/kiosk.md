@@ -8,14 +8,26 @@ supports Android 8/API 26; older versions can open the allowed apps, but cannot 
 - **Защита** in the fixed header opens the allowed apps and protection controls. Enabling protection
   and leaving the panel both require a fresh screen-lock PIN/password confirmation; fingerprint
   authentication is not offered for these actions.
-- In kiosk mode, Home returns to the panel, Recents is unavailable, and other apps cannot launch.
+- In kiosk mode, Home returns to the panel, Recents switches only between already-open allowed apps
+  (`LOCK_TASK_FEATURE_OVERVIEW`), and other apps cannot launch.
+- The header row after Домофон holds the household's own app buttons, on every screen, so switching
+  is Home → button. A fresh panel shows Дом с Алисой, Gemini and ChatGPT. The row scrolls sideways;
+  **+** at its end lists installed apps with a launcher icon (manifest MAIN/LAUNCHER `<queries>`
+  intent, no `QUERY_ALL_PACKAGES`) and toggles them; a long press and drag reorders. The choice
+  is stored in the app's private `panel-apps` preferences. A missing app shows a disabled
+  "нет приложения" button.
+- **Every app in that row is allowed in protected mode, and adding one needs no PIN.** This is the
+  household's explicit choice (2026-11-17): anyone at the wall can widen the kiosk to any installed
+  app, including a browser or file manager. Removing an app from the row drops it from the
+  allowlist on the next return Home.
   The panel is the persistent Home app, so Android launches it after reboot and device unlock.
-- Domonap, Mi Home, ChatGPT, Gemini, Samsung Camera, Amnezia VPN Family and Samsung Gallery
+- Domonap, Mi Home, ChatGPT, Gemini, Samsung Camera, Amnezia VPN Family, Samsung Gallery and
+  Дом с Алисой (`com.yandex.iot`, from its Google Play listing; not yet checked on the tablet)
   are permanently allowed while protection is enabled. They open without authentication from
   **Защита**; returning Home, process restart and calls preserve the same package allowlist.
   Google is also allowed because Gemini runs inside its package on this tablet; this permits the
   entire Google app, not just the Gemini screen. Other applications remain blocked. Samsung
-  package names and the installed Family VPN variant were checked on the physical tablet; this list does not discover or allow arbitrary apps.
+  package names and the installed Family VPN variant were checked on the physical tablet; this fixed list is in addition to the apps the household adds to the header row.
 - Domonap is included in that permanent allowlist. Its notifications remain available
   without PIN, including entry through incoming/ongoing call notifications. This is a package-wide
   exception, not an activity-level security boundary.
